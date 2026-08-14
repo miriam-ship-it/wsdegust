@@ -205,10 +205,16 @@
   .componente-bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--primary); }
   .componente-value { font-size: 18px; font-weight: 700; color: var(--primary-dark); min-width: 70px; text-align: right; }
   .componente-tag { font-size: 10px; padding: 2px 6px; margin-left: 4px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
-  .tag-forte { background: var(--green); color: white; }
-  .tag-saudavel { background: var(--accent); color: var(--primary); }
-  .tag-atencao { background: var(--accent); color: white; }
-  .tag-critico { background: var(--red); color: white; }
+  /* Os QUATRO patamares precisam de quatro cores distintas — na primeira
+     passada da marca, "saudável" e "em desenvolvimento" cairam ambos em
+     var(--accent) e viraram a mesma tarja. A escala vai de verde (bom) a
+     terracota (crítico), com o taupe da marca no meio como "ainda apagado".
+     A cor do texto de cada uma foi medida: tarja é 10px em caixa alta, e
+     abaixo de 4.5:1 vira decoração ilegível. */
+  .tag-forte { background: var(--green); color: white; }          /* 4.8:1 */
+  .tag-saudavel { background: #8A6D34; color: white; }            /* 4.9:1 — gold um passo abaixo */
+  .tag-atencao { background: var(--royal); color: var(--text); }  /* 5.7:1 — taupe */
+  .tag-critico { background: var(--red); color: white; }          /* 5.5:1 */
 
   /* Competências priorizadas */
   .comp-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--border); }
@@ -530,7 +536,7 @@ window.__createSupabaseClient = createClient;
   <div class="card">
     <h2><span class="icon">⇄</span> Régua de Posicionamento</h2>
     <p class="card-sub">Onde sua capacidade de liderança está sendo gasta hoje versus onde deveria estar, considerando seu nível hierárquico.</p>
-    <div class="conceito-block">Toda função carrega uma <strong>assinatura esperada</strong> de distribuição de tempo entre três planos: Operacional (execução do dia), Tático (coordenação trimestral) e Estratégico (visão de 6+ meses). Um Diretor com 60% do tempo no Operacional não está sendo dedicado — está sendo <em>arrastado</em> pelo curto prazo, e a empresa paga o custo dessa centralização em gargalo de decisão e atraso estrutural. A Régua mostra onde sua capacidade está concentrada hoje versus onde, dado seu nível, ela deveria estar.<div class="conceito-mini">Como ler: ponto preto = posição atual; ponto dourado = posição esperada para seu nível hierárquico. A distância entre os dois é o <em>gap de posicionamento</em> — quanto maior, maior a indicação de trabalho estrutural a fazer (delegação, processos, sucessão).</div></div>
+    <div class="conceito-block">Toda função carrega uma <strong>assinatura esperada</strong> de distribuição de tempo entre três planos: Operacional (execução do dia), Tático (coordenação trimestral) e Estratégico (visão de 6+ meses). Um Diretor com 60% do tempo no Operacional não está sendo dedicado — está sendo <em>arrastado</em> pelo curto prazo, e a empresa paga o custo dessa centralização em gargalo de decisão e atraso estrutural. A Régua mostra onde sua capacidade está concentrada hoje versus onde, dado seu nível, ela deveria estar.<div class="conceito-mini">Como ler: ponto verde = posição atual; ponto dourado = posição esperada para seu nível hierárquico. A distância entre os dois é o <em>gap de posicionamento</em> — quanto maior, maior a indicação de trabalho estrutural a fazer (delegação, processos, sucessão).</div></div>
     <div class="regua-container">
       <div class="regua-zones"><span>Operacional</span><span>Tático</span><span>Estratégico</span></div>
       <div class="regua-track">
@@ -546,7 +552,7 @@ window.__createSupabaseClient = createClient;
   <div class="card">
     <h2><span class="icon">◈</span> Componentes do Alinhamento</h2>
     <p class="card-sub">Decomposição em 4 dimensões críticas — cultural, estratégica, comportamental e performance.</p>
-    <div class="conceito-block">Estar "alinhado" <strong>não é uma coisa só</strong> — são quatro vetores distintos que podem se reforçar ou cancelar. Alguém pode ter alto alinhamento cultural (compra o jeito de fazer da empresa) e baixo alinhamento estratégico (não entende para onde ela vai). Outra pessoa pode performar bem (entrega) com baixo engajamento (entrega sem fé). A decomposição em 4 dimensões revela <strong>o tipo de desalinhamento</strong> — e cada tipo demanda intervenção diferente.<div class="conceito-mini">Como ler: cores indicam patamar — Forte (verde), Saudável (dourado), Em desenvolvimento (laranja), Crítico (vermelho). Atente ao padrão, não à barra isolada — dois "Fortes" + dois "Em desenvolvimento" geralmente indica problema mais profundo do que quatro "Saudáveis".</div></div>
+    <div class="conceito-block">Estar "alinhado" <strong>não é uma coisa só</strong> — são quatro vetores distintos que podem se reforçar ou cancelar. Alguém pode ter alto alinhamento cultural (compra o jeito de fazer da empresa) e baixo alinhamento estratégico (não entende para onde ela vai). Outra pessoa pode performar bem (entrega) com baixo engajamento (entrega sem fé). A decomposição em 4 dimensões revela <strong>o tipo de desalinhamento</strong> — e cada tipo demanda intervenção diferente.<div class="conceito-mini">Como ler: cores indicam patamar — Forte (verde), Saudável (dourado), Em desenvolvimento (taupe), Crítico (terracota). Atente ao padrão, não à barra isolada — dois "Fortes" + dois "Em desenvolvimento" geralmente indica problema mais profundo do que quatro "Saudáveis".</div></div>
     <div id="r-componentes"></div>
     <div class="subsidios-block"><strong>Subsídio para conversa</strong>O combo <em>cultural alto + estratégico baixo</em> é o mais comum em scale-ups: pessoas amam a empresa mas não entendem para onde ela vai. <em>Engajamento baixo + performance alta</em> indica entregadores céticos — risco de saída silenciosa.</div>
   </div>
