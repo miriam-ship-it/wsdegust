@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin · Diagnóstico IBMEC</title>
-<link href="https://fonts.googleapis.com/css2?family=Krub:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Admin · Diagnóstico Boomit</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --navy: #002555;
-    --navy-dark: #001D44;
-    --yellow: #F5AC00;
-    --royal: #1245FF;
-    --bg: #F4F5F8;
-    --soft: #EEF1F8;
-    --border: #E2E6EF;
-    --text: #2A3754;
-    --muted: #6C7A92;
-    --green: #10A981;
-    --red: #D14343;
+    /* BOOMIT — mesmos tokens do index.html. Os NOMES seguem os antigos
+       (--navy, --yellow) porque o resto do painel os chama assim; o que
+       mudou foi só o valor por trás de cada um. */
+    --navy: #545E54;        /* verde assinatura */
+    --navy-dark: #485048;
+    --yellow: #9A7B3C;      /* gold — acento restrito */
+    --royal: #9D9482;       /* taupe */
+    --bg: #EDE9E4;
+    --soft: #E5E0D8;
+    --border: #DAD4CB;
+    --text: #1B1B1C;
+    --muted: #6E746A;
+    --green: #5C7A5C;
+    --red: #A0543E;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Krub', Tahoma, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+  body { font-family: 'PP Mori', 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
   .header {
     background: var(--navy); color: white; padding: 14px 32px;
     display: flex; justify-content: space-between; align-items: center;
@@ -50,7 +53,7 @@
   .btn-secondary { background: white; color: var(--navy); border: 1px solid var(--navy); }
   .btn-secondary:hover { background: var(--soft); color: var(--navy); }
   .btn-small { padding: 6px 12px; font-size: 11px; width: auto; }
-  .alert-error { background: #fceaea; color: var(--red); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border-left: 3px solid var(--red); }
+  .alert-error { background: #F0E2DC; color: var(--red); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border-left: 3px solid var(--red); }
 
   /* Stats */
   .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
@@ -74,8 +77,8 @@
   td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
   tr:hover td { background: var(--soft); }
   .badge { display: inline-block; padding: 2px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
-  .badge-quente { background: #fceaea; color: var(--red); }
-  .badge-morno { background: #fff4d6; color: #a8780f; }
+  .badge-quente { background: #F0E2DC; color: #7E3F2C; }
+  .badge-morno { background: #F0E9DC; color: #6F5525; }
   .badge-frio { background: var(--soft); color: var(--muted); }
   .badge-grade { background: var(--navy); color: white; min-width: 32px; text-align: center; }
 
@@ -125,7 +128,7 @@ window.__createSupabaseClient = createClient;
 <!-- ============ LOGIN ============ -->
 <div id="view-login" class="login-wrap view">
   <div class="card">
-    <h1>Admin · Diagnóstico IBMEC</h1>
+    <h1>Admin · Diagnóstico Boomit</h1>
     <div class="sub">Acesso restrito · faça login com sua conta Supabase</div>
     <div id="login-error" class="alert-error hidden"></div>
     <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="miriam@boomit.com.br"></div>
@@ -139,7 +142,7 @@ window.__createSupabaseClient = createClient;
   <div class="header">
     <div>
       <div class="eyebrow">Admin</div>
-      <h1>Diagnóstico IBMEC · Junho 2026</h1>
+      <h1>Diagnóstico Boomit · Junho 2026</h1>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
       <span id="user-email" style="font-size: 12px; opacity: 0.7;"></span>

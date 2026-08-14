@@ -3,38 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Diagnóstico Estratégico de Liderança · IBMEC</title>
-<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAABACAIAAACRARCGAAADhUlEQVR42u2Xz2tcVRTHv99z32Rmnk2s0pRiiIkJdtAiWGgXgtqFoO5sBWuomo24cF+oW9eCuLDLgnZhoP+A9R9woyCCUixNSCXFQrtJ5sd7896957h4mcm8yUxM7aowh1nNu/fzzj0/7vk+mhlGmMEMKB4RJECMsWj0ZgpY3mM6DhQN7weN1LypO7c13YKaxHMy05DKDHsLDkAoIKrd7p1r+eaaNjehCQxwNZleqCyuTC1/5lwNpqAMItiLhQEM6YP2L5/r1k26GG4KEBAwRcg0JNHc2/WzV6P6iSFfCoTBoCFp/7zqt36U2jHAYNpfAxIQSx+6+Xfj1753Ubz7PwBAAMBMye76NX/vptRmYWFgP3Zx5lk75rd+yta/MxADeRTAQLF8x2+u0cWAYqwpXS2/u6Z5E5ReyiEFT3duhdZduEr5/UPpUrqqNTd051bh+4AXgCX3EVLC4WCjWOhq8k8vA/1YACDHl98+TjmpUgSW8Ryjp2ABB5NU6WLG8+WMkIDJdINHlqHd4bounwKa8umTnG7sOr7nhalERyrLq6bd8V4QoGm3srTqovqgv1LgaVZbvBQtfKDpA8CBboBFUEDR5GG08H5tcYVFH5Z7hIBRqvGZbzri/OYNwsHVQFfk0nxq5itLH8ZnvqZUYSMKfK9N1TT7+0a+8YNu/6nZNgFUZuToS1MvXKourJBuf7OyfOUYQAPMVFsblt4HgOpxN71MunHNPoRAUIUp6SADS9XMwm7j9suBJDkC8T+sdGu1Oslvf6wH1f8oVSJ4ffnk8ydmnzHreaFqIvxrfev19650Wolz7gDvRNhK0utXL390/lwIGpWLnxWRSMSJDCEMcCLF4UXofZBedUb77u+9X5mOZjvJvSdAEe10siwfNwRGtiYz7y9eeONUYz73XoTdzL96aql4dDgE4IN+cvGtd948PeSyyOEQBaXdSUPQoOpEiogUoYkOn38ROicgCsTglfO4NkFMEBPEBDFBTBBPPuIRZqqqBVVVZTHT+ehjuV6fciJDM/mwiOKdv/5+J67XulnmRHwIrzQWnzv+rJmV5NrtjXvnzn/RHiPXgllflrQ6yfVvL398YZ9cAyAibpxc638QCEMUORl1EFXdbrXbzcRFo0Uje1ol76RZHkqIIrazs0e/+vLTPPPiBON1J8ksD2dPv7grlx5HQJvZCMUXVHE4Zl+u/Quog7alKsCN/AAAAABJRU5ErkJggg==">
+<title>Diagnóstico Estratégico de Liderança · Boomit</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%23545E54"/><circle cx="32" cy="17" r="5" fill="%23EDE9E4"/><rect x="27" y="27" width="10" height="22" rx="5" fill="%23EDE9E4"/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Krub:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- A fonte da marca é a PP Mori, que não é webfont pública. O produto Boomit
+     que está no ar resolve isso com Inter + fallback do sistema — mesma
+     escolha aqui, para não inventar uma terceira tipografia. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    /* IBMEC — paleta oficial (Pantone 655/1235/2387) */
-    --ibmec-navy:   #002555;
-    --ibmec-yellow: #F5AC00;
-    --ibmec-royal:  #1245FF;
+    /* BOOMIT — paleta da marca (guia BerrielBrands 2023).
+       Valores copiados de 3-produto/regras/design/boomit-design-tokens.json
+       no repo do redesenho — mesma fonte de verdade do produto, não
+       amostrados de tela. */
+    --boomit-assinatura: #545E54;  /* a única cor própria da marca */
+    --boomit-preto:      #1B1B1C;  /* Pantone 419C */
+    --boomit-creme:      #EDE9E4;  /* Apoio 03 */
+    --boomit-taupe:      #9D9482;  /* Apoio 04 */
 
-    /* Semantic tokens — herdam da paleta IBMEC */
-    --primary:      #002555;       /* azul-marinho institucional */
-    --primary-dark: #001D44;       /* navy levemente mais escuro p/ hover */
-    --accent:       #F5AC00;       /* amarelo IBMEC */
-    --accent-light: #FFD166;       /* amarelo claro */
-    --bg:           #F4F5F8;       /* fundo claro frio */
-    --card:         #FFFFFF;
-    --text:         #2A3754;       /* texto sobre branco — navy levemente claro p/ leitura */
-    --muted:        #6C7A92;       /* cinza-azulado */
-    --border:       #E2E6EF;
-    --soft:         #EEF1F8;       /* fundo de blocos */
-    --green:        #10A981;       /* semântica: forte/positivo */
-    --yellow:       #F5AC00;       /* semântica: saudável/destaque (= accent) */
-    --red:          #D14343;       /* semântica: crítico/negativo */
-    --neg:          #D14343;
-    --royal:        #1245FF;       /* hover, blocos secundários */
+    /* Semantic tokens — herdam da paleta Boomit.
+       🔑 Os NOMES não mudaram: o resto do arquivo continua pedindo --primary,
+       --accent, --soft. Trocar a marca é trocar este bloco, não o CSS todo. */
+    --primary:      #545E54;       /* verde assinatura — era o navy IBMEC */
+    --primary-dark: #485048;       /* verde escuro p/ hover */
+    --accent:       #9A7B3C;       /* gold: foco/atenção. No guia é acento
+                                      RESTRITO — usar pouco, e nunca como
+                                      cor de fundo grande */
+    --accent-light: #C9A24E;       /* gold claro */
+    --bg:           #EDE9E4;       /* creme — era o cinza frio */
+    --card:         #FBFAF8;
+    --text:         #1B1B1C;       /* preto Boomit */
+    --muted:        #6E746A;       /* cinza quente */
+    --border:       #DAD4CB;
+    --soft:         #E5E0D8;       /* fundo de blocos */
+    --green:        #5C7A5C;       /* semântica: forte/positivo */
+    --yellow:       #9A7B3C;       /* semântica: atenção/destaque (= accent) */
+    --red:          #A0543E;       /* semântica: lacuna/crítico */
+    --neg:          #A0543E;
+    --royal:        #9D9482;       /* taupe: hover, blocos secundários */
+
+    /* Passos mais escuros dos tokens acima, SÓ para rótulo pequeno em caixa
+       alta sobre fundo tingido. Não são cores novas da marca: são o mesmo
+       matiz descido até passar 4.5:1 de contraste. Com o token puro esses
+       rótulos ficavam em 3.3–4.3 — legível para título, não para 10px. */
+    --red-forte:    #7E3F2C;       /* sobre #F0E2DC → 6.3:1 */
+    --gold-forte:   #6F5525;       /* sobre #F0E9DC → 5.8:1 */
+    --green-forte:  #3F573F;       /* sobre #E4EBE4 → 6.5:1 */
   }
   body {
-    font-family: 'Krub', Tahoma, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'PP Mori', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg);
     color: var(--text);
     line-height: 1.55;
@@ -102,7 +121,7 @@
     text-transform: uppercase; letter-spacing: 1px;
   }
   .btn:hover:not(:disabled) { background: var(--royal); }
-  .btn:disabled { background: #b8b8b0; cursor: not-allowed; }
+  .btn:disabled { background: #C4BFB6; cursor: not-allowed; }
   .btn-secondary { background: white; color: var(--primary-dark); border: 1px solid var(--primary-dark); }
   .btn-secondary:hover:not(:disabled) { background: var(--soft); }
 
@@ -165,7 +184,8 @@
   /* Régua de Posicionamento */
   .regua-container { background: var(--soft); padding: 24px 20px; margin: 12px 0; position: relative; }
   .regua-track {
-    background: linear-gradient(to right, #FFF4D6, #F5AC00, #002555);
+    /* a régua sobe pela HIERARQUIA da marca: operacional → tático → estratégico */
+    background: linear-gradient(to right, #E5E0D8, #A7A091, #545E54, #1B1B1C);
     height: 32px; position: relative; border: 1px solid var(--border);
   }
   .regua-label { position: absolute; font-size: 12px; font-weight: 600; }
@@ -187,7 +207,7 @@
   .componente-tag { font-size: 10px; padding: 2px 6px; margin-left: 4px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
   .tag-forte { background: var(--green); color: white; }
   .tag-saudavel { background: var(--accent); color: var(--primary); }
-  .tag-atencao { background: #E89B1F; color: white; }
+  .tag-atencao { background: var(--accent); color: white; }
   .tag-critico { background: var(--red); color: white; }
 
   /* Competências priorizadas */
@@ -213,16 +233,16 @@
   .risco-circle.moderado { border-color: var(--accent); }
   .risco-circle.baixo { border-color: var(--green); }
   .risco-level { font-size: 13px; padding: 3px 10px; display: inline-block; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
-  .risco-level.alto { background: #f4e0e0; color: var(--red); }
-  .risco-level.moderado { background: #f0e6d8; color: var(--accent); }
-  .risco-level.baixo { background: #e0eee2; color: var(--green); }
+  .risco-level.alto { background: #F0E2DC; color: var(--red-forte); }
+  .risco-level.moderado { background: #F0E9DC; color: var(--gold-forte); }
+  .risco-level.baixo { background: #E4EBE4; color: var(--green-forte); }
 
   /* PPL */
   .ppl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .ppl-box { background: var(--soft); padding: 14px; }
   .ppl-box-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
   .ppl-box-value { font-size: 18px; font-weight: 700; color: var(--primary-dark); margin-top: 2px; }
-  .ppl-perda { background: #f4e0e0; padding: 18px; margin: 16px 0; border-left: 4px solid var(--red); }
+  .ppl-perda { background: #F0E2DC; padding: 18px; margin: 16px 0; border-left: 4px solid var(--red); }
   .ppl-perda-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
   .ppl-perda-value { font-size: 24px; font-weight: 800; color: var(--red); margin: 6px 0; }
   .ppl-perda-decomp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
@@ -362,7 +382,7 @@ window.__createSupabaseClient = createClient;
 <body>
 
 <div class="header no-print">
-  <div class="logo"><img src="logo-ibmec.png" alt="IBMEC" height="32" style="height:32px;width:auto;display:block;"></div>
+  <div class="logo"><img src="logo-boomit.png" alt="Boomit" height="28" style="height:28px;width:auto;display:block;"></div>
   <div id="progress-text" style="font-size: 12px; color: var(--accent); letter-spacing: 1px;"></div>
 </div>
 <div id="progress-bar-wrap" class="hidden"><div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div></div>
@@ -370,7 +390,7 @@ window.__createSupabaseClient = createClient;
 <!-- ============ LANDING ============ -->
 <div class="container view" id="view-landing">
   <div class="card" style="padding: 48px 32px;">
-    <div style="font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; margin-bottom: 12px;">Diagnóstico Estratégico IBMEC</div>
+    <div style="font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; margin-bottom: 12px;">Diagnóstico Estratégico Boomit</div>
     <h1>Maturidade de Liderança e Gestão</h1>
     <p class="muted" style="margin-top: 12px; font-size: 16px;">Diagnóstico executivo com Indicador de Maturidade, Régua de Posicionamento, CDL e Plano de Ação personalizado.</p>
     <div style="margin: 32px 0; padding: 20px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
@@ -475,7 +495,7 @@ window.__createSupabaseClient = createClient;
     </div>
   </div>
 
-  <div class="badge-confidencial">Documento confidencial · uso exclusivo do respondente · metodologia IBMEC</div>
+  <div class="badge-confidencial">Documento confidencial · uso exclusivo do respondente · metodologia Boomit</div>
 
   <!-- 1. Indicador de Maturidade -->
   <div class="card">
@@ -568,8 +588,8 @@ window.__createSupabaseClient = createClient;
   <!-- 7. CDL Impactos -->
   <div class="card">
     <h2><span class="icon">%</span> CDL · Custo da Disfuncionalidade da Liderança</h2>
-    <p class="card-sub">Estimativa financeira anual do impacto das disfunções identificadas — metodologia proprietária IBMEC.</p>
-    <div class="conceito-block">O <strong>CDL — Custo da Disfuncionalidade da Liderança</strong> — é uma métrica financeira proprietária IBMEC que estima, em R$ anuais, o impacto econômico das disfunções de liderança identificadas neste diagnóstico. Diferente de KPIs operacionais, o CDL captura o que normalmente fica <em>invisível no PnL</em>: retrabalho por decisão atrasada, oportunidade perdida por desalinhamento estratégico, custo de churn de talento por feedback inexistente, gargalo de execução por liderança centralizadora. A metodologia pondera porte da empresa, nível de decisão do respondente avaliado e magnitude dos gaps observados nas 5 dimensões.<div class="conceito-mini">Como ler: faixa min-max anual — não é número exato (nenhuma metodologia honesta dá número exato sobre custo invisível). Decomposição em três níveis mostra onde o dinheiro está vazando: Estratégico (decisão de visão e investimento) · Tático (coordenação e alocação) · Operacional (execução do dia).</div></div>
+    <p class="card-sub">Estimativa financeira anual do impacto das disfunções identificadas — metodologia proprietária Boomit.</p>
+    <div class="conceito-block">O <strong>CDL — Custo da Disfuncionalidade da Liderança</strong> — é uma métrica financeira proprietária Boomit que estima, em R$ anuais, o impacto econômico das disfunções de liderança identificadas neste diagnóstico. Diferente de KPIs operacionais, o CDL captura o que normalmente fica <em>invisível no PnL</em>: retrabalho por decisão atrasada, oportunidade perdida por desalinhamento estratégico, custo de churn de talento por feedback inexistente, gargalo de execução por liderança centralizadora. A metodologia pondera porte da empresa, nível de decisão do respondente avaliado e magnitude dos gaps observados nas 5 dimensões.<div class="conceito-mini">Como ler: faixa min-max anual — não é número exato (nenhuma metodologia honesta dá número exato sobre custo invisível). Decomposição em três níveis mostra onde o dinheiro está vazando: Estratégico (decisão de visão e investimento) · Tático (coordenação e alocação) · Operacional (execução do dia).</div></div>
     <div class="ppl-grid">
       <div class="ppl-box"><div class="ppl-box-label">Porte</div><div class="ppl-box-value" id="r-ppl-porte">—</div></div>
       <div class="ppl-box"><div class="ppl-box-label">Nível de Decisão</div><div class="ppl-box-value" id="r-ppl-nivel">—</div></div>
@@ -622,7 +642,7 @@ window.__createSupabaseClient = createClient;
     <h2><span class="icon">≡</span> Glossário</h2>
     <p class="card-sub">O que cada indicador deste relatório revela.</p>
     <div class="gloss-item"><span class="gloss-term">Indicador de Maturidade</span> · <span class="gloss-def">Estágio em que a liderança joga. Calibra a régua de cobrança — não dá pra exigir entregas de nível 4 em empresa nível 2.</span></div>
-    <div class="gloss-item"><span class="gloss-term">CDL · Custo da Disfuncionalidade da Liderança</span> · <span class="gloss-def">Métrica financeira proprietária IBMEC que estima, em R$ anuais, o impacto econômico das disfunções de liderança — retrabalho por decisão atrasada, oportunidade perdida por desalinhamento, custo de churn por feedback inexistente, gargalo de execução por centralização. Faixa estimativa sobre porte × nível de decisão × magnitude dos gaps.</span></div>
+    <div class="gloss-item"><span class="gloss-term">CDL · Custo da Disfuncionalidade da Liderança</span> · <span class="gloss-def">Métrica financeira proprietária Boomit que estima, em R$ anuais, o impacto econômico das disfunções de liderança — retrabalho por decisão atrasada, oportunidade perdida por desalinhamento, custo de churn por feedback inexistente, gargalo de execução por centralização. Faixa estimativa sobre porte × nível de decisão × magnitude dos gaps.</span></div>
     <div class="gloss-item"><span class="gloss-term">Risco Estratégico</span> · <span class="gloss-def">Probabilidade do plano estratégico não acontecer com o time atual. Acima de 60%, ajustar execução ou pessoas vira prioridade do trimestre.</span></div>
     <div class="gloss-item"><span class="gloss-term">Régua de Posicionamento</span> · <span class="gloss-def">Onde sua capacidade está sendo gasta (Operacional / Tático / Estratégico). C-level com &gt;50% em Operacional = ninguém pensando o futuro.</span></div>
     <div class="gloss-item"><span class="gloss-term">Componentes do Alinhamento</span> · <span class="gloss-def">Quatro dimensões que medem aderência da pessoa ao contexto: cultural, estratégico, comportamental, performance.</span></div>
@@ -633,7 +653,7 @@ window.__createSupabaseClient = createClient;
     <strong>Catálogo de benchmark · v1.1 ·</strong> Os benchmarks usados neste relatório vêm de fontes públicas: Gallup State of the Global Workplace 2026, GPTW Brasil 2025, Deloitte Human Capital Trends 2026, McKinsey OHI, WEF Future of Jobs 2025, Korn Ferry CEO Survey 2025, PwC CEO Survey 2026, LinkedIn Workplace Learning 2025, ENAP LideraGOV, Anahp Observatório 2025, Sebrae Maturidade Digital, Febraban, Abrasce, CNI, FIA, Instituto Semesp.
   </div>
 
-  <div class="report-footer">Confidencial · Metodologia IBMEC · Gerado em <span id="r-data-rodape"></span></div>
+  <div class="report-footer">Confidencial · Metodologia Boomit · Gerado em <span id="r-data-rodape"></span></div>
 
   <div class="actions-bar no-print">
     <button class="btn btn-secondary" onclick="window.print()">Baixar PDF</button>
@@ -812,7 +832,7 @@ window.app = (function() {
       .single();
     if (error || !data) {
       console.error('Evento não encontrado:', error);
-      throw new Error('Evento IBMEC não encontrado no banco');
+      throw new Error('Evento não encontrado no banco');
     }
     _eventoId = data.id;
     return _eventoId;
@@ -1257,10 +1277,10 @@ function renderRadar(scores) {
   function pt(idx, value) { const r = (value/5) * rMax; return [cx + r*Math.cos(angles[idx]), cy + r*Math.sin(angles[idx])]; }
   function polygon(getValue, color, opacity) { const pts = dims.map((d,i) => pt(i, getValue(d)).join(',')).join(' '); return '<polygon points="' + pts + '" fill="' + color + '" fill-opacity="' + opacity + '" stroke="' + color + '" stroke-width="2"/>'; }
   let grid = '';
-  [1,2,3,4,5].forEach(v => { const pts = dims.map((_,i) => pt(i, v).join(',')).join(' '); grid += '<polygon points="' + pts + '" fill="none" stroke="#E2E6EF" stroke-width="1"/>'; });
-  let axes = ''; dims.forEach((_,i) => { const [x,y] = pt(i, 5); axes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x + '" y2="' + y + '" stroke="#E2E6EF" stroke-width="1"/>'; });
-  let textLabels = ''; dims.forEach((d,i) => { const [x,y] = pt(i, 6); const anchor = Math.cos(angles[i]) > 0.1 ? 'start' : Math.cos(angles[i]) < -0.1 ? 'end' : 'middle'; textLabels += '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" font-size="12" font-weight="700" fill="#002555">' + labels[i] + '</text>'; });
-  return '<svg viewBox="0 0 440 440" width="100%" height="380" style="max-width:440px;">' + grid + axes + polygon(d => scores[d].empresa, '#F5AC00', 0.4) + polygon(d => scores[d].pessoa, '#002555', 0.5) + textLabels + '</svg>';
+  [1,2,3,4,5].forEach(v => { const pts = dims.map((_,i) => pt(i, v).join(',')).join(' '); grid += '<polygon points="' + pts + '" fill="none" stroke="#DAD4CB" stroke-width="1"/>'; });
+  let axes = ''; dims.forEach((_,i) => { const [x,y] = pt(i, 5); axes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x + '" y2="' + y + '" stroke="#DAD4CB" stroke-width="1"/>'; });
+  let textLabels = ''; dims.forEach((d,i) => { const [x,y] = pt(i, 6); const anchor = Math.cos(angles[i]) > 0.1 ? 'start' : Math.cos(angles[i]) < -0.1 ? 'end' : 'middle'; textLabels += '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" font-size="12" font-weight="700" fill="#1B1B1C">' + labels[i] + '</text>'; });
+  return '<svg viewBox="0 0 440 440" width="100%" height="380" style="max-width:440px;">' + grid + axes + polygon(d => scores[d].empresa, '#9A7B3C', 0.4) + polygon(d => scores[d].pessoa, '#545E54', 0.5) + textLabels + '</svg>';
 }
 
 function reiniciar() {
