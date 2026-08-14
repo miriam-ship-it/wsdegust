@@ -1,0 +1,4 @@
+# Só o front é publicado — nunca o repositório inteiro.
+# `docs/`, `supabase/` e `scripts/` ficam no repo e fora do ar.
+[build]
+  publish = "frontend"
