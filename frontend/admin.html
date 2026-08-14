@@ -140,6 +140,24 @@ window.__createSupabaseClient = createClient;
   </div>
 </div>
 
+<!-- ============ DEFINIR SENHA (convite / recuperação) ============
+     🔑 Faltava esta tela. O convite do Supabase leva a pessoa para cá com um
+        token na URL: ela chega LOGADA, mas sem senha nenhuma definida — e na
+        próxima visita não consegue entrar, porque a única porta era
+        e-mail+senha. Aqui ela escolhe a própria senha, e quem convidou nunca
+        toma conhecimento dela.
+     ============================================================ -->
+<div id="view-senha" class="login-wrap view hidden">
+  <div class="card">
+    <h1>Defina sua senha</h1>
+    <div class="sub">Bem-vinda ao painel · <span id="senha-email" style="font-weight:600"></span></div>
+    <div id="senha-error" class="alert-error hidden"></div>
+    <div class="form-group"><label>Nova senha</label><input type="password" id="senha-1" placeholder="mínimo 8 caracteres"></div>
+    <div class="form-group"><label>Repita a senha</label><input type="password" id="senha-2"></div>
+    <button class="btn" id="btn-senha" onclick="definirSenha()">Salvar e entrar</button>
+  </div>
+</div>
+
 <!-- ============ DASHBOARD ============ -->
 <div id="view-dashboard" class="view hidden">
   <div class="header">
@@ -261,7 +279,7 @@ async function getClient() {
   _client = window.__createSupabaseClient(
     window.APP_CONFIG.SUPABASE_URL,
     window.APP_CONFIG.SUPABASE_ANON_KEY,
-    { auth: { persistSession: true, storageKey: 'ibmec-admin-session' } }
+    { auth: { persistSession: true, storageKey: 'boomit-admin-session' } }
   );
   return _client;
 }
@@ -304,18 +322,62 @@ async function logout() {
   showView('login');
 }
 
+/**
+ * Quem chega pelo link do convite (ou do "esqueci a senha") traz o token no
+ * FRAGMENTO da URL — `#access_token=...&type=invite`. O supabase-js já troca
+ * isso por uma sessão sozinho; o que faltava era perceber o `type` e mandar a
+ * pessoa definir uma senha, em vez de jogá-la direto no painel com uma conta
+ * sem senha, que não abre na visita seguinte.
+ */
+function tipoDoLinkDeEmail() {
+  const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+  const q = new URLSearchParams(location.search);
+  const tipo = h.get('type') || q.get('type');
+  return (tipo === 'invite' || tipo === 'recovery') ? tipo : null;
+}
+
 async function checkSession() {
   try {
     const sb = await getClient();
     const { data } = await sb.auth.getSession();
     if (data?.session?.user) {
       _user = data.session.user;
+      if (tipoDoLinkDeEmail()) {
+        document.getElementById('senha-email').textContent = _user.email;
+        showView('senha');
+        return;
+      }
       onLoginSuccess();
     } else {
       showView('login');
     }
   } catch (err) {
     showView('login');
+  }
+}
+
+async function definirSenha() {
+  const err = document.getElementById('senha-error');
+  const s1 = document.getElementById('senha-1').value;
+  const s2 = document.getElementById('senha-2').value;
+  err.classList.add('hidden');
+  const mostrarErro = (m) => { err.textContent = m; err.classList.remove('hidden'); };
+  if (s1.length < 8) return mostrarErro('A senha precisa de pelo menos 8 caracteres.');
+  if (s1 !== s2)     return mostrarErro('As duas senhas não são iguais.');
+
+  const btn = document.getElementById('btn-senha');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  try {
+    const sb = await getClient();
+    const { error } = await sb.auth.updateUser({ password: s1 });
+    if (error) throw error;
+    // tira o token da barra de endereço — ele não precisa mais existir ali
+    history.replaceState(null, '', location.pathname);
+    onLoginSuccess();
+  } catch (e) {
+    mostrarErro('Não deu para salvar: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar e entrar';
   }
 }
 
