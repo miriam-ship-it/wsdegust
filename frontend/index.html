@@ -682,20 +682,27 @@ window.__createSupabaseClient = createClient;
      2. Cole URL e anon key abaixo
      3. EVENTO_SLUG vem do seed (não trocar a menos que renomeie no DB)
 
-     🔒 ESTA É A CÓPIA PARALELA — O LABORATÓRIO DE LAYOUT.
-        Enquanto o banco próprio deste projeto não existe, as credenciais ficam
-        no PLACEHOLDER de propósito. Não é descuido: com 'SEU-PROJETO' na URL o
-        `isConfigured()` devolve falso, e o próprio código já pula gravar
-        resposta e chamar a `gate-and-send` — nada cai na tabela do projeto
-        original e nenhum e-mail com PDF sai para ninguém. A tela roda inteira
-        assim mesmo, porque as perguntas são inline neste arquivo.
-        👉 Ao criar o banco próprio: cole aqui a URL e a anon key NOVAS.
+     🔑 MESMO BANCO DO IBMEC, EVENTO PRÓPRIO (decisão da Miriam, 14/08).
+        A separação não é por tabela — é pela linha em `eventos`. Todo
+        respondente carrega `evento_id` (respondentes.evento_id, com cascade),
+        e o front só enxerga o evento pelo EVENTO_SLUG abaixo. Trocar o slug
+        é trocar de universo: os dados da Boomit nascem separados dos 71
+        respondentes do IBMEC, e apagar o evento leva junto respostas e
+        relatórios.
+        Evento: 'boomit-degustacao' · id 27c11e23-7336-4e5e-9514-9a84e7d17e75
+
+     ⚠️ A SEPARAÇÃO É DE ORGANIZAÇÃO, NÃO DE ACESSO. As policies de `anon`
+        em respondentes/respostas/relatorios são `using (true)` — sem filtro
+        por evento. Quem tem esta chave (que é pública, e este repo também)
+        lê os respondentes dos DOIS eventos, e-mail incluído. Enquanto isso
+        não for apertado, não coloque neste formulário dado que você não
+        possa perder.
      ============================================ -->
 <script>
 window.APP_CONFIG = {
-  SUPABASE_URL: 'https://SEU-PROJETO.supabase.co',
-  SUPABASE_ANON_KEY: 'SUA-ANON-KEY',
-  EVENTO_SLUG: 'ibmec-junho-2026',
+  SUPABASE_URL: 'https://klnpnjumogojspubyabi.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsbnBuanVtb2dvanNwdWJ5YWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODI1NjcsImV4cCI6MjA5NjE1ODU2N30.D3L-wybr8jf0Esi3HcJC2kMrmqrBgKfQ3KIo8dV0DUI',
+  EVENTO_SLUG: 'boomit-degustacao',
   EDGE_GATE_FUNCTION: 'gate-and-send'
 };
 </script>
@@ -820,8 +827,26 @@ const state = { identificacao: {}, perguntasOrdem: [], respostas: {}, idxAtual: 
 window.app = (function() {
   let _client = null;
   let _eventoId = null;
-  const LS_KEY = 'ibmec-assessment-session';
+  let _token = null;              // token da sessão desta pessoa
+  const LS_KEY = 'boomit-degustacao-session';
 
+  /**
+   * O cliente do Supabase, carimbado com o token da sessão.
+   *
+   * 🔑 POR QUE O TOKEN VIAJA NO CABEÇALHO (14/08)
+   *    As policies de `anon` eram `using (true)`: qualquer um com a chave
+   *    pública lia — e alterava — TODOS os respondentes, e-mail incluído. A
+   *    correção põe o token no cabeçalho `x-sessao`, e a policy só devolve a
+   *    linha cujo token_sessao bate. Sem cabeçalho, zero linha.
+   *
+   * 🔑 E POR QUE O TOKEN NASCE AQUI, no cliente, e não no banco:
+   *    o INSERT usa RETURNING, e RETURNING passa pela policy de SELECT. Se o
+   *    token nascesse no default da coluna, o front não teria como provar que
+   *    a linha é dele no exato momento em que a cria — pediria de volta um
+   *    token que ele ainda não conhece, e receberia vazio. Nascendo aqui, o
+   *    cabeçalho já vai preenchido no mesmo request. É um UUID v4 do
+   *    crypto do navegador, não um número adivinhável.
+   */
   async function getClient() {
     if (_client) return _client;
     if (!window.__createSupabaseClient) {
@@ -830,9 +855,17 @@ window.app = (function() {
     _client = window.__createSupabaseClient(
       window.APP_CONFIG.SUPABASE_URL,
       window.APP_CONFIG.SUPABASE_ANON_KEY,
-      { auth: { persistSession: false } }
+      { auth: { persistSession: false },
+        global: { headers: _token ? { 'x-sessao': _token } : {} } }
     );
     return _client;
+  }
+
+  /** Troca o token da sessão — e joga fora o cliente, que carrega o antigo. */
+  function usarToken(token) {
+    if (_token === token) return;
+    _token = token;
+    _client = null;
   }
 
   async function getEventoId() {
@@ -863,10 +896,14 @@ window.app = (function() {
   }
 
   async function createRespondente(ident) {
+    const evento_id = await getEventoId();   // ainda sem token: eventos é público
+    // o token nasce aqui e já entra no cabeçalho, para o RETURNING enxergar a linha
+    const token = crypto.randomUUID();
+    usarToken(token);
     const sb = await getClient();
-    const evento_id = await getEventoId();
     const payload = {
       evento_id,
+      token_sessao: token,
       nome: ident.nome,
       empresa: ident.empresa,
       cargo: ident.cargo,
