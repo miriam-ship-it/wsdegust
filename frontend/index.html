@@ -1363,6 +1363,20 @@ function reiniciar() {
   goTo('landing');
 }
 
+// 🔑 O convite do Supabase manda a pessoa para o Site URL configurado no
+//    projeto — que costuma ser a RAIZ, ou seja, este formulário. Ela chegaria
+//    aqui com `#access_token=...&type=invite` e veria o questionário, sem
+//    nenhuma tela para definir senha. Quem trata isso é o admin.html, então
+//    encaminhamos, preservando o fragmento (que é onde o token viaja).
+//    Assim o convite funciona com o Site URL na raiz OU no /admin.html.
+(function encaminharConviteParaOPainel() {
+  const frag = (location.hash || '').replace(/^#/, '');
+  const tipo = new URLSearchParams(frag).get('type');
+  if (tipo === 'invite' || tipo === 'recovery') {
+    location.replace('admin.html' + location.hash);
+  }
+})();
+
 document.getElementById('f-lgpd-gate').addEventListener('change', checkGate);
 goTo('landing');
 </script>
