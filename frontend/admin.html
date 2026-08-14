@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · Diagnóstico IBMEC</title>
+<link href="https://fonts.googleapis.com/css2?family=Krub:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #002555;
+    --navy-dark: #001D44;
+    --yellow: #F5AC00;
+    --royal: #1245FF;
+    --bg: #F4F5F8;
+    --soft: #EEF1F8;
+    --border: #E2E6EF;
+    --text: #2A3754;
+    --muted: #6C7A92;
+    --green: #10A981;
+    --red: #D14343;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Krub', Tahoma, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+  .header {
+    background: var(--navy); color: white; padding: 14px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 3px solid var(--yellow);
+  }
+  .header .eyebrow { font-size: 10px; color: var(--yellow); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; }
+  .header h1 { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .logout { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 14px; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .logout:hover { background: rgba(255,255,255,0.1); }
+
+  .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  .card { background: white; border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
+  h2 { font-size: 14px; font-weight: 700; color: var(--navy); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Login */
+  .login-wrap { max-width: 420px; margin: 80px auto; }
+  .login-wrap .card { padding: 32px; }
+  .login-wrap h1 { font-size: 24px; color: var(--navy); margin-bottom: 4px; }
+  .login-wrap .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  label { display: block; font-weight: 600; font-size: 12px; color: var(--navy); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); font-family: inherit; font-size: 14px; background: white; }
+  input:focus { outline: 2px solid var(--yellow); border-color: var(--yellow); }
+  .form-group { margin-bottom: 14px; }
+  .btn { background: var(--navy); color: white; border: none; padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; text-transform: uppercase; letter-spacing: 1px; width: 100%; }
+  .btn:hover { background: var(--royal); }
+  .btn:disabled { background: #b8b8b0; cursor: not-allowed; }
+  .btn-secondary { background: white; color: var(--navy); border: 1px solid var(--navy); }
+  .btn-secondary:hover { background: var(--soft); color: var(--navy); }
+  .btn-small { padding: 6px 12px; font-size: 11px; width: auto; }
+  .alert-error { background: #fceaea; color: var(--red); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border-left: 3px solid var(--red); }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat { background: white; padding: 16px; border: 1px solid var(--border); }
+  .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+  .stat-value { font-size: 28px; font-weight: 800; color: var(--navy); margin-top: 4px; }
+  .stat-yellow { border-top: 3px solid var(--yellow); }
+  .stat-green { border-top: 3px solid var(--green); }
+  .stat-royal { border-top: 3px solid var(--royal); }
+
+  /* Filtros */
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .filter-group { display: flex; flex-direction: column; flex: 1; min-width: 140px; }
+  .filter-group select, .filter-group input { padding: 8px 10px; }
+
+  /* Tabela */
+  .table-wrap { overflow-x: auto; margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--soft); padding: 10px 12px; text-align: left; font-weight: 700; color: var(--navy); border-bottom: 2px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--soft); }
+  .badge { display: inline-block; padding: 2px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+  .badge-quente { background: #fceaea; color: var(--red); }
+  .badge-morno { background: #fff4d6; color: #a8780f; }
+  .badge-frio { background: var(--soft); color: var(--muted); }
+  .badge-grade { background: var(--navy); color: white; min-width: 32px; text-align: center; }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; }
+  .toolbar .info { font-size: 13px; color: var(--muted); }
+
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .hidden { display: none !important; }
+
+  /* === Mobile tweaks === */
+  @media (max-width: 600px) {
+    .container { padding: 16px; }
+    .header { padding: 12px 18px; }
+    .header h1 { font-size: 15px; }
+    .stat-value { font-size: 22px; }
+    .stats { grid-template-columns: 1fr; gap: 8px; }
+    .filters { flex-direction: column; }
+    .filter-group { min-width: 100%; }
+    .btn { padding: 14px 20px; min-height: 48px; }
+    input, select { padding: 12px 14px; font-size: 16px; }
+    table { font-size: 12px; }
+    th, td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     CONFIG SUPABASE — mesmo bloco do index.html
+     ============================================================ -->
+<script>
+window.APP_CONFIG = {
+  // 🔒 cópia paralela: placeholder de propósito, para o painel não ler o banco
+  //    do projeto original. Trocar quando o banco próprio existir.
+  SUPABASE_URL: 'https://SEU-PROJETO.supabase.co',
+  SUPABASE_ANON_KEY: 'SUA-ANON-KEY',
+  EVENTO_SLUG: 'ibmec-junho-2026'
+};
+</script>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+window.__createSupabaseClient = createClient;
+</script>
+
+<!-- ============ LOGIN ============ -->
+<div id="view-login" class="login-wrap view">
+  <div class="card">
+    <h1>Admin · Diagnóstico IBMEC</h1>
+    <div class="sub">Acesso restrito · faça login com sua conta Supabase</div>
+    <div id="login-error" class="alert-error hidden"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="miriam@boomit.com.br"></div>
+    <div class="form-group"><label>Senha</label><input type="password" id="login-password"></div>
+    <button class="btn" id="btn-login" onclick="login()">Entrar</button>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="view-dashboard" class="view hidden">
+  <div class="header">
+    <div>
+      <div class="eyebrow">Admin</div>
+      <h1>Diagnóstico IBMEC · Junho 2026</h1>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span id="user-email" style="font-size: 12px; opacity: 0.7;"></span>
+      <button class="logout" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Stats -->
+    <div class="stats" id="stats-row">
+      <div class="stat stat-yellow"><div class="stat-label">Respondentes</div><div class="stat-value" id="stat-total">—</div></div>
+      <div class="stat"><div class="stat-label">Finalizados</div><div class="stat-value" id="stat-final">—</div></div>
+      <div class="stat stat-green"><div class="stat-label">Com email (leads)</div><div class="stat-value" id="stat-email">—</div></div>
+      <div class="stat stat-royal"><div class="stat-label">PDF enviados</div><div class="stat-value" id="stat-pdf">—</div></div>
+      <div class="stat"><div class="stat-label">Erros geração</div><div class="stat-value" id="stat-err">—</div></div>
+    </div>
+
+    <!-- Filtros + Tabela -->
+    <div class="card">
+      <h2>Leads do evento</h2>
+      <div class="filters">
+        <div class="filter-group"><label>Nível</label>
+          <select id="f-persona" onchange="loadLeads()">
+            <option value="">Todos</option>
+            <option value="A">Analista</option>
+            <option value="C">Coordenador</option>
+            <option value="G">Gerente/Diretor</option>
+            <option value="X">C-Level</option>
+          </select>
+        </div>
+        <div class="filter-group"><label>Porte</label>
+          <select id="f-tamanho" onchange="loadLeads()">
+            <option value="">Todos</option>
+            <option value="S1">Até 50</option>
+            <option value="S2">51-250</option>
+            <option value="S3">251-1000</option>
+            <option value="S4">Mais de 1000</option>
+          </select>
+        </div>
+        <div class="filter-group"><label>Setor</label>
+          <select id="f-segmento" onchange="loadLeads()">
+            <option value="">Todos</option>
+            <option value="V1">Tecnologia & Inovação</option>
+            <option value="V2">Financeiro & Fintech</option>
+            <option value="V3">Varejo & Consumo</option>
+            <option value="V4">Indústria & Manufatura</option>
+            <option value="V5">Serviços Profissionais</option>
+            <option value="V6">Saúde & Farma</option>
+            <option value="V7">Educação</option>
+            <option value="V8">Setor Público</option>
+            <option value="V9">Outros</option>
+          </select>
+        </div>
+        <div class="filter-group"><label>Score lead</label>
+          <select id="f-score" onchange="loadLeads()">
+            <option value="">Todos</option>
+            <option value="quente">Quente</option>
+            <option value="morno">Morno</option>
+            <option value="frio">Frio</option>
+          </select>
+        </div>
+        <div class="filter-group"><label>Busca</label>
+          <input type="text" id="f-busca" placeholder="nome, empresa, email" oninput="debouncedSearch()">
+        </div>
+        <button class="btn btn-secondary btn-small" onclick="loadLeads()">Atualizar</button>
+      </div>
+
+      <div class="toolbar" style="margin-top: 18px;">
+        <div class="info" id="leads-info">Carregando…</div>
+        <button class="btn btn-small" onclick="exportCSV()">Exportar CSV</button>
+      </div>
+
+      <div class="table-wrap">
+        <table id="leads-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Nome</th>
+              <th>Empresa</th>
+              <th>Cargo</th>
+              <th>Nível</th>
+              <th>Porte</th>
+              <th>Setor</th>
+              <th>Email</th>
+              <th>Maturidade</th>
+              <th>CDL (R$/ano)</th>
+              <th>Risco</th>
+              <th>Lead</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="leads-tbody">
+            <tr><td colspan="13" class="empty">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _client = null;
+let _user = null;
+let _leads = [];
+let _searchTimer = null;
+
+async function getClient() {
+  if (_client) return _client;
+  if (!window.__createSupabaseClient) {
+    await new Promise(r => setTimeout(r, 200));
+    if (!window.__createSupabaseClient) throw new Error('Supabase JS não carregou');
+  }
+  _client = window.__createSupabaseClient(
+    window.APP_CONFIG.SUPABASE_URL,
+    window.APP_CONFIG.SUPABASE_ANON_KEY,
+    { auth: { persistSession: true, storageKey: 'ibmec-admin-session' } }
+  );
+  return _client;
+}
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.getElementById('view-' + id).classList.remove('hidden');
+}
+
+function showError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) { showError('Preencha email e senha'); return; }
+  document.getElementById('login-error').classList.add('hidden');
+  document.getElementById('btn-login').disabled = true;
+  document.getElementById('btn-login').textContent = 'Entrando...';
+  try {
+    const sb = await getClient();
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    _user = data.user;
+    onLoginSuccess();
+  } catch (err) {
+    showError(err.message || 'Falha no login');
+    document.getElementById('btn-login').disabled = false;
+    document.getElementById('btn-login').textContent = 'Entrar';
+  }
+}
+
+async function logout() {
+  const sb = await getClient();
+  await sb.auth.signOut();
+  _user = null;
+  showView('login');
+}
+
+async function checkSession() {
+  try {
+    const sb = await getClient();
+    const { data } = await sb.auth.getSession();
+    if (data?.session?.user) {
+      _user = data.session.user;
+      onLoginSuccess();
+    } else {
+      showView('login');
+    }
+  } catch (err) {
+    showView('login');
+  }
+}
+
+function onLoginSuccess() {
+  document.getElementById('user-email').textContent = _user.email;
+  showView('dashboard');
+  loadStats();
+  loadLeads();
+}
+
+async function loadStats() {
+  try {
+    const sb = await getClient();
+    const { data, error } = await sb
+      .from('v_resumo_evento')
+      .select('*')
+      .eq('slug', window.APP_CONFIG.EVENTO_SLUG)
+      .single();
+    if (error) throw error;
+    document.getElementById('stat-total').textContent = data.total_respondentes || 0;
+    document.getElementById('stat-final').textContent = data.total_finalizados || 0;
+    document.getElementById('stat-email').textContent = data.leads_qualificados || 0;
+    document.getElementById('stat-pdf').textContent = data.pdf_enviados || 0;
+    document.getElementById('stat-err').textContent = data.erros_geracao || 0;
+  } catch (err) {
+    console.warn('Erro carregando stats:', err);
+  }
+}
+
+function debouncedSearch() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(loadLeads, 350);
+}
+
+async function loadLeads() {
+  document.getElementById('leads-info').textContent = 'Carregando...';
+  try {
+    const sb = await getClient();
+    let query = sb.from('v_leads_export').select('*').order('submetido_em', { ascending: false });
+
+    const persona = document.getElementById('f-persona').value;
+    const tamanho = document.getElementById('f-tamanho').value;
+    const segmento = document.getElementById('f-segmento').value;
+    const score = document.getElementById('f-score').value;
+    const busca = document.getElementById('f-busca').value.trim();
+
+    if (persona) {
+      const personaMap = {A:'Analista', C:'Coordenador', G:'Gerente/Diretor', X:'C-Level'};
+      query = query.eq('nivel_hierarquico', personaMap[persona]);
+    }
+    if (tamanho) {
+      const porteMap = {S1:'Até 50', S2:'51-250', S3:'251-1000', S4:'Mais de 1000'};
+      query = query.eq('porte', porteMap[tamanho]);
+    }
+    if (segmento) query = query.eq('setor_id', segmento);
+    if (score) query = query.eq('score_lead', score);
+    if (busca) {
+      query = query.or(`nome.ilike.%${busca}%,empresa.ilike.%${busca}%,email.ilike.%${busca}%`);
+    }
+
+    const { data, error } = await query.limit(500);
+    if (error) throw error;
+    _leads = data || [];
+    renderLeads();
+  } catch (err) {
+    console.error(err);
+    document.getElementById('leads-info').textContent = 'Erro: ' + err.message;
+    document.getElementById('leads-tbody').innerHTML = `<tr><td colspan="13" class="empty">Erro: ${err.message}</td></tr>`;
+  }
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtMoney(v) {
+  if (v == null) return '—';
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+}
+
+function renderLeads() {
+  const tbody = document.getElementById('leads-tbody');
+  document.getElementById('leads-info').textContent = `${_leads.length} lead(s)`;
+  if (!_leads.length) {
+    tbody.innerHTML = '<tr><td colspan="13" class="empty">Nenhum lead com esses filtros</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _leads.map(l => {
+    const scoreBadge = `<span class="badge badge-${l.score_lead || 'frio'}">${l.score_lead || '—'}</span>`;
+    const gradeBadge = l.maturidade_letra
+      ? `<span class="badge badge-grade">${l.maturidade_letra}</span> ${l.maturidade_score ? l.maturidade_score.toFixed(0) : ''}`
+      : '—';
+    const cdlRange = (l.cdl_min && l.cdl_max)
+      ? `${fmtMoney(l.cdl_min)} – ${fmtMoney(l.cdl_max)}` : '—';
+    const risco = l.risco_estrategico != null ? `${l.risco_estrategico.toFixed(0)}%` : '—';
+    return `<tr>
+      <td>${fmtDate(l.submetido_em)}</td>
+      <td>${l.nome || '—'}</td>
+      <td>${l.empresa || '—'}</td>
+      <td class="muted">${l.cargo || '—'}</td>
+      <td>${l.nivel_hierarquico || '—'}</td>
+      <td>${l.porte || '—'}</td>
+      <td>${l.setor_id || '—'}</td>
+      <td><a href="mailto:${l.email}">${l.email || '—'}</a></td>
+      <td>${gradeBadge}</td>
+      <td>${cdlRange}</td>
+      <td>${risco}</td>
+      <td>${scoreBadge}</td>
+      <td>${l.pdf_enviado_em ? '<span title="PDF enviado">✉</span>' : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCSV() {
+  if (!_leads.length) { alert('Nada para exportar com esses filtros'); return; }
+  const cols = [
+    'submetido_em','nome','empresa','cargo','nivel_hierarquico','porte','setor_id',
+    'email','consentimento_marketing','maturidade_letra','maturidade_score',
+    'cdl_min','cdl_max','risco_estrategico','score_lead','pdf_enviado_em'
+  ];
+  const escape = v => {
+    if (v == null) return '';
+    const s = String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+  const header = cols.join(',');
+  const rows = _leads.map(l => cols.map(c => escape(l[c])).join(','));
+  const csv = '﻿' + header + '\n' + rows.join('\n');  // BOM para Excel reconhecer UTF-8
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+  a.download = `ibmec-leads-${ts}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Inicialização
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+checkSession();
+</script>
+
+</body>
+</html>

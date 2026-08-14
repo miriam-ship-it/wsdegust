@@ -1,0 +1,159 @@
+/* ============================================================
+   IBMEC — Brand Tokens (CSS Variables)
+   Fonte: Toolkit de Marca IBMEC V1 · 2024
+   Extraído em: 2026-05-26
+   ============================================================ */
+
+/* Import da tipografia oficial Krub via Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Krub:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---- Cores principais (paleta oficial) ---- */
+  --ibmec-amarelo:        #F5AC00;   /* Pantone 1235 C — destaque, ponto do "i", chamadas */
+  --ibmec-azul-marinho:   #002555;   /* Pantone 655 C  — institucional, fundos principais, headers */
+  --ibmec-azul-royal:     #1245FF;   /* Pantone 2387 C — auxiliar, acentos, hover, blocos secundários */
+
+  /* ---- Neutros ---- */
+  --ibmec-branco:         #FFFFFF;
+  --ibmec-preto:          #000000;
+  --ibmec-cinza-texto:    #3D3D3D;
+  --ibmec-cinza-borda:    #E6E8EE;
+  --ibmec-cinza-fundo:    #F4F5F8;
+
+  /* ---- Variáveis semânticas (usadas no app) ---- */
+  --primary:              var(--ibmec-azul-marinho);
+  --primary-strong:       var(--ibmec-azul-marinho);
+  --accent:               var(--ibmec-amarelo);
+  --accent-secondary:     var(--ibmec-azul-royal);
+  --bg:                   var(--ibmec-branco);
+  --bg-soft:              var(--ibmec-cinza-fundo);
+  --text:                 var(--ibmec-cinza-texto);
+  --text-strong:          var(--ibmec-azul-marinho);
+  --text-on-dark:         var(--ibmec-branco);
+  --border:               var(--ibmec-cinza-borda);
+
+  /* ---- Tipografia ---- */
+  --font-primary: 'Krub', Tahoma, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+
+  /* Pesos */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold: 600;
+  --fw-bold:    700;
+
+  /* Escala tipográfica (modular, base 16px) */
+  --fs-xs:   0.75rem;    /* 12px — eyebrows, labels */
+  --fs-sm:   0.875rem;   /* 14px — captions, footer */
+  --fs-base: 1rem;       /* 16px — corpo */
+  --fs-md:   1.125rem;   /* 18px — corpo destaque */
+  --fs-lg:   1.375rem;   /* 22px — subtítulos */
+  --fs-xl:   1.75rem;    /* 28px — títulos seção */
+  --fs-2xl:  2.25rem;    /* 36px — títulos página */
+  --fs-3xl:  3rem;       /* 48px — H1 hero */
+
+  /* Alturas de linha */
+  --lh-tight:   1.15;
+  --lh-snug:    1.35;
+  --lh-normal:  1.55;
+  --lh-relaxed: 1.75;
+
+  /* ---- Espaçamento (escala 4px) ---- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 4rem;
+  --space-12: 6rem;
+
+  /* ---- Bordas e sombras ---- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 37, 85, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 37, 85, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 37, 85, 0.12);
+
+  /* ---- Layout ---- */
+  --container-max: 1080px;
+  --container-pad: var(--space-5);
+}
+
+/* ============================================================
+   Base styles — aplicar globalmente
+   ============================================================ */
+
+html, body {
+  font-family: var(--font-primary);
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-primary);
+  font-weight: var(--fw-semibold);
+  color: var(--text-strong);
+  line-height: var(--lh-tight);
+}
+
+a {
+  color: var(--accent-secondary);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+/* ============================================================
+   Utilitários de marca
+   ============================================================ */
+
+.bg-navy        { background: var(--ibmec-azul-marinho); color: var(--text-on-dark); }
+.bg-royal       { background: var(--ibmec-azul-royal); color: var(--text-on-dark); }
+.bg-yellow      { background: var(--ibmec-amarelo); color: var(--ibmec-azul-marinho); }
+.bg-soft        { background: var(--bg-soft); }
+
+.text-navy      { color: var(--ibmec-azul-marinho); }
+.text-royal     { color: var(--ibmec-azul-royal); }
+.text-yellow    { color: var(--ibmec-amarelo); }
+.text-strong    { color: var(--text-strong); font-weight: var(--fw-semibold); }
+
+/* Grafismo característico: ponto amarelo (referência ao "i" do logo) */
+.dot-accent::before {
+  content: '';
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  background: var(--ibmec-amarelo);
+  border-radius: 50%;
+  margin-right: 0.4em;
+  vertical-align: 0.05em;
+}
+
+/* Botão primary IBMEC */
+.btn-primary {
+  background: var(--ibmec-azul-marinho);
+  color: var(--ibmec-branco);
+  font-family: var(--font-primary);
+  font-weight: var(--fw-semibold);
+  padding: var(--space-3) var(--space-6);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.btn-primary:hover { background: var(--ibmec-azul-royal); }
+
+.btn-accent {
+  background: var(--ibmec-amarelo);
+  color: var(--ibmec-azul-marinho);
+}
+.btn-accent:hover { background: #d99500; }

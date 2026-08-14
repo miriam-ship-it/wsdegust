@@ -1,0 +1,58 @@
+# =============================================
+# IBMEC Assessment · .gitignore
+# =============================================
+
+# Credenciais e secrets — NUNCA commitar
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+config.local.*
+
+# Supabase local
+.supabase/
+supabase/.temp/
+supabase/.branches/
+
+# Node (caso adicionemos npm tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+desktop.ini
+
+# Backups
+*.bak
+*.backup
+*-backup.html
+*-backup.*
+
+# Outputs locais (dev)
+/tmp/
+.scratch/

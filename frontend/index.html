@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico Estratégico de Liderança · IBMEC</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAABACAIAAACRARCGAAADhUlEQVR42u2Xz2tcVRTHv99z32Rmnk2s0pRiiIkJdtAiWGgXgtqFoO5sBWuomo24cF+oW9eCuLDLgnZhoP+A9R9woyCCUixNSCXFQrtJ5sd7896957h4mcm8yUxM7aowh1nNu/fzzj0/7vk+mhlGmMEMKB4RJECMsWj0ZgpY3mM6DhQN7weN1LypO7c13YKaxHMy05DKDHsLDkAoIKrd7p1r+eaaNjehCQxwNZleqCyuTC1/5lwNpqAMItiLhQEM6YP2L5/r1k26GG4KEBAwRcg0JNHc2/WzV6P6iSFfCoTBoCFp/7zqt36U2jHAYNpfAxIQSx+6+Xfj1753Ubz7PwBAAMBMye76NX/vptRmYWFgP3Zx5lk75rd+yta/MxADeRTAQLF8x2+u0cWAYqwpXS2/u6Z5E5ReyiEFT3duhdZduEr5/UPpUrqqNTd051bh+4AXgCX3EVLC4WCjWOhq8k8vA/1YACDHl98+TjmpUgSW8Ryjp2ABB5NU6WLG8+WMkIDJdINHlqHd4bounwKa8umTnG7sOr7nhalERyrLq6bd8V4QoGm3srTqovqgv1LgaVZbvBQtfKDpA8CBboBFUEDR5GG08H5tcYVFH5Z7hIBRqvGZbzri/OYNwsHVQFfk0nxq5itLH8ZnvqZUYSMKfK9N1TT7+0a+8YNu/6nZNgFUZuToS1MvXKourJBuf7OyfOUYQAPMVFsblt4HgOpxN71MunHNPoRAUIUp6SADS9XMwm7j9suBJDkC8T+sdGu1Oslvf6wH1f8oVSJ4ffnk8ydmnzHreaFqIvxrfev19650Wolz7gDvRNhK0utXL390/lwIGpWLnxWRSMSJDCEMcCLF4UXofZBedUb77u+9X5mOZjvJvSdAEe10siwfNwRGtiYz7y9eeONUYz73XoTdzL96aql4dDgE4IN+cvGtd948PeSyyOEQBaXdSUPQoOpEiogUoYkOn38ROicgCsTglfO4NkFMEBPEBDFBTBBPPuIRZqqqBVVVZTHT+ehjuV6fciJDM/mwiOKdv/5+J67XulnmRHwIrzQWnzv+rJmV5NrtjXvnzn/RHiPXgllflrQ6yfVvL398YZ9cAyAibpxc638QCEMUORl1EFXdbrXbzcRFo0Uje1ol76RZHkqIIrazs0e/+vLTPPPiBON1J8ksD2dPv7grlx5HQJvZCMUXVHE4Zl+u/Quog7alKsCN/AAAAABJRU5ErkJggg==">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Krub:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    /* IBMEC — paleta oficial (Pantone 655/1235/2387) */
+    --ibmec-navy:   #002555;
+    --ibmec-yellow: #F5AC00;
+    --ibmec-royal:  #1245FF;
+
+    /* Semantic tokens — herdam da paleta IBMEC */
+    --primary:      #002555;       /* azul-marinho institucional */
+    --primary-dark: #001D44;       /* navy levemente mais escuro p/ hover */
+    --accent:       #F5AC00;       /* amarelo IBMEC */
+    --accent-light: #FFD166;       /* amarelo claro */
+    --bg:           #F4F5F8;       /* fundo claro frio */
+    --card:         #FFFFFF;
+    --text:         #2A3754;       /* texto sobre branco — navy levemente claro p/ leitura */
+    --muted:        #6C7A92;       /* cinza-azulado */
+    --border:       #E2E6EF;
+    --soft:         #EEF1F8;       /* fundo de blocos */
+    --green:        #10A981;       /* semântica: forte/positivo */
+    --yellow:       #F5AC00;       /* semântica: saudável/destaque (= accent) */
+    --red:          #D14343;       /* semântica: crítico/negativo */
+    --neg:          #D14343;
+    --royal:        #1245FF;       /* hover, blocos secundários */
+  }
+  body {
+    font-family: 'Krub', Tahoma, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    min-height: 100vh;
+    font-size: 15px;
+  }
+  .container { max-width: 880px; margin: 0 auto; padding: 24px; }
+  .container.wide { max-width: 1100px; }
+  .header {
+    background: var(--primary-dark);
+    color: white;
+    padding: 14px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid var(--accent);
+  }
+  .logo { display: flex; align-items: center; }
+  .logo img { height: 32px; width: auto; display: block; }
+  .progress-bar {
+    background: rgba(255,255,255,0.15);
+    height: 3px;
+    width: 100%;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill { background: var(--accent); height: 100%; transition: width 0.3s ease; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card h2, .section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 4px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h2 .icon { color: var(--accent); font-size: 18px; }
+  .card-sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; margin-top: -4px; }
+  h1 { font-size: 36px; font-weight: 800; color: var(--primary-dark); letter-spacing: -0.5px; line-height: 1.1; }
+  h3 { font-size: 14px; font-weight: 700; color: var(--primary-dark); margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 1px; }
+  p { margin-bottom: 10px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .form-group { margin-bottom: 14px; }
+  label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 13px; }
+  input[type="text"], input[type="email"], select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    font-size: 15px; background: white; font-family: inherit;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+  .checkbox-row { display: flex; align-items: start; gap: 10px; margin: 14px 0; font-size: 13px; }
+  .checkbox-row input { margin-top: 4px; }
+  .checkbox-row label { font-weight: 400; line-height: 1.45; }
+  .btn {
+    background: var(--primary-dark); color: white; border: none;
+    padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background 0.2s; width: 100%; font-family: inherit;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .btn:hover:not(:disabled) { background: var(--royal); }
+  .btn:disabled { background: #b8b8b0; cursor: not-allowed; }
+  .btn-secondary { background: white; color: var(--primary-dark); border: 1px solid var(--primary-dark); }
+  .btn-secondary:hover:not(:disabled) { background: var(--soft); }
+
+  /* Likert */
+  .likert { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 24px 0; }
+  .likert-item {
+    background: white; border: 1px solid var(--border); padding: 14px 6px;
+    text-align: center; cursor: pointer; transition: all 0.15s;
+    font-size: 12px; user-select: none;
+  }
+  .likert-item:hover { border-color: var(--accent); }
+  .likert-item.selected { background: var(--primary-dark); color: white; border-color: var(--primary-dark); }
+  .likert-value { font-size: 22px; font-weight: 700; display: block; margin-bottom: 2px; }
+  .likert-label { font-size: 11px; line-height: 1.2; }
+  .question-meta {
+    display: flex; justify-content: space-between; margin-bottom: 16px;
+    font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;
+  }
+  .question-text { font-size: 19px; font-weight: 500; margin: 12px 0 4px; line-height: 1.4; color: var(--primary-dark); }
+  .nav { display: flex; gap: 10px; margin-top: 24px; }
+  .nav .btn { width: auto; flex: 1; }
+
+  /* Gate */
+  .gate-preview {
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    color: white; padding: 24px; margin: 16px 0; position: relative;
+  }
+  .gate-preview .label { font-size: 11px; opacity: 0.7; letter-spacing: 2px; text-transform: uppercase; }
+  .gate-stars { font-size: 26px; color: var(--accent); letter-spacing: 4px; margin: 8px 0; }
+  .blur { filter: blur(4px); opacity: 0.6; font-size: 13px; }
+
+  /* ============ RESULT (REPORT STYLE) ============ */
+  .report-header {
+    background: white; border: 1px solid var(--border); padding: 32px;
+    border-left: 4px solid var(--accent); margin-bottom: 16px;
+  }
+  .report-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+  .report-meta-item { background: var(--soft); padding: 12px 16px; }
+  .report-meta-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  .report-meta-value { font-size: 15px; font-weight: 700; color: var(--primary-dark); margin-top: 2px; }
+  .badge-confidencial { background: var(--soft); padding: 10px 14px; font-size: 12px; color: var(--muted); border-left: 3px solid var(--accent); margin-bottom: 16px; }
+
+  /* Maturity letter grade */
+  .maturity-hero {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center; margin: 16px 0;
+  }
+  .maturity-grade-circle {
+    width: 110px; height: 110px; border-radius: 50%; background: var(--primary-dark);
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-size: 56px; font-weight: 800; margin: 0 auto;
+  }
+  .maturity-scale { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 4px; font-size: 13px; font-weight: 600; }
+  .maturity-scale span { padding: 4px 8px; }
+  .maturity-scale .current { background: var(--primary-dark); color: white; }
+  .maturity-score { text-align: center; font-size: 13px; color: var(--muted); }
+  .maturity-bars { display: flex; gap: 2px; margin: 12px 0; }
+  .maturity-bar { flex: 1; height: 16px; background: var(--border); }
+  .maturity-bar.active { background: var(--primary); }
+
+  /* Régua de Posicionamento */
+  .regua-container { background: var(--soft); padding: 24px 20px; margin: 12px 0; position: relative; }
+  .regua-track {
+    background: linear-gradient(to right, #FFF4D6, #F5AC00, #002555);
+    height: 32px; position: relative; border: 1px solid var(--border);
+  }
+  .regua-label { position: absolute; font-size: 12px; font-weight: 600; }
+  .regua-current { position: absolute; top: -12px; transform: translateX(-50%); }
+  .regua-current .dot { width: 16px; height: 16px; background: var(--primary-dark); border-radius: 50%; margin: 0 auto; border: 3px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .regua-current .label-bottom { font-size: 11px; font-weight: 700; margin-top: 6px; text-align: center; white-space: nowrap; }
+  .regua-zones { display: flex; justify-content: space-between; padding: 6px 0; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Componentes do Alinhamento */
+  .componente-row { display: flex; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .componente-row:last-child { border-bottom: none; }
+  .componente-info { flex: 1; }
+  .componente-title { font-weight: 600; font-size: 14px; }
+  .componente-desc { font-size: 12px; color: var(--muted); }
+  .componente-bar-wrap { flex: 2; }
+  .componente-bar { background: var(--border); height: 8px; position: relative; }
+  .componente-bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--primary); }
+  .componente-value { font-size: 18px; font-weight: 700; color: var(--primary-dark); min-width: 70px; text-align: right; }
+  .componente-tag { font-size: 10px; padding: 2px 6px; margin-left: 4px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+  .tag-forte { background: var(--green); color: white; }
+  .tag-saudavel { background: var(--accent); color: var(--primary); }
+  .tag-atencao { background: #E89B1F; color: white; }
+  .tag-critico { background: var(--red); color: white; }
+
+  /* Competências priorizadas */
+  .comp-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--border); }
+  .comp-row:last-child { border-bottom: none; }
+  .comp-rank { font-size: 22px; font-weight: 800; color: var(--accent); min-width: 36px; }
+  .comp-name { flex: 1; font-weight: 600; }
+  .comp-bar-track { flex: 2; height: 10px; background: var(--border); position: relative; }
+  .comp-bar-current { position: absolute; height: 100%; background: var(--primary); }
+  .comp-bar-expected { position: absolute; height: 100%; top: 0; border-right: 2px solid var(--accent); }
+  .comp-scores { font-size: 13px; color: var(--muted); min-width: 80px; text-align: right; }
+  .comp-gap { font-size: 13px; font-weight: 700; min-width: 50px; text-align: right; }
+  .comp-gap.neg { color: var(--red); }
+  .comp-gap.pos { color: var(--green); }
+
+  /* Risco Estratégico */
+  .risco-hero { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: center; }
+  .risco-circle {
+    width: 90px; height: 90px; border-radius: 50%; border: 6px solid var(--red);
+    display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800;
+    color: var(--primary-dark);
+  }
+  .risco-circle.moderado { border-color: var(--accent); }
+  .risco-circle.baixo { border-color: var(--green); }
+  .risco-level { font-size: 13px; padding: 3px 10px; display: inline-block; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+  .risco-level.alto { background: #f4e0e0; color: var(--red); }
+  .risco-level.moderado { background: #f0e6d8; color: var(--accent); }
+  .risco-level.baixo { background: #e0eee2; color: var(--green); }
+
+  /* PPL */
+  .ppl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .ppl-box { background: var(--soft); padding: 14px; }
+  .ppl-box-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
+  .ppl-box-value { font-size: 18px; font-weight: 700; color: var(--primary-dark); margin-top: 2px; }
+  .ppl-perda { background: #f4e0e0; padding: 18px; margin: 16px 0; border-left: 4px solid var(--red); }
+  .ppl-perda-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
+  .ppl-perda-value { font-size: 24px; font-weight: 800; color: var(--red); margin: 6px 0; }
+  .ppl-perda-decomp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .ppl-decomp-item { background: white; padding: 10px; border: 1px solid var(--border); }
+  .ppl-decomp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
+  .ppl-decomp-value { font-size: 13px; font-weight: 700; color: var(--primary-dark); margin-top: 4px; }
+
+  /* Plano de Ação */
+  .plano-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .plano-item:last-child { border-bottom: none; }
+  .plano-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--primary-dark); color: white; display: flex;
+    align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0;
+  }
+  .plano-content h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: var(--primary-dark); }
+  .plano-content p { font-size: 13px; color: var(--muted); margin: 0; }
+  .plano-content ul { margin: 6px 0 0 16px; font-size: 13px; color: var(--muted); }
+  .plano-content li { margin-bottom: 2px; }
+
+  /* Cronograma */
+  .crono-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  @media (max-width: 700px) { .crono-grid { grid-template-columns: 1fr; } }
+  .crono-etapa { background: var(--soft); padding: 14px; border-top: 3px solid var(--accent); }
+  .crono-num { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 700; }
+  .crono-titulo { font-size: 14px; font-weight: 700; color: var(--primary-dark); margin: 4px 0 8px; }
+  .crono-bullets { font-size: 12px; color: var(--muted); }
+  .crono-bullets li { margin: 2px 0 2px 14px; }
+
+  /* Radar */
+  .radar-container { margin: 16px 0; text-align: center; }
+  .radar-legend { display: flex; justify-content: center; gap: 24px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .legend-swatch { display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 6px; }
+
+  /* Glossário */
+  .gloss-item { padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .gloss-item:last-child { border-bottom: none; }
+  .gloss-term { font-weight: 700; color: var(--primary-dark); }
+  .gloss-def { color: var(--muted); }
+
+  /* Sources at bottom */
+  .sources { font-size: 11px; color: var(--muted); padding: 14px; background: var(--soft); margin-top: 16px; }
+  .sources strong { color: var(--primary-dark); }
+
+  /* Footer report */
+  .report-footer { text-align: center; color: var(--muted); font-size: 11px; padding: 16px 0; margin-top: 8px; border-top: 1px solid var(--border); }
+
+  .actions-bar {
+    position: sticky; bottom: 0; background: white; padding: 14px;
+    margin: 16px -28px -28px; border-top: 1px solid var(--border);
+    display: flex; gap: 12px;
+  }
+  .actions-bar .btn { flex: 1; }
+
+  .hidden { display: none !important; }
+
+
+
+  /* Storytelling blocks */
+  .conceito-block {
+    background: var(--soft);
+    padding: 16px 20px;
+    border-left: 3px solid var(--accent);
+    margin: 12px 0 18px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .conceito-block strong { color: var(--primary-dark); }
+  .conceito-mini {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+  .subsidios-block {
+    background: white;
+    padding: 14px 18px;
+    border: 1px dashed var(--border);
+    margin-top: 16px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+  .subsidios-block strong { color: var(--primary-dark); display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; }
+  .ref-list {
+    font-size: 11px; color: var(--muted); margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* Option cards (substitui Likert) */
+  .option-cards { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 8px; }
+  .option-card { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); background: white; cursor: pointer; transition: all 0.15s; }
+  .option-card:hover { border-color: var(--accent); background: var(--soft); }
+  .option-card.selected { border-color: var(--primary-dark); background: var(--primary-dark); color: white; }
+  .option-card.selected .option-letter { background: var(--accent); color: var(--primary-dark); }
+  .option-letter { width: 28px; height: 28px; flex-shrink: 0; background: var(--soft); color: var(--primary-dark); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+  .option-text { flex: 1; font-size: 14px; line-height: 1.45; padding-top: 2px; }
+
+
+  /* === Mobile tweaks === */
+  @media (max-width: 600px) {
+    body { font-size: 15px; }
+    .container { padding: 16px; }
+    .card { padding: 20px 18px; }
+    h1 { font-size: 26px; line-height: 1.15; }
+    .btn { padding: 14px 20px; font-size: 14px; min-height: 48px; }
+    .option-card { padding: 16px 14px; min-height: 56px; }
+    .option-letter { width: 32px; height: 32px; }
+    .option-text { font-size: 15px; }
+    .likert-item { padding: 16px 6px; min-height: 52px; }
+    .nav .btn { min-height: 48px; }
+    input[type="text"], input[type="email"], select { padding: 12px 14px; font-size: 16px; }
+    .question-text { font-size: 17px; }
+    .report-meta { grid-template-columns: 1fr; }
+    .maturity-hero { grid-template-columns: 1fr; gap: 14px; text-align: center; }
+    .risco-hero { grid-template-columns: 1fr; gap: 14px; }
+    .ppl-grid { grid-template-columns: 1fr; }
+    .crono-grid { grid-template-columns: 1fr; }
+  }
+  @media print {
+    .header, .actions-bar, .no-print { display: none !important; }
+    body { background: white; font-size: 12px; }
+    .card { border: 1px solid #ddd; padding: 14px; page-break-inside: avoid; margin-bottom: 8px; }
+    .container { max-width: none; padding: 12px; }
+    h1 { font-size: 28px; }
+    .maturity-grade-circle { width: 80px; height: 80px; font-size: 42px; }
+  }
+</style>
+<script type="module">
+// Supabase JS (ESM)
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+window.__createSupabaseClient = createClient;
+</script>
+</head>
+<body>
+
+<div class="header no-print">
+  <div class="logo"><img src="logo-ibmec.png" alt="IBMEC" height="32" style="height:32px;width:auto;display:block;"></div>
+  <div id="progress-text" style="font-size: 12px; color: var(--accent); letter-spacing: 1px;"></div>
+</div>
+<div id="progress-bar-wrap" class="hidden"><div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div></div>
+
+<!-- ============ LANDING ============ -->
+<div class="container view" id="view-landing">
+  <div class="card" style="padding: 48px 32px;">
+    <div style="font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; margin-bottom: 12px;">Diagnóstico Estratégico IBMEC</div>
+    <h1>Maturidade de Liderança e Gestão</h1>
+    <p class="muted" style="margin-top: 12px; font-size: 16px;">Diagnóstico executivo com Indicador de Maturidade, Régua de Posicionamento, CDL e Plano de Ação personalizado.</p>
+    <div style="margin: 32px 0; padding: 20px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; text-align: center;">
+        <div><div style="font-size: 32px; font-weight: 800; color: var(--primary-dark);">5 min</div><div class="muted" style="font-size: 12px;">Preenchimento</div></div>
+        <div><div style="font-size: 32px; font-weight: 800; color: var(--primary-dark);">15+</div><div class="muted" style="font-size: 12px;">Indicadores no relatório</div></div>
+      </div>
+    </div>
+    <button class="btn" onclick="goTo('identificacao')">Iniciar diagnóstico</button>
+  </div>
+</div>
+
+<!-- ============ IDENTIFICAÇÃO ============ -->
+<div class="container view hidden" id="view-identificacao">
+  <div class="card">
+    <h2><span class="icon">◐</span> Antes de começar</h2>
+    <p class="muted">Calibramos seu diagnóstico para seu contexto. Email só ao final.</p>
+    <div class="form-group" style="margin-top: 16px;"><label>Seu nome</label><input type="text" id="f-nome" placeholder="Como prefere ser chamado"></div>
+    <div class="row">
+      <div class="form-group"><label>Empresa</label><input type="text" id="f-empresa" placeholder="Nome da empresa"></div>
+      <div class="form-group"><label>Cargo</label><input type="text" id="f-cargo" placeholder="Seu cargo"></div>
+    </div>
+    <div class="form-group"><label>Seu nível na empresa</label>
+      <select id="f-persona">
+        <option value="">Selecione…</option>
+        <option value="A">Analista / Júnior / Pleno</option>
+        <option value="C">Coordenador / Sênior / Especialista</option>
+        <option value="G">Gerente / Diretor</option>
+        <option value="X">C-Level / Sócio</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="form-group"><label>Porte da empresa</label>
+        <select id="f-tamanho">
+          <option value="">Selecione…</option>
+          <option value="S1">Até 50 colaboradores</option>
+          <option value="S2">51 a 250 colaboradores</option>
+          <option value="S3">251 a 1.000 colaboradores</option>
+          <option value="S4">Mais de 1.000 colaboradores</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Setor</label>
+        <select id="f-segmento">
+          <option value="">Selecione…</option>
+          <option value="V1">Tecnologia & Inovação</option>
+          <option value="V2">Financeiro & Fintech</option>
+          <option value="V3">Varejo & Consumo</option>
+          <option value="V4">Indústria & Manufatura</option>
+          <option value="V5">Serviços Profissionais</option>
+          <option value="V6">Saúde & Farma</option>
+          <option value="V7">Educação</option>
+          <option value="V8">Setor Público</option>
+          <option value="V9">Outros</option>
+        </select>
+      </div>
+    </div>
+    <div class="checkbox-row"><input type="checkbox" id="f-lgpd"><label for="f-lgpd">Autorizo o uso dos meus dados para gerar este diagnóstico e receber o relatório, conforme LGPD.</label></div>
+    <button class="btn" id="btn-start" onclick="startAssessment()" disabled>Começar</button>
+  </div>
+</div>
+
+<!-- ============ ASSESSMENT ============ -->
+<div class="container view hidden" id="view-assessment">
+  <div class="card">
+    <div class="question-meta"><span id="q-counter">Pergunta 1/13</span><span id="q-badge"></span></div>
+    <div class="question-text" id="q-text">Carregando…</div>
+    <div id="q-input"></div>
+    <div class="nav">
+      <button class="btn btn-secondary" id="btn-prev" onclick="prevQuestion()">Voltar</button>
+      <button class="btn" id="btn-next" onclick="nextQuestion()" disabled>Próxima</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ GATE ============ -->
+<div class="container view hidden" id="view-gate">
+  <div class="card">
+    <h2><span class="icon">◆</span> Seu diagnóstico está pronto</h2>
+    <p>Informe seu email para receber o relatório executivo completo e liberar o acesso aos resultados.</p>
+    <div class="gate-preview">
+      <div class="label">Prévia do seu Indicador de Maturidade</div>
+      <div class="gate-stars">★ ★ ★ ★ ☆</div>
+      <div class="blur">Análise de Risco Estratégico, Régua de Posicionamento, CDL estimado e Plano de Ação personalizado ficam disponíveis ao liberar.</div>
+    </div>
+    <div class="form-group"><label>Seu email</label><input type="email" id="f-email" placeholder="seu@email.com"></div>
+    <div class="checkbox-row"><input type="checkbox" id="f-lgpd-gate" checked><label for="f-lgpd-gate">Aceito receber o relatório executivo e atualizações do programa.</label></div>
+    <button class="btn" id="btn-liberar" onclick="liberarResultado()" disabled>Liberar relatório executivo</button>
+  </div>
+</div>
+
+<!-- ============ RESULTADO ============ -->
+<div class="container wide view hidden" id="view-resultado">
+
+  <!-- Header report -->
+  <div class="report-header">
+    <div style="font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; font-weight: 700;">Relatório Estratégico</div>
+    <h1 id="r-empresa-nome" style="margin-top: 6px;">—</h1>
+    <div class="report-meta">
+      <div class="report-meta-item"><div class="report-meta-label">Respondente</div><div class="report-meta-value" id="r-respondente">—</div></div>
+      <div class="report-meta-item"><div class="report-meta-label">Setor</div><div class="report-meta-value" id="r-setor">—</div></div>
+      <div class="report-meta-item"><div class="report-meta-label">Data</div><div class="report-meta-value" id="r-data">—</div></div>
+    </div>
+  </div>
+
+  <div class="badge-confidencial">Documento confidencial · uso exclusivo do respondente · metodologia IBMEC</div>
+
+  <!-- 1. Indicador de Maturidade -->
+  <div class="card">
+    <h2><span class="icon">◐</span> Indicador de Maturidade</h2>
+    <p class="card-sub">Estágio de maturidade de liderança da organização e do respondente, consolidado nas 5 dimensões avaliadas.</p>
+    <div class="conceito-block">A maturidade de uma organização não é uma virtude moral — é uma <strong>descrição estrutural</strong>. Inspirada em frameworks como o CMMI (Software Engineering Institute) e o Organizational Health Index (McKinsey), nossa escala D→AAA descreve em que estágio sua empresa joga hoje e calibra a régua de cobrança realista. Empresa em nível B com cobrança de nível AAA gera burnout sistêmico; empresa AAA com governança de B perde competitividade. <strong>A leitura honesta do estágio é o ponto de partida de qualquer plano de evolução viável.</strong><div class="conceito-mini">Como ler: a letra reflete o estágio dominante; o score 0-100 detalha a posição dentro do estágio. Mudar de letra é um movimento de 12-18 meses; subir score dentro da mesma letra é alcançável em 90 dias com intervenção estruturada.</div></div>
+    <div class="maturity-hero">
+      <div style="text-align: center;">
+        <div class="maturity-grade-circle" id="r-maturity-grade">B</div>
+        <div class="maturity-score" id="r-maturity-score" style="margin-top: 10px;">Score: 78/100</div>
+      </div>
+      <div>
+        <div class="maturity-scale" id="r-maturity-scale">
+          <span data-grade="D">D</span><span data-grade="C">C</span><span data-grade="B">B</span><span data-grade="A">A</span><span data-grade="AA">AA</span><span data-grade="AAA">AAA</span>
+        </div>
+        <div class="maturity-bars">
+          <div class="maturity-bar" data-grade="D"></div>
+          <div class="maturity-bar" data-grade="C"></div>
+          <div class="maturity-bar" data-grade="B"></div>
+          <div class="maturity-bar" data-grade="A"></div>
+          <div class="maturity-bar" data-grade="AA"></div>
+          <div class="maturity-bar" data-grade="AAA"></div>
+        </div>
+        <h3 style="margin-top: 14px;">Diagnóstico</h3>
+        <p style="font-size: 13px;" id="r-maturity-diag">—</p>
+      </div>
+    </div>
+    <div class="subsidios-block"><strong>Subsídio para conversa</strong>Use o diagnóstico textual acima para validar com seu time se a leitura ressoa. Divergência forte entre o que o instrumento mostra e o que a equipe sente é sinal de pontos cegos que merecem investigação dedicada nos próximos 30 dias.</div>
+  </div>
+
+  <!-- 2. Régua de Posicionamento -->
+  <div class="card">
+    <h2><span class="icon">⇄</span> Régua de Posicionamento</h2>
+    <p class="card-sub">Onde sua capacidade de liderança está sendo gasta hoje versus onde deveria estar, considerando seu nível hierárquico.</p>
+    <div class="conceito-block">Toda função carrega uma <strong>assinatura esperada</strong> de distribuição de tempo entre três planos: Operacional (execução do dia), Tático (coordenação trimestral) e Estratégico (visão de 6+ meses). Um Diretor com 60% do tempo no Operacional não está sendo dedicado — está sendo <em>arrastado</em> pelo curto prazo, e a empresa paga o custo dessa centralização em gargalo de decisão e atraso estrutural. A Régua mostra onde sua capacidade está concentrada hoje versus onde, dado seu nível, ela deveria estar.<div class="conceito-mini">Como ler: ponto preto = posição atual; ponto dourado = posição esperada para seu nível hierárquico. A distância entre os dois é o <em>gap de posicionamento</em> — quanto maior, maior a indicação de trabalho estrutural a fazer (delegação, processos, sucessão).</div></div>
+    <div class="regua-container">
+      <div class="regua-zones"><span>Operacional</span><span>Tático</span><span>Estratégico</span></div>
+      <div class="regua-track">
+        <div class="regua-current" id="r-regua-atual" style="left: 50%;"><div class="dot"></div><div class="label-bottom">Atual</div></div>
+        <div class="regua-current" id="r-regua-esperado" style="left: 80%; opacity: 0.5;"><div class="dot" style="background: var(--accent);"></div><div class="label-bottom">Esperado</div></div>
+      </div>
+      <p style="margin-top: 24px; font-size: 13px;" id="r-regua-leitura">—</p>
+    </div>
+    <div class="subsidios-block"><strong>Subsídio para conversa</strong>Gap acima de 15% costuma sinalizar três causas frequentes: (i) ausência de camada de execução madura abaixo de você, (ii) falta de confiança nos diretos para delegar, ou (iii) processos não documentados que forçam você a operar no detalhe. Cada uma demanda uma intervenção distinta.</div>
+  </div>
+
+  <!-- 3. Componentes do Alinhamento -->
+  <div class="card">
+    <h2><span class="icon">◈</span> Componentes do Alinhamento</h2>
+    <p class="card-sub">Decomposição em 4 dimensões críticas — cultural, estratégica, comportamental e performance.</p>
+    <div class="conceito-block">Estar "alinhado" <strong>não é uma coisa só</strong> — são quatro vetores distintos que podem se reforçar ou cancelar. Alguém pode ter alto alinhamento cultural (compra o jeito de fazer da empresa) e baixo alinhamento estratégico (não entende para onde ela vai). Outra pessoa pode performar bem (entrega) com baixo engajamento (entrega sem fé). A decomposição em 4 dimensões revela <strong>o tipo de desalinhamento</strong> — e cada tipo demanda intervenção diferente.<div class="conceito-mini">Como ler: cores indicam patamar — Forte (verde), Saudável (dourado), Em desenvolvimento (laranja), Crítico (vermelho). Atente ao padrão, não à barra isolada — dois "Fortes" + dois "Em desenvolvimento" geralmente indica problema mais profundo do que quatro "Saudáveis".</div></div>
+    <div id="r-componentes"></div>
+    <div class="subsidios-block"><strong>Subsídio para conversa</strong>O combo <em>cultural alto + estratégico baixo</em> é o mais comum em scale-ups: pessoas amam a empresa mas não entendem para onde ela vai. <em>Engajamento baixo + performance alta</em> indica entregadores céticos — risco de saída silenciosa.</div>
+  </div>
+
+  <!-- 4. Top Competências Prioritárias -->
+  <div class="card">
+    <h2><span class="icon">⊟</span> Competências Prioritárias</h2>
+    <p class="card-sub">Ordenadas pelo maior gap entre situação atual e expectativa para seu nível.</p>
+    <div class="conceito-block">Pareto vale para competências como vale para vendas: <strong>20% dos gaps respondem por 80% do impacto</strong> em performance. Tentar fechar todos os gaps simultaneamente é receita garantida de não fechar nenhum. O ranking abaixo ordena as cinco competências do maior gap (em relação ao esperado para seu nível) até o menor — e indica onde investir as próximas 12 semanas para o maior ROI de desenvolvimento.<div class="conceito-mini">Como ler: 01 = maior gap (prioridade #1). Barra mostra nível atual contra esperado (linha dourada). "3.2 / 4.0" = atual / esperado para seu nível. Delta negativo = abaixo do esperado; positivo = acima. Foco nas <strong>duas primeiras</strong> — é onde a literatura de coaching converge.</div></div>
+    <div id="r-competencias"></div>
+    <div class="subsidios-block"><strong>Subsídio para ação</strong>Para cada uma das duas competências prioritárias, abra calendário recorrente de 30 minutos semanais dedicado especificamente ao desenvolvimento. Sem espaço protegido, nenhuma competência se desenvolve em meio à operação do dia.</div>
+  </div>
+
+  <!-- 5. Radar -->
+  <div class="card">
+    <h2><span class="icon">◌</span> Radar de Competências</h2>
+    <p class="card-sub">Visão consolidada das 5 dimensões avaliadas — sua percepção versus a realidade organizacional.</p>
+    <div class="conceito-block">Dois polígonos sobrepostos contam uma história que números isolados não contam: sua percepção pessoal versus o que você lê da empresa. Quatro quadrantes possíveis: <strong>(i) sinergia</strong> — você forte, empresa forte, capitalize; <strong>(ii) tensão produtiva</strong> — você forte, empresa fraca, risco de turnover ou líder solitário; <strong>(iii) oportunidade puxada</strong> — você fraca, empresa forte, empresa te eleva; <strong>(iv) risco sistêmico</strong> — ambos fracos, intervenção dupla necessária.<div class="conceito-mini">Como ler: polígono escuro = você; polígono dourado = sua leitura da empresa. Onde escuro está acima do dourado, você se vê adiante da empresa naquela competência. Diferenças maiores que 1.5 pontos costumam indicar viés de percepção e merecem confronto com feedback 360 antes de virar plano de ação.</div></div>
+    <div class="radar-container" id="radar-container"></div>
+    <div class="radar-legend"><div><span class="legend-swatch" style="background: var(--primary);"></span>Você</div><div><span class="legend-swatch" style="background: var(--accent);"></span>Sua Empresa</div></div>
+    <div class="subsidios-block"><strong>Subsídio para conversa</strong>Identifique uma competência onde os polígonos divergem mais de 1.0 ponto. Marque uma conversa com 2 pares dessa área para descobrir se a divergência é viés seu ou ponto cego do time.</div>
+  </div>
+
+  <!-- 6. Análise de Risco Estratégico -->
+  <div class="card">
+    <h2><span class="icon">△</span> Análise de Risco Estratégico</h2>
+    <p class="card-sub">Probabilidade do plano estratégico não acontecer com o time atual nas condições diagnosticadas.</p>
+    <div class="conceito-block">Estratégia bem desenhada com time despreparado <strong>não acontece</strong>. Risco Estratégico é a probabilidade estimada de não-execução do plano vigente, calculada como função inversa da maturidade observada, ponderada por exposição (porte, setor regulado, ciclo de mercado). Quando ultrapassa 60%, ajustar execução ou ajustar pessoas deixa de ser opcional e vira <strong>prioridade trimestral do board</strong>.<div class="conceito-mini">Como ler: círculo = risco percentual; etiqueta = Baixo (&lt;40%), Moderado (40-60%), Alto (&gt;60%). Risco não é destino — cada ponto de maturidade que sobe reduz o risco proporcionalmente. O Plano de Ação adiante endereça os três vetores que mais reduzem esse número.</div></div>
+    <div class="risco-hero">
+      <div class="risco-circle" id="r-risco-circle">—</div>
+      <div>
+        <div class="risco-level" id="r-risco-level">—</div>
+        <p style="margin-top: 8px; font-size: 13px;" id="r-risco-texto">—</p>
+      </div>
+    </div>
+    <div class="subsidios-block"><strong>Subsídio para o board</strong>Apresente esse percentual no próximo comitê estratégico. Conversa sobre risco de execução é mais produtiva que conversa sobre culpa por entrega — e abre espaço para discussão estrutural ao invés de individualização do problema.</div>
+  </div>
+
+  <!-- 7. CDL Impactos -->
+  <div class="card">
+    <h2><span class="icon">%</span> CDL · Custo da Disfuncionalidade da Liderança</h2>
+    <p class="card-sub">Estimativa financeira anual do impacto das disfunções identificadas — metodologia proprietária IBMEC.</p>
+    <div class="conceito-block">O <strong>CDL — Custo da Disfuncionalidade da Liderança</strong> — é uma métrica financeira proprietária IBMEC que estima, em R$ anuais, o impacto econômico das disfunções de liderança identificadas neste diagnóstico. Diferente de KPIs operacionais, o CDL captura o que normalmente fica <em>invisível no PnL</em>: retrabalho por decisão atrasada, oportunidade perdida por desalinhamento estratégico, custo de churn de talento por feedback inexistente, gargalo de execução por liderança centralizadora. A metodologia pondera porte da empresa, nível de decisão do respondente avaliado e magnitude dos gaps observados nas 5 dimensões.<div class="conceito-mini">Como ler: faixa min-max anual — não é número exato (nenhuma metodologia honesta dá número exato sobre custo invisível). Decomposição em três níveis mostra onde o dinheiro está vazando: Estratégico (decisão de visão e investimento) · Tático (coordenação e alocação) · Operacional (execução do dia).</div></div>
+    <div class="ppl-grid">
+      <div class="ppl-box"><div class="ppl-box-label">Porte</div><div class="ppl-box-value" id="r-ppl-porte">—</div></div>
+      <div class="ppl-box"><div class="ppl-box-label">Nível de Decisão</div><div class="ppl-box-value" id="r-ppl-nivel">—</div></div>
+    </div>
+    <div class="ppl-perda">
+      <div class="ppl-perda-label">Faixa de perda anual estimada</div>
+      <div class="ppl-perda-value" id="r-ppl-perda">—</div>
+      <div class="muted" style="font-size: 12px;">Heurística aplicada sobre porte × persona × maturidade. Não substitui análise financeira detalhada.</div>
+      <div class="ppl-perda-decomp">
+        <div class="ppl-decomp-item"><div class="ppl-decomp-label">Estratégico</div><div class="ppl-decomp-value" id="r-ppl-estrat">—</div></div>
+        <div class="ppl-decomp-item"><div class="ppl-decomp-label">Tático</div><div class="ppl-decomp-value" id="r-ppl-tat">—</div></div>
+        <div class="ppl-decomp-item"><div class="ppl-decomp-label">Operacional</div><div class="ppl-decomp-value" id="r-ppl-oper">—</div></div>
+      </div>
+    </div>
+    <div class="subsidios-block"><strong>Subsídio para finanças e RH</strong>CDL ≥ 5% da receita anual costuma justificar investimento em programa estruturado de desenvolvimento de liderança — o ROI da intervenção paga em 18-24 meses se bem executada. Decomposição estratégico-pesada indica que a alavanca está em rituais de C-suite; operacional-pesada, em processos e ferramentas.</div>
+  </div>
+
+  <!-- 8. Análise de Autopercepção -->
+  <div class="card">
+    <h2><span class="icon">◉</span> Análise de Autopercepção</h2>
+    <p class="card-sub">Padrão comportamental identificado a partir do contraste entre como você se vê e como percebe a empresa.</p>
+    <div class="conceito-block">Como você se vê e como você lê o contexto <strong>raramente coincidem</strong> — e a forma da divergência diz mais sobre você do que cada nota isolada. Quatro padrões clássicos descritos na literatura de avaliação: <strong>o talento sub-utilizado</strong> (auto &gt; empresa em múltiplas dimensões) · <strong>o impostor</strong> (auto &lt; empresa consistentemente) · <strong>o integrado</strong> (autoimagem casa com a realidade lida) · <strong>o oscilante</strong> (gaps em direções opostas em dimensões diferentes). Cada padrão tem implicações distintas para PDI.<div class="conceito-mini">Como ler: o texto abaixo descreve o padrão identificado nas suas respostas, baseado na contagem e direção dos gaps significativos (&gt;0.7 ponto) entre suas notas pessoa-empresa.</div></div>
+    <p id="r-autopercepcao" style="font-size: 14px;">—</p>
+    <div class="subsidios-block"><strong>Subsídio para autoconhecimento</strong>Para cada nota que você deu, tente identificar um KR (Key Result) ou comportamento factual dos últimos 6 meses que sustente a auto-avaliação. Onde não houver evidência, considere ajustar para o patamar de desenvolvimento — sinal claro de viés de autopercepção.</div>
+  </div>
+
+  <!-- 9. Plano de Ação Prioritário -->
+  <div class="card">
+    <h2><span class="icon">↗</span> Plano de Ação Prioritário</h2>
+    <p class="card-sub">Três frentes mapeadas pela combinação dos seus maiores gaps com benchmark de mercado do seu setor e porte.</p>
+    <div class="conceito-block"><strong>Três frentes. Não uma, não cinco.</strong> Toda literatura sobre mudança comportamental (BJ Fogg em <em>Tiny Habits</em>, James Clear em <em>Atomic Habits</em>, Marshall Goldsmith em <em>What Got You Here Won't Get You There</em>) converge no mesmo ponto: foco em poucas alavancas, alta repetição, ritual de acompanhamento. As três frentes abaixo derivam da intersecção entre seus maiores gaps internos e o benchmark de mercado do seu setor e porte — ordenadas pelo maior potencial de impacto nos próximos 90 dias.<div class="conceito-mini">Como ler: cada frente tem título, justificativa e três práticas concretas. Não tente as nove práticas — pegue <strong>uma de cada frente</strong> e implemente nas próximas 4 semanas. Quando virar hábito, adicione a próxima.</div></div>
+    <div id="r-plano"></div>
+    <div class="subsidios-block"><strong>Subsídio para os próximos 30 dias</strong>Não tente as nove práticas. Escolha exatamente <strong>uma</strong> de cada frente (três no total) e implemente nas próximas quatro semanas. Quando virar hábito observável, adicione a próxima. Hábito ≠ tarefa — só vira hábito quando o esforço de execução cai abaixo do limiar consciente.</div>
+  </div>
+
+  <!-- 10. Cronograma Macro -->
+  <div class="card">
+    <h2><span class="icon">▦</span> Cronograma Macro de Desenvolvimento</h2>
+    <p class="card-sub">Roadmap sugerido para evolução estruturada do diagnóstico ao novo patamar de maturidade.</p>
+    <div class="conceito-block">Diagnóstico sem cronograma <strong>vira gaveta</strong>. As três ondas refletem a engenharia de mudança organizacional baseada em ciclos PDCA aplicados a liderança: primeiros 30 dias para <em>internalizar</em> (validar com o time, priorizar gaps), 60 dias para <em>fundar</em> (rituais, indicadores, capacitação) e 90 dias para <em>colher</em> os primeiros sinais — ciclo que então se reinicia em escopo ampliado.<div class="conceito-mini">Como ler: cada etapa traz objetivos e práticas-âncora. O cronograma é ilustrativo — o ritmo real depende da maturidade inicial e da disponibilidade da liderança.</div></div>
+    <div class="crono-grid">
+      <div class="crono-etapa"><div class="crono-num">Etapa 1 · 30 dias</div><div class="crono-titulo">Diagnóstico & Alinhamento</div><ul class="crono-bullets"><li>Compartilhamento dos achados com a liderança</li><li>Priorização dos 3 gaps críticos</li><li>Definição de indicadores de acompanhamento</li></ul></div>
+      <div class="crono-etapa"><div class="crono-num">Etapa 2 · 60 dias</div><div class="crono-titulo">Fundação Comportamental</div><ul class="crono-bullets"><li>Capacitação nas competências priorizadas</li><li>Implementação de rituais de gestão</li><li>Estruturação de feedback contínuo</li></ul></div>
+      <div class="crono-etapa"><div class="crono-num">Etapa 3 · 90 dias</div><div class="crono-titulo">Aceleração & Resultado</div><ul class="crono-bullets"><li>Intervenções nos impactos organizacionais</li><li>Mentoria individual para talentos-chave</li><li>Avaliação intermediária e ajuste de rota</li></ul></div>
+    </div>
+  </div>
+
+  <!-- 11. Glossário -->
+  <div class="card">
+    <h2><span class="icon">≡</span> Glossário</h2>
+    <p class="card-sub">O que cada indicador deste relatório revela.</p>
+    <div class="gloss-item"><span class="gloss-term">Indicador de Maturidade</span> · <span class="gloss-def">Estágio em que a liderança joga. Calibra a régua de cobrança — não dá pra exigir entregas de nível 4 em empresa nível 2.</span></div>
+    <div class="gloss-item"><span class="gloss-term">CDL · Custo da Disfuncionalidade da Liderança</span> · <span class="gloss-def">Métrica financeira proprietária IBMEC que estima, em R$ anuais, o impacto econômico das disfunções de liderança — retrabalho por decisão atrasada, oportunidade perdida por desalinhamento, custo de churn por feedback inexistente, gargalo de execução por centralização. Faixa estimativa sobre porte × nível de decisão × magnitude dos gaps.</span></div>
+    <div class="gloss-item"><span class="gloss-term">Risco Estratégico</span> · <span class="gloss-def">Probabilidade do plano estratégico não acontecer com o time atual. Acima de 60%, ajustar execução ou pessoas vira prioridade do trimestre.</span></div>
+    <div class="gloss-item"><span class="gloss-term">Régua de Posicionamento</span> · <span class="gloss-def">Onde sua capacidade está sendo gasta (Operacional / Tático / Estratégico). C-level com &gt;50% em Operacional = ninguém pensando o futuro.</span></div>
+    <div class="gloss-item"><span class="gloss-term">Componentes do Alinhamento</span> · <span class="gloss-def">Quatro dimensões que medem aderência da pessoa ao contexto: cultural, estratégico, comportamental, performance.</span></div>
+  </div>
+
+  <!-- Fontes -->
+  <div class="sources" id="r-fontes">
+    <strong>Catálogo de benchmark · v1.1 ·</strong> Os benchmarks usados neste relatório vêm de fontes públicas: Gallup State of the Global Workplace 2026, GPTW Brasil 2025, Deloitte Human Capital Trends 2026, McKinsey OHI, WEF Future of Jobs 2025, Korn Ferry CEO Survey 2025, PwC CEO Survey 2026, LinkedIn Workplace Learning 2025, ENAP LideraGOV, Anahp Observatório 2025, Sebrae Maturidade Digital, Febraban, Abrasce, CNI, FIA, Instituto Semesp.
+  </div>
+
+  <div class="report-footer">Confidencial · Metodologia IBMEC · Gerado em <span id="r-data-rodape"></span></div>
+
+  <div class="actions-bar no-print">
+    <button class="btn btn-secondary" onclick="window.print()">Baixar PDF</button>
+    <button class="btn" onclick="reiniciar()">Novo diagnóstico</button>
+  </div>
+</div>
+
+
+<!-- ============================================
+     CONFIG SUPABASE — TROCAR ANTES DO DEPLOY
+     1. Vá em supabase.com > Project > Settings > API
+     2. Cole URL e anon key abaixo
+     3. EVENTO_SLUG vem do seed (não trocar a menos que renomeie no DB)
+
+     🔒 ESTA É A CÓPIA PARALELA — O LABORATÓRIO DE LAYOUT.
+        Enquanto o banco próprio deste projeto não existe, as credenciais ficam
+        no PLACEHOLDER de propósito. Não é descuido: com 'SEU-PROJETO' na URL o
+        `isConfigured()` devolve falso, e o próprio código já pula gravar
+        resposta e chamar a `gate-and-send` — nada cai na tabela do projeto
+        original e nenhum e-mail com PDF sai para ninguém. A tela roda inteira
+        assim mesmo, porque as perguntas são inline neste arquivo.
+        👉 Ao criar o banco próprio: cole aqui a URL e a anon key NOVAS.
+     ============================================ -->
+<script>
+window.APP_CONFIG = {
+  SUPABASE_URL: 'https://SEU-PROJETO.supabase.co',
+  SUPABASE_ANON_KEY: 'SUA-ANON-KEY',
+  EVENTO_SLUG: 'ibmec-junho-2026',
+  EDGE_GATE_FUNCTION: 'gate-and-send'
+};
+</script>
+<script>
+// =================== DADOS ===================
+const PERGUNTAS_POOL = [
+  // === D1 Visao ===
+  { id: 'q1', dim: 'D1', lente: 'pessoa', tipo: 'situational',
+    stem: 'Sua liderança anuncia uma nova prioridade estratégica no meio do trimestre. Qual sua reação típica?',
+    options: [
+      { t: 'Aguardo mais detalhes antes de mexer no plano atual', s: 2 },
+      { t: 'Adapto o que é simples sem mexer no resto', s: 3 },
+      { t: 'Reúno o time e re-priorizo já na semana seguinte', s: 4 },
+      { t: 'Negocio com a liderança o que entra e o que sai do trimestre', s: 5 }
+    ]
+  },
+  { id: 'q2', dim: 'D1', lente: 'empresa', tipo: 'frequency',
+    stem: 'Nos últimos 90 dias, com que frequência sua liderança comunicou avanços ou ajustes da estratégia?',
+    options: [
+      { t: 'Não houve comunicação específica sobre estratégia', s: 1 },
+      { t: 'Uma comunicação formal no período', s: 3 },
+      { t: '2-3 atualizações nesse tempo', s: 4 },
+      { t: 'Pelo menos uma atualização a cada 2-3 semanas', s: 5 }
+    ]
+  },
+  // === D2 Pessoas ===
+  { id: 'q3', dim: 'D2', lente: 'pessoa', tipo: 'frequency',
+    stem: 'Nos últimos 30 dias, em quantas conversas de desenvolvimento você esteve — como mentor ou mentorado?',
+    options: [
+      { t: 'Nenhuma', s: 1 },
+      { t: '1 a 2 conversas', s: 3 },
+      { t: '3 a 5 conversas', s: 4 },
+      { t: '6 ou mais', s: 5 }
+    ]
+  },
+  { id: 'q4', dim: 'D2', lente: 'empresa', tipo: 'situational',
+    stem: 'Quando alguém da sua área não está performando, o que normalmente acontece?',
+    options: [
+      { t: 'A pessoa fica, mas o tema é evitado abertamente', s: 2 },
+      { t: 'Cabe ao gestor direto resolver, sem suporte estruturado', s: 3 },
+      { t: 'Há processo claro de PDI com acompanhamento', s: 4 },
+      { t: 'Conversa franca e plano claro: melhora ou saída digna em prazo definido', s: 5 }
+    ]
+  },
+  // === D3 Decisao ===
+  { id: 'q5', dim: 'D3', lente: 'pessoa', tipo: 'forced',
+    stem: 'Qual frase descreve melhor como você decide quando há dados parciais e prazo apertado?',
+    options: [
+      { t: 'Peço mais 24h para conseguir dados melhores', s: 3 },
+      { t: 'Consulto pelo menos 2 pares antes de decidir', s: 3 },
+      { t: 'Decido com o que tenho e ajusto se errar', s: 4 },
+      { t: 'Decido se for da minha alçada; escalo se não for', s: 5 }
+    ]
+  },
+  { id: 'q6', dim: 'D3', lente: 'empresa', tipo: 'reverse',
+    stem: 'Sobre o processo de decisão na sua empresa, qual situação é MAIS comum?',
+    options: [
+      { t: 'Decisões oscilam dependendo de quem está na sala', s: 1 },
+      { t: 'Decisões importantes ficam esperando muitos níveis de aprovação', s: 2 },
+      { t: 'Decisões são tomadas e revistas se necessário', s: 4 },
+      { t: 'Há clareza explícita de quem decide o quê', s: 5 }
+    ]
+  },
+  // === D4 Comportamento ===
+  { id: 'q7', dim: 'D4', lente: 'pessoa', tipo: 'frequency',
+    stem: 'Nos últimos 90 dias, quantas conversas difíceis (feedback negativo, conflito, negativa de pedido) você sustentou cara-a-cara?',
+    options: [
+      { t: 'Nenhuma que eu lembre', s: 1 },
+      { t: '1 ou 2', s: 3 },
+      { t: '3 a 5', s: 4 },
+      { t: '6 ou mais', s: 5 }
+    ]
+  },
+  { id: 'q8', dim: 'D4', lente: 'empresa', tipo: 'situational',
+    stem: 'Imagine que você discordou abertamente da sua liderança em uma reunião. O que provavelmente aconteceria depois?',
+    options: [
+      { t: 'Seria visto como insubordinação, com consequência política', s: 1 },
+      { t: 'Depende do humor da pessoa naquele dia', s: 2 },
+      { t: 'Tudo bem desde que feito em privado depois', s: 3 },
+      { t: 'Normal — a empresa valoriza dissenso construtivo', s: 5 }
+    ]
+  },
+  // === D5 Performance ===
+  { id: 'q9', dim: 'D5', lente: 'pessoa', tipo: 'frequency',
+    stem: 'Com que frequência você revisita os indicadores-chave do seu trabalho ou área?',
+    options: [
+      { t: 'Mensalmente ou menos', s: 2 },
+      { t: 'A cada 2 semanas', s: 3 },
+      { t: 'Semanalmente', s: 4 },
+      { t: 'Acompanho dados todo dia', s: 5 }
+    ]
+  },
+  { id: 'q10', dim: 'D5', lente: 'empresa', tipo: 'situational',
+    stem: 'Sobre as metas anuais ou trimestrais na sua empresa, qual descreve melhor a realidade?',
+    options: [
+      { t: 'Não tenho clareza sobre as metas vigentes', s: 1 },
+      { t: 'Foram definidas mas pouco revisitadas no caminho', s: 2 },
+      { t: 'São revisitadas periodicamente com ajustes documentados', s: 4 },
+      { t: 'Há ritual estruturado com ajuste de rota e accountability', s: 5 }
+    ]
+  }
+];
+
+const COMP_NOMES = {
+  D1: "Visão & Direcionamento Estratégico",
+  D2: "Desenvolvimento de Pessoas",
+  D3: "Decisão & Accountability",
+  D4: "Comportamento & Influência",
+  D5: "Cultura de Performance"
+};
+
+const SETOR_NOMES = {V1:"Tecnologia & Inovação",V2:"Financeiro & Fintech",V3:"Varejo & Consumo",V4:"Indústria & Manufatura",V5:"Serviços Profissionais",V6:"Saúde & Farma",V7:"Educação",V8:"Setor Público",V9:"Outros"};
+const PORTE_NOMES = {S1:"Até 50 colaboradores",S2:"51 a 250 colaboradores",S3:"251 a 1.000 colaboradores",S4:"Mais de 1.000 colaboradores"};
+const PERSONA_NOMES = {A:"Analista",C:"Coordenador",G:"Gerente/Diretor",X:"C-Level"};
+
+const LIKERT_LABELS = ["", "Discordo totalmente", "Discordo", "Neutro", "Concordo", "Concordo totalmente"];
+
+const state = { identificacao: {}, perguntasOrdem: [], respostas: {}, idxAtual: 0, resultado: null };
+
+
+// =================== SUPABASE INTEGRATION ===================
+window.app = (function() {
+  let _client = null;
+  let _eventoId = null;
+  const LS_KEY = 'ibmec-assessment-session';
+
+  async function getClient() {
+    if (_client) return _client;
+    if (!window.__createSupabaseClient) {
+      throw new Error('Supabase JS ainda não carregou — aguarde 1s e tente novamente');
+    }
+    _client = window.__createSupabaseClient(
+      window.APP_CONFIG.SUPABASE_URL,
+      window.APP_CONFIG.SUPABASE_ANON_KEY,
+      { auth: { persistSession: false } }
+    );
+    return _client;
+  }
+
+  async function getEventoId() {
+    if (_eventoId) return _eventoId;
+    const sb = await getClient();
+    const { data, error } = await sb
+      .from('eventos')
+      .select('id')
+      .eq('slug', window.APP_CONFIG.EVENTO_SLUG)
+      .eq('ativo', true)
+      .single();
+    if (error || !data) {
+      console.error('Evento não encontrado:', error);
+      throw new Error('Evento IBMEC não encontrado no banco');
+    }
+    _eventoId = data.id;
+    return _eventoId;
+  }
+
+  function saveSession(session) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(session)); } catch(e) {}
+  }
+  function loadSession() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch(e) { return null; }
+  }
+  function clearSession() {
+    try { localStorage.removeItem(LS_KEY); } catch(e) {}
+  }
+
+  async function createRespondente(ident) {
+    const sb = await getClient();
+    const evento_id = await getEventoId();
+    const payload = {
+      evento_id,
+      nome: ident.nome,
+      empresa: ident.empresa,
+      cargo: ident.cargo,
+      persona: ident.persona,
+      tamanho: ident.tamanho,
+      segmento: ident.segmento,
+      consentimento_lgpd: true,
+      versao_questionario: 'q-v1.0'
+    };
+    const { data, error } = await sb
+      .from('respondentes')
+      .insert(payload)
+      .select('id, token_sessao')
+      .single();
+    if (error) throw new Error('Erro criando respondente: ' + error.message);
+    saveSession({ respondente_id: data.id, token_sessao: data.token_sessao });
+    return data;
+  }
+
+  async function saveResposta({ respondente_id, pergunta_id, dimensao, lente, valor, confianca }) {
+    const sb = await getClient();
+    const payload = { respondente_id, pergunta_id, dimensao, lente, valor };
+    if (confianca != null) payload.confianca = confianca;
+    const { error } = await sb
+      .from('respostas')
+      .upsert(payload, { onConflict: 'respondente_id,pergunta_id' });
+    if (error) console.warn('Erro salvando resposta (offline?):', error.message);
+    return !error;
+  }
+
+  async function callGate({ token, email, consentimento_marketing, scores_json, maturidade_letra, maturidade_score, cdl_min, cdl_max, risco_estrategico }) {
+    const url = `${window.APP_CONFIG.SUPABASE_URL}/functions/v1/${window.APP_CONFIG.EDGE_GATE_FUNCTION}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.APP_CONFIG.SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ token, email, consentimento_marketing, scores_json,
+                             maturidade_letra, maturidade_score, cdl_min, cdl_max, risco_estrategico })
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error('Gate falhou: ' + (data.error || 'erro desconhecido'));
+    return data;
+  }
+
+  function isConfigured() {
+    return window.APP_CONFIG.SUPABASE_URL &&
+           !window.APP_CONFIG.SUPABASE_URL.includes('SEU-PROJETO') &&
+           !window.APP_CONFIG.SUPABASE_ANON_KEY.includes('SUA-ANON-KEY');
+  }
+
+  return { getClient, getEventoId, createRespondente, saveResposta, callGate,
+           saveSession, loadSession, clearSession, isConfigured };
+})();
+
+
+
+// =================== NAVEGAÇÃO ===================
+function goTo(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.getElementById('view-' + view).classList.remove('hidden');
+  window.scrollTo(0, 0);
+  updateProgress(view);
+}
+function updateProgress(view) {
+  const wrap = document.getElementById('progress-bar-wrap');
+  const text = document.getElementById('progress-text');
+  if (view === 'assessment') {
+    wrap.classList.remove('hidden');
+    document.getElementById('progress-fill').style.width = (state.idxAtual / 13 * 100) + '%';
+    text.textContent = `${state.idxAtual + 1} / 13`;
+  } else { wrap.classList.add('hidden'); text.textContent = ''; }
+}
+
+function checkIdentificacao() {
+  const required = ['f-nome','f-empresa','f-cargo','f-persona','f-tamanho','f-segmento'];
+  const ok = required.every(id => document.getElementById(id).value.trim()) && document.getElementById('f-lgpd').checked;
+  document.getElementById('btn-start').disabled = !ok;
+}
+document.addEventListener('input', e => {
+  if (e.target.closest('#view-identificacao')) checkIdentificacao();
+  if (e.target.id === 'f-email') checkGate();
+});
+document.addEventListener('change', e => { if (e.target.closest('#view-identificacao')) checkIdentificacao(); });
+
+async function startAssessment() {
+  state.identificacao = {
+    nome: document.getElementById('f-nome').value.trim(),
+    empresa: document.getElementById('f-empresa').value.trim(),
+    cargo: document.getElementById('f-cargo').value.trim(),
+    persona: document.getElementById('f-persona').value,
+    tamanho: document.getElementById('f-tamanho').value,
+    segmento: document.getElementById('f-segmento').value
+  };
+
+  // === Cria respondente no Supabase (se configurado) ===
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-start').textContent = 'Iniciando...';
+  if (window.app.isConfigured()) {
+    try {
+      const resp = await window.app.createRespondente(state.identificacao);
+      state.respondente_id = resp.id;
+      state.token_sessao = resp.token_sessao;
+      console.log('Respondente criado:', resp.id);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao iniciar. Verifique sua conexão e tente novamente.');
+      document.getElementById('btn-start').disabled = false;
+      document.getElementById('btn-start').textContent = 'Comecar';
+      return;
+    }
+  } else {
+    console.warn('Supabase não configurado — rodando em modo offline (dados não serão salvos)');
+  }
+  document.getElementById('btn-start').textContent = 'Comecar';
+  // Clona o pool e embaralha ordem das 10 perguntas (com ordem de opcoes tambem shuffled por pergunta)
+  const seed = hashString(state.identificacao.empresa + state.identificacao.nome);
+  const core = PERGUNTAS_POOL.map(p => {
+    const opts = [...p.options];
+    shuffleArray(opts, seed + p.id.charCodeAt(1));
+    return { ...p, options: opts };
+  });
+  shuffleArray(core, seed);
+  state.perguntasOrdem = [...core,
+    { id: 'C1', tipo: 'calibracao', stem: 'Pensando em todo o questionario, qual seu nivel de confianca nas suas respostas?',
+      options: [{t:'Baixo — vai que errei muito',s:1},{t:'Mediano — algumas eu chutei',s:3},{t:'Alto — sao respostas que eu defenderia',s:4},{t:'Muito alto — tenho evidencia para cada uma',s:5}] },
+    { id: 'C2', tipo: 'calibracao', stem: 'Ha quanto tempo voce esta na posicao atual?',
+      options: [{t:'Menos de 1 ano',s:1},{t:'1 a 3 anos',s:3},{t:'3 a 7 anos',s:4},{t:'Mais de 7 anos',s:5}] },
+    { id: 'C3', tipo: 'calibracao', stem: 'O quanto voce pretende aplicar os aprendizados deste diagnostico?',
+      options: [{t:'Vai depender do que disser',s:2},{t:'Pretendo refletir sobre',s:3},{t:'Vou aplicar pelo menos uma acao',s:4},{t:'Vou compartilhar e agir nos proximos 30 dias',s:5}] }
+  ];
+  state.idxAtual = 0;
+  goTo('assessment');
+  renderPergunta();
+}
+
+function hashString(s) { let h = 0; for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0; return Math.abs(h); }
+function shuffleArray(arr, seed) {
+  let s = seed;
+  for (let i = arr.length - 1; i > 0; i--) {
+    s = (s * 9301 + 49297) % 233280;
+    const j = Math.floor((s / 233280) * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+// =================== ASSESSMENT ===================
+function renderPergunta() {
+  const p = state.perguntasOrdem[state.idxAtual];
+  document.getElementById('q-counter').textContent = 'Pergunta ' + (state.idxAtual + 1) + '/13';
+  let badge;
+  if (p.tipo === 'situational') badge = 'Cenario';
+  else if (p.tipo === 'frequency') badge = 'Frequencia';
+  else if (p.tipo === 'forced') badge = 'Escolha';
+  else if (p.tipo === 'reverse') badge = 'Realidade';
+  else badge = 'Final';
+  document.getElementById('q-badge').textContent = badge;
+  document.getElementById('q-text').textContent = p.stem;
+
+  const input = document.getElementById('q-input');
+  input.innerHTML = '';
+  const div = document.createElement('div'); div.className = 'option-cards';
+  p.options.forEach((opt, idx) => {
+    const card = document.createElement('div');
+    card.className = 'option-card';
+    card.innerHTML = '<div class="option-letter">' + String.fromCharCode(65 + idx) + '</div><div class="option-text">' + opt.t + '</div>';
+    card.onclick = async () => {
+      state.respostas[p.id] = opt.s;
+      document.querySelectorAll('.option-card').forEach(el => el.classList.remove('selected'));
+      card.classList.add('selected');
+      document.getElementById('btn-next').disabled = false;
+      // Persistir resposta no Supabase (best-effort, não bloqueia)
+      if (window.app.isConfigured() && state.respondente_id && p.dim && p.lente) {
+        window.app.saveResposta({
+          respondente_id: state.respondente_id,
+          pergunta_id: p.id,
+          dimensao: p.dim,
+          lente: p.lente,
+          valor: opt.s
+        }).catch(e => console.warn('Falha ao salvar resposta:', e));
+      }
+    };
+    if (state.respostas[p.id] === opt.s) card.classList.add('selected');
+    div.appendChild(card);
+  });
+  input.appendChild(div);
+
+  document.getElementById('btn-prev').disabled = state.idxAtual === 0;
+  document.getElementById('btn-next').disabled = state.respostas[p.id] === undefined;
+  document.getElementById('btn-next').textContent = state.idxAtual === 12 ? 'Finalizar' : 'Proxima';
+  updateProgress('assessment');
+}
+function nextQuestion() { if (state.idxAtual < 12) { state.idxAtual++; renderPergunta(); } else { computarResultado(); goTo('gate'); } }
+function prevQuestion() { if (state.idxAtual > 0) { state.idxAtual--; renderPergunta(); } }
+
+// =================== GATE ===================
+function checkGate() {
+  const email = document.getElementById('f-email').value.trim();
+  const ok = email.match(/^[^@\s]+@[^@\s]+\.[^@\s]+$/) && document.getElementById('f-lgpd-gate').checked;
+  document.getElementById('btn-liberar').disabled = !ok;
+}
+async function liberarResultado() {
+  const email = document.getElementById('f-email').value.trim();
+  const consentimentoMkt = document.getElementById('f-lgpd-gate').checked;
+  state.identificacao.email = email;
+  const btn = document.getElementById('btn-liberar');
+  btn.disabled = true;
+  btn.textContent = 'Liberando...';
+
+  // Chama Edge Function (gera PDF + envia email + libera resultado)
+  if (window.app.isConfigured() && state.token_sessao) {
+    try {
+      const r = state.resultado;
+      const id = state.identificacao;
+      // Calcula indicadores destacados para o backend
+      const score100 = Math.round(r.scoreGeral * 20);
+      const grades = [[4.5,'AAA'],[4.0,'AA'],[3.5,'A'],[3.0,'B'],[2.5,'C'],[0,'D']];
+      const maturidade_letra = grades.find(g => r.scoreGeral >= g[0])[1];
+
+      // CDL heurística aprox (mesma do front)
+      const porteFator = {S1: 1, S2: 3, S3: 8, S4: 25}[id.tamanho] || 5;
+      const personaFator = {A: 0.3, C: 0.7, G: 1.5, X: 3}[id.persona] || 1;
+      const gapFator = (5 - r.scoreGeral) / 5;
+      const cdl_min = Math.round(porteFator * personaFator * gapFator * 80000);
+      const cdl_max = Math.round(porteFator * personaFator * gapFator * 350000);
+      const risco_estrategico = Math.round((5 - r.scoreGeral) * 20);
+
+      await window.app.callGate({
+        token: state.token_sessao,
+        email,
+        consentimento_marketing: consentimentoMkt,
+        scores_json: { scores: r.scores, scoreGeral: r.scoreGeral, identificacao: id },
+        maturidade_letra,
+        maturidade_score: score100,
+        cdl_min,
+        cdl_max,
+        risco_estrategico
+      });
+      console.log('Gate ok: email enviado, PDF gerado');
+    } catch (err) {
+      console.error('Erro no gate:', err);
+      alert('Não conseguimos enviar o relatório por email agora — mas o resultado está liberado na tela. Você pode imprimir como PDF.');
+    }
+  }
+
+  btn.textContent = 'Ver meu resultado';
+  renderResultado();
+  goTo('resultado');
+}
+
+// =================== SCORING ===================
+function computarResultado() {
+  // Mapeia respostas para dim/lente atraves do PERGUNTAS_POOL
+  const dims = ['D1','D2','D3','D4','D5'];
+  const buckets = {};
+  dims.forEach(d => buckets[d] = { pessoa: null, empresa: null });
+  PERGUNTAS_POOL.forEach(p => {
+    const valor = state.respostas[p.id];
+    if (valor !== undefined && buckets[p.dim]) {
+      buckets[p.dim][p.lente] = valor;
+    }
+  });
+  const scores = {};
+  dims.forEach(d => {
+    const pess = buckets[d].pessoa, emp = buckets[d].empresa;
+    scores[d] = { pessoa: pess, empresa: emp, gap: pess - emp, media: (pess + emp) / 2 };
+  });
+  const scoreGeral = dims.reduce((s,d) => s + scores[d].media, 0) / 5;
+  state.resultado = { scores, scoreGeral };
+}
+
+// =================== RESULTADO ===================
+function renderResultado() {
+  const r = state.resultado, id = state.identificacao;
+  const dataHoje = new Date().toLocaleDateString('pt-BR');
+  document.getElementById('r-empresa-nome').textContent = id.empresa;
+  document.getElementById('r-respondente').textContent = id.nome + ' · ' + id.cargo;
+  document.getElementById('r-setor').textContent = SETOR_NOMES[id.segmento];
+  document.getElementById('r-data').textContent = dataHoje;
+  document.getElementById('r-data-rodape').textContent = dataHoje;
+  renderMaturidade(r.scoreGeral);
+  renderRegua(r.scores, id.persona);
+  renderComponentes(r.scores);
+  renderCompetencias(r.scores, id.persona);
+  document.getElementById('radar-container').innerHTML = renderRadar(r.scores);
+  renderRisco(r.scoreGeral, r.scores);
+  renderCDL(r.scoreGeral, r.scores, id);
+  renderAutopercepcao(r.scores);
+  renderPlano(r.scores, id);
+}
+
+function renderMaturidade(score) {
+  const score100 = Math.round(score * 20);
+  let grade, label, diag;
+  if (score >= 4.5) { grade='AAA'; label='Excelência'; diag='Organização em patamar de excelência em maturidade de liderança. Pontos fortes consolidados em todas as dimensões avaliadas. Foco em sustentação e disseminação para níveis hierárquicos inferiores.'; }
+  else if (score >= 4.0) { grade='AA'; label='Avançado'; diag='Maturidade avançada com pontos fortes claros e poucos gaps específicos. Empresa pronta para escalar práticas de liderança como vantagem competitiva no mercado.'; }
+  else if (score >= 3.5) { grade='A'; label='Consolidado'; diag='Estrutura de liderança consolidada com práticas bem estabelecidas. Oportunidades de evolução em dimensões específicas para alcançar próximo patamar.'; }
+  else if (score >= 3.0) { grade='B'; label='Em desenvolvimento'; diag='Empresa em fase de consolidação estrutural. Processos definidos mas com execução inconsistente. Necessita fortalecer cultura de accountability e rituais de gestão.'; }
+  else if (score >= 2.5) { grade='C'; label='Inicial'; diag='Maturidade inicial — processos em construção e cultura de liderança em formação. Risco moderado de subentrega frente às metas estratégicas; recomenda-se intervenção estruturada.'; }
+  else { grade='D'; label='Crítico'; diag='Patamar crítico de maturidade — gaps estruturais em múltiplas dimensões. Risco alto de não-execução do plano estratégico. Intervenção imediata recomendada com foco em fundamentos de liderança.'; }
+  document.getElementById('r-maturity-grade').textContent = grade;
+  document.getElementById('r-maturity-score').textContent = 'Score: ' + score100 + '/100 · ' + label;
+  document.getElementById('r-maturity-diag').textContent = diag;
+  const grades = ['D','C','B','A','AA','AAA'];
+  const upTo = grades.indexOf(grade);
+  document.querySelectorAll('.maturity-bar').forEach((el,i) => el.classList.toggle('active', i <= upTo));
+  document.querySelectorAll('.maturity-scale span').forEach(el => el.classList.toggle('current', el.dataset.grade === grade));
+}
+
+function renderRegua(scores, persona) {
+  const stratWeight = (scores.D1.empresa + scores.D3.empresa) / 2;
+  const tacWeight = (scores.D5.empresa + scores.D2.empresa) / 2;
+  const opWeight = (scores.D4.empresa + scores.D5.empresa) / 2;
+  const total = stratWeight + tacWeight + opWeight;
+  const stratPct = stratWeight / total;
+  const atualPosicao = stratPct * 90 + 5;
+  const esperadoMap = { A: 15, C: 40, G: 70, X: 90 };
+  const esperadoPosicao = esperadoMap[persona];
+  document.getElementById('r-regua-atual').style.left = atualPosicao + '%';
+  document.getElementById('r-regua-esperado').style.left = esperadoPosicao + '%';
+  const gap = esperadoPosicao - atualPosicao;
+  let leitura;
+  if (Math.abs(gap) < 10) leitura = 'Posicionamento alinhado com o esperado para ' + PERSONA_NOMES[persona] + '. Sua capacidade está bem distribuída no nível certo de decisão.';
+  else if (gap > 0) leitura = 'Sua capacidade está ' + Math.round(Math.abs(gap)) + '% mais operacional/tática do que o esperado para ' + PERSONA_NOMES[persona] + '. Risco de não dedicar tempo suficiente a decisões estratégicas.';
+  else leitura = 'Você opera ' + Math.round(Math.abs(gap)) + '% acima do nível estratégico esperado para ' + PERSONA_NOMES[persona] + '. Pode indicar centralização excessiva ou ausência de camada de execução.';
+  document.getElementById('r-regua-leitura').textContent = leitura;
+}
+
+function renderComponentes(scores) {
+  const componentes = [
+    { titulo: 'Alinhamento Cultural', desc: 'Aderência aos valores e cultura da empresa', valor: scores.D4.empresa * 20 },
+    { titulo: 'Alinhamento Estratégico', desc: 'Foco nos objetivos da empresa', valor: scores.D1.empresa * 20 },
+    { titulo: 'Engajamento Comportamental', desc: 'Motivação e propósito pessoal', valor: scores.D4.pessoa * 20 },
+    { titulo: 'Performance vs Expectativa', desc: 'Entrega em relação ao esperado', valor: scores.D5.media * 20 }
+  ];
+  function classifica(v) {
+    if (v >= 75) return ['Forte', 'tag-forte'];
+    if (v >= 60) return ['Saudável', 'tag-saudavel'];
+    if (v >= 40) return ['Em desenvolvimento', 'tag-atencao'];
+    return ['Crítico', 'tag-critico'];
+  }
+  document.getElementById('r-componentes').innerHTML = componentes.map(c => {
+    const [label, cls] = classifica(c.valor);
+    return '<div class="componente-row"><div class="componente-info"><div class="componente-title">' + c.titulo + '</div><div class="componente-desc">' + c.desc + '</div></div><div class="componente-bar-wrap"><div class="componente-bar"><div class="componente-bar-fill" style="width: ' + Math.round(c.valor) + '%;"></div></div></div><div class="componente-value">' + Math.round(c.valor) + '%<span class="componente-tag ' + cls + '">' + label + '</span></div></div>';
+  }).join('');
+}
+
+function renderCompetencias(scores, persona) {
+  const expectativa = { A: 3.5, C: 3.8, G: 4.0, X: 4.3 }[persona];
+  const comps = ['D1','D2','D3','D4','D5'].map(d => ({ nome: COMP_NOMES[d], atual: scores[d].media, esperado: expectativa, gap: scores[d].media - expectativa })).sort((a,b) => a.gap - b.gap);
+  document.getElementById('r-competencias').innerHTML = comps.map((c,i) => {
+    const gapStr = (c.gap > 0 ? '+' : '') + c.gap.toFixed(1);
+    const gapClass = c.gap < -0.5 ? 'neg' : c.gap > 0.3 ? 'pos' : '';
+    const pctAtual = (c.atual / 5) * 100;
+    const pctEsperado = (c.esperado / 5) * 100;
+    return '<div class="comp-row"><div class="comp-rank">' + (i+1).toString().padStart(2,'0') + '</div><div class="comp-name">' + c.nome + '</div><div class="comp-bar-track"><div class="comp-bar-current" style="width: ' + pctAtual + '%;"></div><div class="comp-bar-expected" style="width: ' + pctEsperado + '%;"></div></div><div class="comp-scores">' + c.atual.toFixed(1) + ' / ' + c.esperado.toFixed(1) + '</div><div class="comp-gap ' + gapClass + '">' + gapStr + '</div></div>';
+  }).join('');
+}
+
+function renderRisco(scoreGeral, scores) {
+  const risco = Math.max(15, Math.min(95, Math.round((5 - scoreGeral) * 25)));
+  let level, levelClass, circleClass, texto;
+  if (risco >= 60) { level='Alto'; levelClass='alto'; circleClass=''; texto='Risco elevado de não-execução do plano estratégico. As fragilidades identificadas, especialmente nas dimensões priorizadas acima, podem comprometer entregas-chave do ciclo atual. Recomenda-se intervenção estruturada nos próximos 90 dias.'; }
+  else if (risco >= 40) { level='Moderado'; levelClass='moderado'; circleClass='moderado'; texto='Risco moderado. A organização tem fundamentos mas apresenta inconsistências que, se não endereçadas, podem comprometer metas mais ambiciosas. Janela favorável para ajustes preventivos.'; }
+  else { level='Baixo'; levelClass='baixo'; circleClass='baixo'; texto='Risco contido. A maturidade observada sustenta a execução do plano estratégico atual. Foco recomendado em manutenção e em elevar o patamar para próximos ciclos.'; }
+  document.getElementById('r-risco-circle').textContent = risco + '%';
+  document.getElementById('r-risco-circle').className = 'risco-circle ' + circleClass;
+  document.getElementById('r-risco-level').textContent = level;
+  document.getElementById('r-risco-level').className = 'risco-level ' + levelClass;
+  document.getElementById('r-risco-texto').textContent = texto;
+}
+
+function renderCDL(scoreGeral, scores, id) {
+  const fatorTam = { S1: 1, S2: 3, S3: 8, S4: 20 }[id.tamanho];
+  const multPersona = { A: 1, C: 2, G: 4, X: 10 }[id.persona];
+  const gapMedio = ['D1','D2','D3','D4','D5'].reduce((s,d) => s + (5 - scores[d].empresa), 0) / 5;
+  const base = gapMedio * fatorTam * multPersona * 5000;
+  const min = Math.round(base * 0.6 / 1000) * 1000;
+  const max = Math.round(base * 1.4 / 1000) * 1000;
+  const fmt = v => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  document.getElementById('r-ppl-perda').textContent = fmt(min) + ' — ' + fmt(max);
+  document.getElementById('r-ppl-porte').textContent = PORTE_NOMES[id.tamanho];
+  document.getElementById('r-ppl-nivel').textContent = PERSONA_NOMES[id.persona];
+  document.getElementById('r-ppl-estrat').textContent = fmt(Math.round(min*0.5)) + ' — ' + fmt(Math.round(max*0.5));
+  document.getElementById('r-ppl-tat').textContent = fmt(Math.round(min*0.3)) + ' — ' + fmt(Math.round(max*0.3));
+  document.getElementById('r-ppl-oper').textContent = fmt(Math.round(min*0.2)) + ' — ' + fmt(Math.round(max*0.2));
+}
+
+function renderAutopercepcao(scores) {
+  const gapsPositivos = ['D1','D2','D3','D4','D5'].filter(d => scores[d].gap > 0.7).length;
+  const gapsNegativos = ['D1','D2','D3','D4','D5'].filter(d => scores[d].gap < -0.7).length;
+  let texto;
+  if (gapsPositivos >= 3) texto = 'Você se avalia consistentemente acima do que percebe na sua empresa em múltiplas dimensões. Esse padrão indica talento sub-utilizado ou frustração latente — risco de turnover se a organização não acompanhar seu nível. Por outro lado, pode também sinalizar autopercepção otimista que vale ser calibrada com feedback 360.';
+  else if (gapsNegativos >= 3) texto = 'Você se avalia consistentemente abaixo do que percebe na sua empresa em múltiplas dimensões. Pode indicar oportunidade de desenvolvimento clara onde a empresa puxa para cima, ou síndrome do impostor que vale ser explorada em coaching. Em qualquer caso, há terreno fértil para PDI estruturado.';
+  else if (gapsPositivos + gapsNegativos <= 1) texto = 'Você apresenta alinhamento entre autopercepção e visão organizacional na maioria das dimensões. Esse padrão indica boa calibragem entre indivíduo e contexto — sinal saudável de quem está bem integrado à cultura e ciente das próprias forças e limitações.';
+  else texto = 'Você apresenta padrão misto — em algumas dimensões se vê acima da empresa, em outras abaixo. Esse perfil é comum e indica leitura realista do contexto. Os pontos de gap específico, listados em Competências Prioritárias, são onde o desenvolvimento individual tem maior alavancagem.';
+  document.getElementById('r-autopercepcao').textContent = texto;
+}
+
+function renderPlano(scores, id) {
+  const expectativa = { A: 3.5, C: 3.8, G: 4.0, X: 4.3 }[id.persona];
+  const dimsOrdenadas = ['D1','D2','D3','D4','D5'].map(d => ({ d, score: scores[d].media, gap: scores[d].media - expectativa })).sort((a,b) => a.gap - b.gap);
+  const acoes = {
+    D1: { titulo: 'Fortalecer Visão & Direcionamento Estratégico', desc: 'Reduzir o gap entre estratégia e execução com rituais de cascateamento e alinhamento.', bullets: ['Sessão trimestral de cascateamento de OKRs com pares e diretos', 'Mapa de prioridades 90 dias revisitado mensalmente', 'Comunicação estruturada do "porquê" das decisões estratégicas'] },
+    D2: { titulo: 'Estruturar Desenvolvimento de Pessoas', desc: 'Implantar rituais de feedback, mentoria e plano de sucessão na sua camada.', bullets: ['Cadência fixa de 1:1 quinzenal com diretos', 'PDI ativo por colaborador com revisão trimestral', 'Plano de sucessão mapeado para posições críticas em 6 meses'] },
+    D3: { titulo: 'Acelerar Decisão & Accountability', desc: 'Reduzir tempo de decisão e fortalecer responsabilização por resultado.', bullets: ['Decision records para escolhas que afetam o time/área', 'Dashboard semanal de KPIs com dono único por indicador', 'Critério explícito de quando escalar versus decidir'] },
+    D4: { titulo: 'Desenvolver Influência & Comportamento de Liderança', desc: 'Construir capital relacional e modelar comportamentos da cultura desejada.', bullets: ['Feedback 360 estruturado nos próximos 60 dias', 'Framework SBI (Situation-Behavior-Impact) para conversas difíceis', 'Mapeamento intencional de rede cross-area'] },
+    D5: { titulo: 'Consolidar Cultura de Performance', desc: 'Conectar metas individuais a resultados de negócio com ritmo de revisão.', bullets: ['Business Review trimestral com pares e liderança', 'OKRs vivos com check-in semanal e ajuste de rota', 'Vinculação explícita de iniciativas a métricas de impacto'] }
+  };
+  document.getElementById('r-plano').innerHTML = dimsOrdenadas.slice(0,3).map((item,i) => {
+    const a = acoes[item.d];
+    return '<div class="plano-item"><div class="plano-num">' + (i+1) + '</div><div class="plano-content"><h4>' + a.titulo + '</h4><p>' + a.desc + '</p><ul>' + a.bullets.map(b => '<li>' + b + '</li>').join('') + '</ul></div></div>';
+  }).join('');
+}
+
+function renderRadar(scores) {
+  const cx = 220, cy = 220, rMax = 160;
+  const dims = ['D1','D2','D3','D4','D5'];
+  const angles = dims.map((_,i) => -Math.PI/2 + i * 2 * Math.PI / 5);
+  const labels = ['Visão','Pessoas','Decisão','Comportamento','Performance'];
+  function pt(idx, value) { const r = (value/5) * rMax; return [cx + r*Math.cos(angles[idx]), cy + r*Math.sin(angles[idx])]; }
+  function polygon(getValue, color, opacity) { const pts = dims.map((d,i) => pt(i, getValue(d)).join(',')).join(' '); return '<polygon points="' + pts + '" fill="' + color + '" fill-opacity="' + opacity + '" stroke="' + color + '" stroke-width="2"/>'; }
+  let grid = '';
+  [1,2,3,4,5].forEach(v => { const pts = dims.map((_,i) => pt(i, v).join(',')).join(' '); grid += '<polygon points="' + pts + '" fill="none" stroke="#E2E6EF" stroke-width="1"/>'; });
+  let axes = ''; dims.forEach((_,i) => { const [x,y] = pt(i, 5); axes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x + '" y2="' + y + '" stroke="#E2E6EF" stroke-width="1"/>'; });
+  let textLabels = ''; dims.forEach((d,i) => { const [x,y] = pt(i, 6); const anchor = Math.cos(angles[i]) > 0.1 ? 'start' : Math.cos(angles[i]) < -0.1 ? 'end' : 'middle'; textLabels += '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" font-size="12" font-weight="700" fill="#002555">' + labels[i] + '</text>'; });
+  return '<svg viewBox="0 0 440 440" width="100%" height="380" style="max-width:440px;">' + grid + axes + polygon(d => scores[d].empresa, '#F5AC00', 0.4) + polygon(d => scores[d].pessoa, '#002555', 0.5) + textLabels + '</svg>';
+}
+
+function reiniciar() {
+  if (window.app) window.app.clearSession();
+  state.identificacao = {}; state.perguntasOrdem = []; state.respostas = {}; state.idxAtual = 0; state.resultado = null;
+  state.respondente_id = null; state.token_sessao = null;
+  document.querySelectorAll('input, select').forEach(el => { if (el.type === 'checkbox') el.checked = false; else el.value = ''; });
+  goTo('landing');
+}
+
+document.getElementById('f-lgpd-gate').addEventListener('change', checkGate);
+goTo('landing');
+</script>
+</body>
+</html>
+                                                                                                      

@@ -1,0 +1,93 @@
+{
+  "marca": "IBMEC",
+  "versao_brandbook": "V1 (Toolkit de Marca, AMA Couto / 2024)",
+  "extraido_em": "2026-05-26",
+
+  "cores_principais": {
+    "amarelo": {
+      "pantone": "1235 C",
+      "cmyk": "0/36/95/0",
+      "rgb": "245/172/0",
+      "hex": "#F5AC00",
+      "papel": "Cor principal de destaque. Usado no ponto do 'i' do logotipo, em chamadas e elementos de atenção."
+    },
+    "azul_marinho": {
+      "pantone": "655 C",
+      "cmyk": "100/87/40/34",
+      "rgb": "0/37/85",
+      "hex": "#002555",
+      "papel": "Cor institucional dominante. Fundos principais, tipografia em fundo claro, headers."
+    },
+    "azul_royal": {
+      "pantone": "2387 C",
+      "cmyk": "90/50/0/0",
+      "rgb": "18/69/255",
+      "hex": "#1245FF",
+      "papel": "Tom auxiliar de azul, mais saturado. Acentos, destaques, hover, blocos secundários."
+    }
+  },
+
+  "cores_neutras": {
+    "branco": "#FFFFFF",
+    "preto": "#000000",
+    "cinza_texto_pdf": "#3D3D3D"
+  },
+
+  "tipografia": {
+    "principal": {
+      "familia": "Krub",
+      "fonte_google": "https://fonts.google.com/specimen/Krub",
+      "pesos_usados": ["Regular (400)", "Medium (500)", "Bold (700)"],
+      "uso": {
+        "Regular": "Títulos principais e texto corrido",
+        "Medium": "Destaques, subtítulos",
+        "Bold": "Ênfase, eyebrows de seção"
+      },
+      "embed_google_fonts": "https://fonts.googleapis.com/css2?family=Krub:wght@400;500;600;700&display=swap",
+      "atencao": "Krub é a tipografia, NÃO é a fonte do logotipo. Nunca reescrever 'ibmec' digitando em Krub."
+    },
+    "sistema_fallback": {
+      "familia": "Tahoma",
+      "uso": "Quando Krub não estiver disponível por limitação técnica (legacy/email)"
+    }
+  },
+
+  "logos": {
+    "primary_on_white": "logos/ibmec-primary-on-white.png",
+    "negative_on_navy": "logos/ibmec-negative-on-navy.png",
+    "on_yellow_bg": "logos/ibmec-on-yellow.png",
+    "on_royal_blue_bg": "logos/ibmec-on-royal-blue.png",
+    "symbol_i_only": "logos/ibmec-symbol-i.png",
+    "regras_uso": [
+      "Versão positiva preferencial (navy sobre branco) é a principal para todas as aplicações",
+      "Versão negativa (branco sobre navy) usada em fundos escuros",
+      "NUNCA distorcer proporções, cortar ou alterar o grafismo do colchete",
+      "NÃO variar tons das cores da paleta nos grafismos",
+      "NÃO aplicar contorno, sombra ou textura sobre o logo",
+      "Área de respiro mínima: 1× a altura do ponto do 'i' em todas as bordas"
+    ]
+  },
+
+  "elementos_visuais": {
+    "grafismos": "Colchete '[', frame retangular, e ponto/círculo — derivam da letra 'i' da marca",
+    "uso_grafismos": "Comportamento responsivo: colchete, bloco e ponto podem assumir diversos pesos contracenando entre si"
+  },
+
+  "personalidade": {
+    "atributos": ["Especialista", "Inspiradora", "Próxima", "Curiosa"],
+    "proposito": "Solucionadores do amanhã",
+    "arquetipo": "Mago",
+    "tagline": "A direção do amanhã"
+  },
+
+  "tons_de_voz": [
+    "Pode confiar",
+    "Lado a Lado",
+    "Ouvir para Crescer"
+  ],
+
+  "white_label_notes": {
+    "co_branding": "White-label 100% IBMEC. Nenhuma menção à marca operadora visível em interface, relatório, footer ou email.",
+    "email_from": "Endereço @ibmec.br ou equivalente IBMEC (a confirmar antes do deploy)"
+  }
+}
