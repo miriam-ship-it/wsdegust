@@ -354,7 +354,16 @@ async function loadLeads() {
   document.getElementById('leads-info').textContent = 'Carregando...';
   try {
     const sb = await getClient();
-    let query = sb.from('v_leads_export').select('*').order('submetido_em', { ascending: false });
+    // 🔴 FALTAVA O FILTRO POR EVENTO. A view v_leads_export nao filtra sozinha
+    //    (`where r.email is not null`), e o loadStats() aqui do lado sempre
+    //    filtrou por slug. Resultado: a caixa dizia "0 respondentes" e a tabela
+    //    logo abaixo listava os leads do OUTRO cliente — nome, e-mail, CDL — e
+    //    o CSV exportava eles. Era invisivel enquanto o banco tinha um evento
+    //    so; passou a acontecer quando a Boomit entrou na mesma base.
+    let query = sb.from('v_leads_export')
+      .select('*')
+      .eq('evento_slug', window.APP_CONFIG.EVENTO_SLUG)
+      .order('submetido_em', { ascending: false });
 
     const persona = document.getElementById('f-persona').value;
     const tamanho = document.getElementById('f-tamanho').value;
@@ -454,7 +463,7 @@ function exportCSV() {
   const a = document.createElement('a');
   a.href = url;
   const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
-  a.download = `ibmec-leads-${ts}.csv`;
+  a.download = `${window.APP_CONFIG.EVENTO_SLUG}-leads-${ts}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

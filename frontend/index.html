@@ -691,12 +691,14 @@ window.__createSupabaseClient = createClient;
         relatórios.
         Evento: 'boomit-degustacao' · id 27c11e23-7336-4e5e-9514-9a84e7d17e75
 
-     ⚠️ A SEPARAÇÃO É DE ORGANIZAÇÃO, NÃO DE ACESSO. As policies de `anon`
-        em respondentes/respostas/relatorios são `using (true)` — sem filtro
-        por evento. Quem tem esta chave (que é pública, e este repo também)
-        lê os respondentes dos DOIS eventos, e-mail incluído. Enquanto isso
-        não for apertado, não coloque neste formulário dado que você não
-        possa perder.
+     🔒 E A SEPARAÇÃO TAMBÉM É DE ACESSO (migrations de 14/08). As policies
+        de `anon` eram `using (true)` — com esta chave, que é pública, dava
+        para ler e alterar os respondentes dos dois eventos, e-mail incluído.
+        Agora o token da sessão viaja no cabeçalho `x-sessao` e a policy só
+        devolve a linha cujo token bate: sem cabeçalho, zero linha. As views
+        de export (v_leads_export) perderam o SELECT de anon, que era por
+        onde a RLS estava sendo contornada.
+        Ver supabase/migrations/20260814*.
      ============================================ -->
 <script>
 window.APP_CONFIG = {
@@ -861,6 +863,25 @@ window.app = (function() {
     return _client;
   }
 
+  /**
+   * Um UUID v4, sem depender de crypto.randomUUID.
+   *
+   * 🔴 randomUUID só existe em contexto seguro e a partir do Safari 15.4 /
+   *    Chrome 92. Num iPad corporativo antigo, ou num preview aberto por
+   *    http:// na rede local, ele é undefined: a chamada estourava dentro de
+   *    createRespondente, o catch de checkIdentificacao engolia e a pessoa via
+   *    "Erro ao iniciar. Verifique sua conexão" — mensagem que aponta para o
+   *    lugar errado, e ela nunca começava. getRandomValues é bem mais antigo.
+   */
+  function novoToken() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40;   // versão 4
+    b[8] = (b[8] & 0x3f) | 0x80;   // variante RFC 4122
+    const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+  }
+
   /** Troca o token da sessão — e joga fora o cliente, que carrega o antigo. */
   function usarToken(token) {
     if (_token === token) return;
@@ -898,7 +919,7 @@ window.app = (function() {
   async function createRespondente(ident) {
     const evento_id = await getEventoId();   // ainda sem token: eventos é público
     // o token nasce aqui e já entra no cabeçalho, para o RETURNING enxergar a linha
-    const token = crypto.randomUUID();
+    const token = novoToken();
     usarToken(token);
     const sb = await getClient();
     const payload = {
