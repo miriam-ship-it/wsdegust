@@ -21,6 +21,9 @@
     --muted: #6E746A;
     --green: #5C7A5C;
     --red: #A0543E;
+    /* passo mais escuro do terracota, para texto pequeno sobre fundo tingido
+       — mesmo criterio do --red-forte no index.html */
+    --red-forte: #7E3F2C;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'PP Mori', 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
@@ -29,7 +32,7 @@
     display: flex; justify-content: space-between; align-items: center;
     border-bottom: 3px solid var(--yellow);
   }
-  .header .eyebrow { font-size: 10px; color: var(--yellow); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; }
+  .header .eyebrow { font-size: 10px; color: var(--bg); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; }
   .header h1 { font-size: 18px; font-weight: 700; margin-top: 2px; }
   .logout { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 14px; font-size: 12px; cursor: pointer; font-family: inherit; }
   .logout:hover { background: rgba(255,255,255,0.1); }
@@ -53,7 +56,7 @@
   .btn-secondary { background: white; color: var(--navy); border: 1px solid var(--navy); }
   .btn-secondary:hover { background: var(--soft); color: var(--navy); }
   .btn-small { padding: 6px 12px; font-size: 11px; width: auto; }
-  .alert-error { background: #F0E2DC; color: var(--red); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border-left: 3px solid var(--red); }
+  .alert-error { background: #F0E2DC; color: var(--red-forte); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border-left: 3px solid var(--red); }
 
   /* Stats */
   .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }

@@ -371,6 +371,14 @@
     .crono-grid { grid-template-columns: 1fr; }
   }
   @media print {
+    /* 🔑 O PDF É ESTE CSS. O botão "Baixar PDF" chama window.print(), e o
+       navegador DESCARTA todo fundo colorido por padrão — o relatório
+       dependia de fundo para significar, então saía mutilado: as tarjas têm
+       texto branco sobre cor (fundo some → branco no branco → some a
+       palavra), a régua é um gradiente (some → caixa vazia com dois pontos),
+       e as barras do Alinhamento são fundo puro (somem → tudo em zero).
+       Esta linha é o que faz o PDF respeitar o que está na tela. */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     .header, .actions-bar, .no-print { display: none !important; }
     body { background: white; font-size: 12px; }
     .card { border: 1px solid #ddd; padding: 14px; page-break-inside: avoid; margin-bottom: 8px; }
@@ -389,14 +397,14 @@ window.__createSupabaseClient = createClient;
 
 <div class="header no-print">
   <div class="logo"><img src="logo-boomit.png" alt="Boomit" height="28" style="height:28px;width:auto;display:block;"></div>
-  <div id="progress-text" style="font-size: 12px; color: var(--accent); letter-spacing: 1px;"></div>
+  <div id="progress-text" style="font-size: 12px; color: var(--bg); letter-spacing: 1px;"></div>
 </div>
 <div id="progress-bar-wrap" class="hidden"><div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div></div>
 
 <!-- ============ LANDING ============ -->
 <div class="container view" id="view-landing">
   <div class="card" style="padding: 48px 32px;">
-    <div style="font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; margin-bottom: 12px;">Diagnóstico Estratégico Boomit</div>
+    <div style="font-size: 11px; color: var(--gold-forte); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; margin-bottom: 12px;">Diagnóstico Estratégico Boomit</div>
     <h1>Maturidade de Liderança e Gestão</h1>
     <p class="muted" style="margin-top: 12px; font-size: 16px;">Diagnóstico executivo com Indicador de Maturidade, Régua de Posicionamento, CDL e Plano de Ação personalizado.</p>
     <div style="margin: 32px 0; padding: 20px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
@@ -492,7 +500,7 @@ window.__createSupabaseClient = createClient;
 
   <!-- Header report -->
   <div class="report-header">
-    <div style="font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 3px; font-weight: 700;">Relatório Estratégico</div>
+    <div style="font-size: 11px; color: var(--gold-forte); text-transform: uppercase; letter-spacing: 3px; font-weight: 700;">Relatório Estratégico</div>
     <h1 id="r-empresa-nome" style="margin-top: 6px;">—</h1>
     <div class="report-meta">
       <div class="report-meta-item"><div class="report-meta-label">Respondente</div><div class="report-meta-value" id="r-respondente">—</div></div>
