@@ -252,7 +252,7 @@ window.__createSupabaseClient = createClient;
               <th>CDL (R$/ano)</th>
               <th>Risco</th>
               <th>Lead</th>
-              <th></th>
+              <th>PDF / Reenvio</th>
             </tr>
           </thead>
           <tbody id="leads-tbody">
@@ -520,9 +520,101 @@ function renderLeads() {
       <td>${cdlRange}</td>
       <td>${risco}</td>
       <td>${scoreBadge}</td>
-      <td>${l.pdf_enviado_em ? '<span title="PDF enviado">✉</span>' : ''}</td>
+      <td style="white-space:nowrap;">
+        ${l.pdf_enviado_em ? `<span title="Enviado em ${fmtDate(l.pdf_enviado_em)}">✉</span>` : '<span class="muted" title="Nunca enviado">—</span>'}
+        <button class="btn btn-secondary btn-small" onclick="verPdf('${l.respondente_id}')">PDF</button>
+        <button class="btn btn-secondary btn-small" onclick="reenviar('${l.respondente_id}')">Reenviar</button>
+      </td>
     </tr>`;
   }).join('');
+}
+
+/**
+ * Abre o PDF já gerado.
+ *
+ * 🔑 O link não vem na v_leads_export — mora em `relatorios.pdf_url`, que é uma
+ *    URL assinada com validade de 90 dias, criada no momento em que o PDF
+ *    nasceu. Para relatório antigo o link expira; nesse caso o caminho é o
+ *    Reenviar, que gera tudo de novo e grava um link novo.
+ */
+async function verPdf(respondenteId) {
+  try {
+    const sb = await getClient();
+    const { data, error } = await sb
+      .from('relatorios').select('pdf_url, pdf_gerado_em')
+      .eq('respondente_id', respondenteId).single();
+    if (error) throw error;
+    if (!data?.pdf_url) {
+      alert('Esse respondente ainda não tem PDF gerado.\n\nUse "Reenviar" para gerar agora.');
+      return;
+    }
+    window.open(data.pdf_url, '_blank', 'noopener');
+  } catch (e) {
+    alert('Não consegui abrir o PDF: ' + e.message);
+  }
+}
+
+/**
+ * Regera o PDF e reenvia o e-mail.
+ *
+ * 🔑 Não existe endpoint novo para isto, de propósito. O reenvio monta
+ *    exatamente o mesmo payload que o formulário manda no final do
+ *    questionário, com os dados que já estão gravados — token da sessão do
+ *    respondente e os scores do relatório. A `gate-and-send` refaz o caminho
+ *    inteiro: gera o PDF (já na marca do evento), sobe no Storage, atualiza o
+ *    link e envia. Um endpoint separado seria uma segunda implementação da
+ *    mesma coisa, para sair de sincronia na primeira mudança.
+ *
+ * 🔒 Só consigo ler token_sessao e scores dos eventos que são meus — é a RLS
+ *    por evento que garante isso, não o front.
+ */
+async function reenviar(respondenteId) {
+  try {
+    const sb = await getClient();
+    const { data: resp, error: e1 } = await sb
+      .from('respondentes').select('token_sessao, nome, email').eq('id', respondenteId).single();
+    if (e1) throw e1;
+    if (!resp?.email) { alert('Esse respondente não deixou e-mail — não há para onde enviar.'); return; }
+
+    const { data: rel, error: e2 } = await sb
+      .from('relatorios')
+      .select('scores_json, maturidade_letra, maturidade_score, cdl_min, cdl_max, risco_estrategico')
+      .eq('respondente_id', respondenteId).single();
+    if (e2) throw e2;
+
+    if (!confirm(`Reenviar o relatório para ${resp.email}?\n\nO PDF será gerado de novo e o e-mail sai na hora.`)) return;
+
+    const btns = document.querySelectorAll(`button[onclick*="${respondenteId}"]`);
+    btns.forEach(b => { b.disabled = true; });
+    document.getElementById('leads-info').textContent = 'Reenviando...';
+
+    const r = await fetch(`${window.APP_CONFIG.SUPABASE_URL}/functions/v1/${'gate-and-send'}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'Authorization': `Bearer ${window.APP_CONFIG.SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        token: resp.token_sessao,
+        email: resp.email,
+        scores_json: rel.scores_json,
+        maturidade_letra: rel.maturidade_letra,
+        maturidade_score: rel.maturidade_score,
+        cdl_min: rel.cdl_min,
+        cdl_max: rel.cdl_max,
+        risco_estrategico: rel.risco_estrategico,
+      }),
+    });
+    const out = await r.json();
+    btns.forEach(b => { b.disabled = false; });
+
+    if (out.ok && out.email_enviado)      alert(`Reenviado para ${resp.email}.`);
+    else if (out.ok)                      alert('O PDF foi regerado, mas o e-mail não saiu.\nVeja os logs da função (Brevo ou Browserless).');
+    else                                  alert('Falhou: ' + (out.error || 'erro desconhecido'));
+
+    loadLeads();
+  } catch (e) {
+    alert('Não consegui reenviar: ' + e.message);
+    loadLeads();
+  }
 }
 
 function exportCSV() {
