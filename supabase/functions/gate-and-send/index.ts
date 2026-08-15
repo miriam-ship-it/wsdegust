@@ -369,8 +369,94 @@ async function sendEmailBrevo(opts: { to: string; toName: string; subject: strin
   }
 }
 
+/**
+ * O corpo do e-mail.
+ *
+ * 🔑 Antes era saudação + uma frase + a letra da maturidade. O PDF tem 11
+ *    seções, e o e-mail não dizia nada sobre elas: quem abria no celular e não
+ *    baixava o anexo ficava sem informação nenhuma. Agora o e-mail se sustenta
+ *    sozinho — traz os três números que importam, diz o que tem no relatório e
+ *    por onde começar.
+ *
+ * 🔒 Layout em TABELA, com estilo inline. Não é preguiça nem código velho: o
+ *    Outlook renderiza com o motor do Word e ignora flex e grid. Div com
+ *    display:flex vira uma coluna empilhada torta em metade das caixas
+ *    corporativas — que é exatamente o público deste relatório.
+ */
 function emailBodyHtml(r: any, rel: any, m: Marca): string {
-  return `<!DOCTYPE html><html><body style="font-family: Tahoma, Arial, sans-serif; color: ${m.texto}; max-width: 600px; margin: 0 auto; padding: 32px 24px;"><div style="border-bottom: 3px solid ${m.primaria}; padding-bottom: 16px; margin-bottom: 24px;"><div style="font-size: 11px; color: ${m.acento}; text-transform: uppercase; letter-spacing: 3px; font-weight: 700;">Diagnostico Estrategico</div><h1 style="font-size: 24px; color: ${m.primaria}; margin-top: 8px;">${m.nome} · Seu relatorio esta pronto</h1></div><p>Ola ${r.nome || ''},</p><p>Seu <strong>Diagnostico Estrategico de Lideranca</strong> foi finalizado. O relatorio completo (8 paginas) esta em anexo.</p><div style="background: ${m.metaBloco}; padding: 16px; margin: 20px 0; border-left: 4px solid ${m.acento};"><div style="font-size: 10px; color: ${m.muted}; text-transform: uppercase; letter-spacing: 1.5px;">Indicador de Maturidade</div><div style="font-size: 28px; font-weight: 800; color: ${m.primaria}; margin: 4px 0;">${rel.maturidade_letra} · ${(rel.maturidade_score || 0).toFixed(0)}</div></div><hr style="border: none; border-top: 1px solid ${m.linha}; margin: 24px 0;"><p style="font-size: 11px; color: ${m.muted};">${m.rodapeEmail}</p></body></html>`;
+  const risco = rel.risco_estrategico ?? 0;
+  const riscoNivel = risco >= 60 ? 'Alto' : risco >= 40 ? 'Moderado' : 'Baixo';
+  const riscoCor = risco >= 60 ? m.erro : risco >= 40 ? m.acento : m.ok;
+  const nivel = NIVEL_LABEL[r.persona] || '';
+  const score = (rel.maturidade_score || 0).toFixed(0);
+
+  // o texto que aparece na PRÉVIA da caixa de entrada, antes de abrir
+  const previa = `Maturidade ${rel.maturidade_letra} · ${score}/100 · risco estrategico ${risco}% · CDL ${fmtMoney(rel.cdl_min)}–${fmtMoney(rel.cdl_max)}/ano`;
+
+  const numero = (rotulo: string, valor: string, cor: string, nota: string) => `
+    <td width="33%" style="padding:14px 10px;background:${m.metaBloco};border-top:3px solid ${cor};vertical-align:top;">
+      <div style="font-size:10px;color:${m.muted};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">${rotulo}</div>
+      <div style="font-size:22px;font-weight:800;color:${cor};margin:6px 0 2px;">${valor}</div>
+      <div style="font-size:11px;color:${m.muted};line-height:1.4;">${nota}</div>
+    </td>`;
+
+  const secao = (t: string) => `<li style="margin-bottom:5px;">${t}</li>`;
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:${m.bloco};">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${previa}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${m.bloco};padding:24px 12px;">
+<tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FFFFFF;font-family:Arial,Helvetica,sans-serif;color:${m.texto};">
+
+  <tr><td style="padding:28px 28px 20px;border-bottom:3px solid ${m.primaria};">
+    <div style="font-size:11px;color:${m.acento};text-transform:uppercase;letter-spacing:3px;font-weight:700;">Diagnostico Estrategico</div>
+    <div style="font-size:23px;color:${m.primaria};font-weight:700;margin-top:8px;line-height:1.25;">${m.nome} · Seu relatorio esta pronto</div>
+  </td></tr>
+
+  <tr><td style="padding:24px 28px 4px;font-size:15px;line-height:1.6;">
+    <p style="margin:0 0 14px;">Ola ${r.nome || ''},</p>
+    <p style="margin:0 0 14px;">Seu <strong>Diagnostico Estrategico de Lideranca</strong> foi finalizado${r.empresa ? ` para a <strong>${r.empresa}</strong>` : ''}${nivel ? `, na leitura de ${nivel}` : ''}. O relatorio executivo completo esta <strong>em anexo, em PDF</strong>.</p>
+  </td></tr>
+
+  <tr><td style="padding:10px 28px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="6"><tr>
+      ${numero('Maturidade', `${rel.maturidade_letra || '—'} · ${score}`, m.primaria, 'Estagio em que a lideranca joga, de D a AAA')}
+      ${numero('Risco estrategico', `${risco}%`, riscoCor, `${riscoNivel} — chance de o plano nao acontecer com o time atual`)}
+      ${numero('CDL anual', fmtMoney(rel.cdl_min), m.primaria, `a ${fmtMoney(rel.cdl_max)} — custo estimado das disfuncoes`)}
+    </tr></table>
+  </td></tr>
+
+  <tr><td style="padding:22px 28px 0;font-size:15px;line-height:1.6;">
+    <div style="font-size:11px;color:${m.muted};text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">O que tem no relatorio</div>
+    <ul style="margin:0 0 4px;padding-left:20px;font-size:14px;line-height:1.55;color:${m.textoSuave};">
+      ${secao('<strong>Regua de posicionamento</strong> — onde sua capacidade esta sendo gasta hoje contra onde deveria estar')}
+      ${secao('<strong>Componentes do alinhamento</strong> — cultural, estrategico, comportamental e performance, separados')}
+      ${secao('<strong>Competencias priorizadas</strong> — as cinco maiores lacunas, em ordem de impacto')}
+      ${secao('<strong>Radar</strong> — sua percepcao contra a leitura que voce faz da empresa')}
+      ${secao('<strong>Plano de acao</strong> e cronograma de 30, 60 e 90 dias')}
+    </ul>
+  </td></tr>
+
+  <tr><td style="padding:20px 28px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${m.destaque};border-left:4px solid ${m.acento};">
+      <tr><td style="padding:14px 16px;font-size:14px;line-height:1.6;color:${m.textoSuave};">
+        <strong style="display:block;color:${m.primaria};text-transform:uppercase;letter-spacing:1px;font-size:11px;margin-bottom:5px;">Por onde comecar</strong>
+        Leia primeiro a <strong>Regua de posicionamento</strong> e as <strong>duas primeiras competencias</strong> da lista priorizada. Sao as duas paginas que mais mudam decisao. O resto do relatorio existe para sustentar a conversa que vem depois dessas duas.
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <tr><td style="padding:22px 28px 28px;">
+    <hr style="border:none;border-top:1px solid ${m.linha};margin:0 0 14px;">
+    <p style="margin:0 0 6px;font-size:12px;color:${m.muted};line-height:1.5;">Documento confidencial · uso exclusivo do respondente. O anexo tem os numeros completos e a metodologia por tras de cada indicador.</p>
+    <p style="margin:0;font-size:11px;color:${m.muted};">${m.rodapeEmail}</p>
+  </td></tr>
+
+</table>
+</td></tr></table>
+</body></html>`;
 }
 
 serve(async (req: Request) => {
