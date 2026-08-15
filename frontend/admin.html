@@ -325,15 +325,36 @@ async function logout() {
 /**
  * Quem chega pelo link do convite (ou do "esqueci a senha") traz o token no
  * FRAGMENTO da URL — `#access_token=...&type=invite`. O supabase-js já troca
- * isso por uma sessão sozinho; o que faltava era perceber o `type` e mandar a
+ * isso por uma sessão sozinho; o que falta é perceber o `type` e mandar a
  * pessoa definir uma senha, em vez de jogá-la direto no painel com uma conta
  * sem senha, que não abre na visita seguinte.
+ *
+ * 🔴 E POR QUE ISTO É LIDO AGORA, NA CARGA DO ARQUIVO, e não lá dentro do
+ *    checkSession: porque o gotrue APAGA o fragmento assim que troca o token
+ *    por sessão — literalmente `window.location.hash = ""`, com o debug
+ *    "clearing window.location.hash" (conferido no bundle 2.56.0 que o esm.sh
+ *    serve). Lendo depois do `await getClient()`, o hash já era: a checagem
+ *    devolvia null SEMPRE, a tela nunca aparecia, e a pessoa convidada ia
+ *    parar no painel com uma conta sem senha — o exato problema que esta tela
+ *    existe para evitar. Não é corrida de tempo; falha toda vez.
  */
-function tipoDoLinkDeEmail() {
+const TIPO_DO_LINK = (function lerAntesQueOGotrueApague() {
   const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
   const q = new URLSearchParams(location.search);
   const tipo = h.get('type') || q.get('type');
   return (tipo === 'invite' || tipo === 'recovery') ? tipo : null;
+})();
+
+// 🔑 O fragmento é de uso único e some no primeiro carregamento. Se a pessoa
+//    recarregar a página antes de salvar a senha, cairia no painel com a conta
+//    ainda sem senha — a mesma armadilha, só que mais tarde. Por isso a
+//    pendência fica anotada na aba até a senha existir de fato.
+const PENDENCIA = 'boomit-precisa-definir-senha';
+if (TIPO_DO_LINK) { try { sessionStorage.setItem(PENDENCIA, TIPO_DO_LINK); } catch (e) {} }
+
+function tipoDoLinkDeEmail() {
+  if (TIPO_DO_LINK) return TIPO_DO_LINK;
+  try { return sessionStorage.getItem(PENDENCIA); } catch (e) { return null; }
 }
 
 async function checkSession() {
@@ -371,6 +392,8 @@ async function definirSenha() {
     const sb = await getClient();
     const { error } = await sb.auth.updateUser({ password: s1 });
     if (error) throw error;
+    // a senha existe: a pendência acabou
+    try { sessionStorage.removeItem(PENDENCIA); } catch (e) {}
     // tira o token da barra de endereço — ele não precisa mais existir ali
     history.replaceState(null, '', location.pathname);
     onLoginSuccess();
