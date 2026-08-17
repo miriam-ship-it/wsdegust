@@ -124,12 +124,16 @@
   .g-bloco { margin-bottom: 26px; }
   .g-titulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--navy); margin-bottom: 2px; }
   .g-sub { font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
-  .g-linha { display: grid; grid-template-columns: 150px 1fr 92px; align-items: center; gap: 10px; padding: 3px 0; }
-  .g-rotulo { font-size: 12px; color: var(--text); text-align: right; }
-  .g-trilho { background: var(--soft); height: 20px; position: relative; }
-  .g-barra { background: var(--navy); height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; transition: width .3s ease; }
-  .g-valor { font-size: 12px; color: var(--muted); }
-  .g-valor b { color: var(--text); font-size: 13px; }
+  .g-linha { display: grid; grid-template-columns: 190px 1fr 118px; align-items: center; gap: 12px; padding: 4px 0; }
+  .g-rotulo { font-size: 12.5px; color: var(--muted); text-align: right; }
+  .g-rotulo-forte { color: var(--navy); font-weight: 700; }
+  .g-trilho { background: var(--soft); height: 22px; position: relative; }
+  .g-barra { background: var(--navy); height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; transition: width .35s ease; }
+  .g-valor { font-size: 11.5px; color: var(--muted); }
+  .g-valor b { color: var(--navy); font-size: 15px; font-weight: 800; margin-right: 3px; }
+  /* a frase que traduz o grafico — sem ela o painel e so barra */
+  .g-leitura { background: var(--soft); border-left: 3px solid var(--yellow); padding: 9px 13px; margin-top: 10px; font-size: 12.5px; line-height: 1.5; color: var(--text); }
+  .g-leitura b { color: var(--navy); }
   .g-vazio { color: var(--muted); font-size: 13px; padding: 30px 0; text-align: center; }
   @media (max-width: 700px) { .g-linha { grid-template-columns: 110px 1fr 76px; } }
 
@@ -565,6 +569,38 @@ function fmtMoney(v) {
 
 // ============ ABA DE DISTRIBUIÇÕES ============
 
+/**
+ * A letra sozinha nao ensina nada.
+ * Quem le o painel precisa saber o que "B" significa sem consultar o relatorio.
+ */
+const MATURIDADE_NOME = {
+  D: 'D · Crítico', C: 'C · Inicial', B: 'B · Em consolidação',
+  A: 'A · Consolidado', AA: 'AA · Avançado', AAA: 'AAA · Excelência',
+};
+
+/**
+ * Os arquetipos de autopercepcao — a MESMA regra do relatorio.
+ * gap = pessoa - empresa; conta o que passa de +0.7 e o que fica abaixo de -0.7.
+ * Se mudar no relatorio, muda aqui: sao a mesma classificacao.
+ */
+const ARQUETIPO_NOME = { integrado: 'Integrado', latente: 'Potencial Latente', evolutivo: 'Perfil Evolutivo', fluido: 'Perfil Fluido' };
+function arquetipoDe(scoresJson) {
+  const s = scoresJson?.scores;
+  if (!s) return null;
+  const dims = ['D1', 'D2', 'D3', 'D4', 'D5'];
+  let pos = 0, neg = 0;
+  for (const d of dims) {
+    const g = s[d]?.gap;
+    if (g == null) return null;
+    if (g > 0.7) pos++;
+    if (g < -0.7) neg++;
+  }
+  if (pos >= 3) return 'latente';
+  if (neg >= 3) return 'evolutivo';
+  if (pos + neg <= 1) return 'integrado';
+  return 'fluido';
+}
+
 /** A view devolve o setor como codigo. "V5" nao diz nada para quem le. */
 const SETOR_NOME = {
   V1: 'Tecnologia & Inovação', V2: 'Financeiro & Fintech', V3: 'Varejo & Consumo',
@@ -592,18 +628,40 @@ function trocarAba(qual) {
  *    distribuição parecer diferente a cada filtro. Onde a ordem não significa
  *    nada (setor), aí sim ordena por frequência.
  */
-function grafico(titulo, sub, pares, total) {
+function grafico(titulo, sub, pares, total, leitura) {
+  if (!pares.length) return '';
   const maior = Math.max(...pares.map(p => p[1]), 1);
   const linhas = pares.map(([rotulo, n]) => {
     const pct = total ? Math.round((n / total) * 100) : 0;
+    const forte = n === maior;
     return `<div class="g-linha" title="${rotulo}: ${n} de ${total} (${pct}%)">
-      <div class="g-rotulo">${rotulo}</div>
+      <div class="g-rotulo${forte ? ' g-rotulo-forte' : ''}">${rotulo}</div>
       <div class="g-trilho"><div class="g-barra" style="width:${(n / maior) * 100}%"></div></div>
-      <div class="g-valor"><b>${n}</b> · ${pct}%</div>
+      <div class="g-valor"><b>${pct}%</b> <span>${n} ${n === 1 ? 'pessoa' : 'pessoas'}</span></div>
     </div>`;
   }).join('');
+
+  // 🔑 A frase de leitura e o que torna o painel comercial: sem ela, quem abre
+  //    ve barras e precisa fazer a conta na cabeca para dizer alguma coisa.
+  const [topo, qtd] = pares.reduce((a, b) => (b[1] > a[1] ? b : a));
+  const pctTopo = total ? Math.round((qtd / total) * 100) : 0;
+  const frase = leitura ? leitura(topo, qtd, pctTopo, total) : `<b>${topo}</b> concentra ${pctTopo}% dos respondentes.`;
+
   return `<div class="g-bloco"><div class="g-titulo">${titulo}</div>
-    <div class="g-sub">${sub}</div>${linhas}</div>`;
+    <div class="g-sub">${sub}</div>${linhas}
+    <div class="g-leitura">${frase}</div></div>`;
+}
+
+/** "1 em cada 3" comunica melhor que "33%" numa conversa comercial. */
+function umEmCada(pct) {
+  // as faixas seguem o arredondamento honesto: 42% e "quase metade", nao
+  // "1 em cada 3" — a frase nao pode dizer menos do que o numero diz
+  if (pct >= 62) return 'a maioria';
+  if (pct >= 38) return 'quase metade';
+  if (pct >= 28) return '1 em cada 3';
+  if (pct >= 21) return '1 em cada 4';
+  if (pct >= 16) return '1 em cada 5';
+  return `${pct}%`;
 }
 
 /** Conta ocorrências mantendo uma ordem declarada; o resto entra por frequência. */
@@ -618,10 +676,33 @@ function contar(itens, chave, ordem) {
   return [...mapa.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-function renderGraficos() {
+let _arquetipos = null;   // respondente_id -> chave do arquetipo
+
+/**
+ * Os arquetipos nao vem na v_leads_export — dependem de scores_json, que mora
+ * em relatorios. Uma consulta a parte, so quando a aba abre, e so para os
+ * respondentes que estao na tela.
+ */
+async function carregarArquetipos() {
+  try {
+    const sb = await getClient();
+    const ids = _leads.map(l => l.respondente_id);
+    if (!ids.length) { _arquetipos = new Map(); return; }
+    const { data, error } = await sb.from('relatorios')
+      .select('respondente_id, scores_json').in('respondente_id', ids);
+    if (error) throw error;
+    _arquetipos = new Map((data || []).map(r => [r.respondente_id, arquetipoDe(r.scores_json)]));
+  } catch (e) {
+    console.warn('Arquetipos nao carregados:', e);
+    _arquetipos = new Map();
+  }
+}
+
+async function renderGraficos() {
   const alvo = document.getElementById('graficos');
   const n = _leads.length;
   if (!n) { alvo.innerHTML = '<div class="g-vazio">Nenhum lead com esses filtros — não há o que distribuir.</div>'; return; }
+  if (!_arquetipos) { alvo.innerHTML = '<div class="g-vazio">Calculando…</div>'; await carregarArquetipos(); }
 
   const faixaRisco = (v) => v == null ? null : v >= 60 ? 'Alto (acima de 60%)' : v >= 40 ? 'Moderado (40 a 60%)' : 'Baixo (abaixo de 40%)';
   const faixaCdl = (v) => {
@@ -640,11 +721,23 @@ function renderGraficos() {
     (media != null ? `<div class="g-bloco"><div class="g-titulo">Maturidade média</div>
        <div style="font-size:34px;font-weight:800;color:var(--navy);line-height:1.1;">${media.toFixed(1)}<span style="font-size:16px;color:var(--muted);font-weight:600;"> / 100</span></div>
        <div class="g-sub">média de ${scores.length} ${scores.length === 1 ? 'respondente' : 'respondentes'} com relatório calculado</div></div>` : '')
-    + grafico('Indicador de maturidade', 'Da escala D (crítico) a AAA (excelência). A ordem é a da escala, não a da contagem.',
-        contar(_leads, l => l.maturidade_letra, maturidades), n)
+    + grafico('Indicador de maturidade', 'Estágio em que a liderança joga hoje. A ordem é a da escala, não a da contagem.',
+        contar(_leads, l => MATURIDADE_NOME[l.maturidade_letra], maturidades.map(m => MATURIDADE_NOME[m])), n,
+        (topo, q, pct) => `Concentração em <b>${topo}</b> — ${umEmCada(pct)} dos respondentes. É esse estágio que calibra a régua de cobrança realista.`)
+    + grafico('Arquétipo de autopercepção', 'Como a autoimagem se relaciona com o que os cenários mediram.',
+        contar(_leads, l => ARQUETIPO_NOME[_arquetipos?.get(l.respondente_id)],
+          ['Integrado', 'Potencial Latente', 'Perfil Evolutivo', 'Perfil Fluido']), n,
+        (topo, q, pct) => topo === 'Potencial Latente'
+          ? `<b>${umEmCada(pct)}</b> se avalia acima da leitura que faz da empresa — capacidade instalada que o contexto não puxa. É a conversa de escopo e autonomia.`
+          : topo === 'Perfil Evolutivo'
+          ? `<b>${umEmCada(pct)}</b> se avalia abaixo do que demonstrou. É o grupo com ganho mais rápido: o desempenho já existe, falta o reconhecimento.`
+          : `<b>${topo}</b> é o padrão dominante — ${umEmCada(pct)} dos respondentes.`)
     + grafico('Risco estratégico', 'Probabilidade do plano não acontecer com o time atual.',
         contar(_leads, l => faixaRisco(l.risco_estrategico),
-          ['Baixo (abaixo de 40%)', 'Moderado (40 a 60%)', 'Alto (acima de 60%)']), n)
+          ['Baixo (abaixo de 40%)', 'Moderado (40 a 60%)', 'Alto (acima de 60%)']), n,
+        (topo, q, pct) => topo.startsWith('Alto')
+          ? `<b>${umEmCada(pct)}</b> está em risco alto — acima de 60%, ajustar execução ou pessoas vira prioridade do trimestre.`
+          : `Predomina risco <b>${topo.split(' ')[0].toLowerCase()}</b>, em ${umEmCada(pct)} dos respondentes.`)
     + grafico('CDL estimado', 'Custo anual das disfunções, pelo teto da faixa de cada respondente.',
         contar(_leads, l => faixaCdl(l.cdl_max),
           ['até R$ 250k', 'R$ 250k – 500k', 'R$ 500k – 1M', 'acima de R$ 1M']), n)
