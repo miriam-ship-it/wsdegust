@@ -647,13 +647,25 @@ function trocarAba(qual) {
 function grafico(titulo, sub, pares, total, leitura) {
   if (!pares.length) return '';
   const maior = Math.max(...pares.map(p => p[1]), 1);
+
+  // 🔑 Percentuais pelo metodo do MAIOR RESTO, e nao arredondando cada linha
+  //    por conta propria. Arredondando solto, 24+18+41+18 dava 101% — e numa
+  //    conversa comercial um total que nao fecha convida a duvida sobre o
+  //    resto do painel. Aqui a soma dos exibidos e sempre 100 quando as
+  //    categorias cobrem a base.
+  const soma = pares.reduce((t, p) => t + p[1], 0);
+  const exatos = pares.map(p => (soma ? (p[1] / soma) * 100 : 0));
+  const pcts = exatos.map(Math.floor);
+  let sobra = Math.round(exatos.reduce((a, b) => a + b, 0)) - pcts.reduce((a, b) => a + b, 0);
+  exatos.map((v, i) => [i, v - Math.floor(v)]).sort((a, b) => b[1] - a[1])
+    .forEach(([i]) => { if (sobra > 0) { pcts[i]++; sobra--; } });
   // 🔴 Empate: quando duas ou mais categorias tem a mesma contagem maxima,
   //    ninguem domina. Destacar todas nao destaca nada, e eleger uma pela
   //    ordem do array e inventar um vencedor que os dados nao deram.
   const empatadas = pares.filter(p => p[1] === maior).length;
   const empate = empatadas > 1;
-  const linhas = pares.map(([rotulo, n]) => {
-    const pct = total ? Math.round((n / total) * 100) : 0;
+  const linhas = pares.map(([rotulo, n], idx) => {
+    const pct = pcts[idx];
     const forte = n === maior && !empate;
     return `<div class="g-linha${forte ? ' g-forte' : ''}" title="${rotulo}: ${n} de ${total} (${pct}%)">
       <div class="g-rotulo${forte ? ' g-rotulo-forte' : ''}">${rotulo}</div>
@@ -665,7 +677,7 @@ function grafico(titulo, sub, pares, total, leitura) {
   // 🔑 A frase de leitura e o que torna o painel comercial: sem ela, quem abre
   //    ve barras e precisa fazer a conta na cabeca para dizer alguma coisa.
   const [topo, qtd] = pares.reduce((a, b) => (b[1] > a[1] ? b : a));
-  const pctTopo = total ? Math.round((qtd / total) * 100) : 0;
+  const pctTopo = pcts[pares.findIndex(p => p[0] === topo)];
   const frase = empate
     ? `Distribuição equilibrada — ${empatadas} categorias empatam em ${pctTopo}%, nenhuma domina.`
     : leitura ? leitura(topo, qtd, pctTopo, total)
@@ -688,7 +700,19 @@ function umEmCada(pct) {
   return `${pct}%`;
 }
 
-/** Conta ocorrências mantendo uma ordem declarada; o resto entra por frequência. */
+/**
+ * Conta ocorrências, na ordem declarada quando ela existe.
+ *
+ * 🔴 A versão anterior fazia `ordem.filter(o => mapa.has(o))` e DESCARTAVA em
+ *    silêncio qualquer valor fora da lista. O gráfico de Porte mostrou "Até 50
+ *    · 20%" e os outros 80% simplesmente sumiram — a lista dizia "251–1.000"
+ *    e o banco devolve "251-1000". Um gráfico que perde dado sem avisar é pior
+ *    que gráfico nenhum: quem lê acha que viu a distribuição inteira.
+ *
+ *    Agora nada se perde. O que está na ordem vem primeiro, na ordem; o que
+ *    não está entra depois, por frequência. Se um rótulo novo aparecer no
+ *    banco amanhã, ele aparece no gráfico — talvez fora de ordem, nunca ausente.
+ */
 function contar(itens, chave, ordem) {
   const mapa = new Map();
   for (const it of itens) {
@@ -696,8 +720,10 @@ function contar(itens, chave, ordem) {
     if (v == null || v === '') continue;
     mapa.set(v, (mapa.get(v) || 0) + 1);
   }
-  if (ordem) return ordem.filter(o => mapa.has(o)).map(o => [o, mapa.get(o)]);
-  return [...mapa.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ordem) return [...mapa.entries()].sort((a, b) => b[1] - a[1]);
+  const declarados = ordem.filter(o => mapa.has(o)).map(o => [o, mapa.get(o)]);
+  const resto = [...mapa.entries()].filter(([k]) => !ordem.includes(k)).sort((a, b) => b[1] - a[1]);
+  return [...declarados, ...resto];
 }
 
 let _arquetipos = null;   // respondente_id -> chave do arquetipo
@@ -798,7 +824,7 @@ async function renderGraficos() {
         contar(_leads, l => l.nivel_hierarquico,
           ['Analista', 'Coordenador', 'Gerente/Diretor', 'C-Level']), n)
     + grafico('Porte da empresa', 'Número de colaboradores.',
-        contar(_leads, l => porteCurto(l.porte), ['Até 50', '51–250', '251–1.000', '1.000+']), n)
+        contar(_leads, l => porteCurto(l.porte), PORTE_ORDEM), n)
     + grafico('Setor', 'Ordenado por frequência — aqui a ordem não tem escala.',
         contar(_leads, l => SETOR_NOME[l.setor_id] || l.setor_id), n)
     + grafico('Temperatura do lead', 'Classificação comercial derivada dos indicadores.',
@@ -815,12 +841,14 @@ async function renderGraficos() {
 function porteCurto(p) {
   if (!p) return '—';
   return String(p)
-    .replace(/\s*colaboradores\s*/i, '')
+    .replace(/\s*colaboradores\s*/i, '')   // caso a origem mande por extenso
     .replace(/^Mais de\s*/i, '')
-    .replace(/\s+a\s+/i, '–')
-    .replace(/^(\d[\d.]*)$/, '$1+')
+    .replace(/\s+a\s+/i, '-')
+    .replace(/^([\d.]+)$/, '$1+')          // "1000" -> "1000+"
     .trim();
 }
+/** A ordem do gráfico usa os MESMOS rótulos que porteCurto produz. */
+const PORTE_ORDEM = ['Até 50', '51-250', '251-1000', '1000+'];
 
 function renderLeads() {
   const tbody = document.getElementById('leads-tbody');
