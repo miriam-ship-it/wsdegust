@@ -625,7 +625,7 @@ window.__createSupabaseClient = createClient;
   <div class="card">
     <h2><span class="icon">◉</span> Análise de Autopercepção</h2>
     <p class="card-sub">Padrão comportamental identificado a partir do contraste entre como você se vê e como percebe a empresa.</p>
-    <div class="conceito-block">Como você se vê e como você lê o contexto <strong>raramente coincidem</strong> — e a forma da divergência diz mais sobre você do que cada nota isolada. Quatro padrões clássicos descritos na literatura de avaliação: <strong>o talento sub-utilizado</strong> (auto &gt; empresa em múltiplas dimensões) · <strong>o impostor</strong> (auto &lt; empresa consistentemente) · <strong>o integrado</strong> (autoimagem casa com a realidade lida) · <strong>o oscilante</strong> (gaps em direções opostas em dimensões diferentes). Cada padrão tem implicações distintas para PDI.<div class="conceito-mini">Como ler: o texto abaixo descreve o padrão identificado nas suas respostas, baseado na contagem e direção dos gaps significativos (&gt;0.7 ponto) entre suas notas pessoa-empresa.</div></div>
+    <div class="conceito-block">Como você se vê e como você lê o contexto <strong>raramente coincidem</strong> — e a forma da divergência diz mais sobre você do que cada nota isolada. Quatro arquétipos organizam essas leituras: <strong>Integrado</strong> (a autoimagem acompanha o que os cenários aferem) · <strong>Potencial Latente</strong> (a autoavaliação se posiciona acima da leitura da empresa) · <strong>Perfil Evolutivo</strong> (a autoavaliação fica abaixo do desempenho demonstrado) · <strong>Perfil Fluido</strong> (as variações alternam de direção conforme a dimensão). Eles descrevem o seu momento de autopercepção — um retrato de aprendizado, não um rótulo fixo — e cada um aponta um caminho distinto de evolução.<div class="conceito-mini">Como ler: o texto abaixo descreve o padrão identificado nas suas respostas, baseado na contagem e direção dos gaps significativos (&gt;0.7 ponto) entre suas notas pessoa-empresa.</div></div>
     <p id="r-autopercepcao" style="font-size: 14px;">—</p>
     <div class="subsidios-block"><strong>Subsídio para autoconhecimento</strong>Para cada nota que você deu, tente identificar um KR (Key Result) ou comportamento factual dos últimos 6 meses que sustente a auto-avaliação. Onde não houver evidência, considere ajustar para o patamar de desenvolvimento — sinal claro de viés de autopercepção.</div>
   </div>
@@ -1314,15 +1314,68 @@ function renderCDL(scoreGeral, scores, id) {
   document.getElementById('r-ppl-oper').textContent = fmt(Math.round(min*0.2)) + ' — ' + fmt(Math.round(max*0.2));
 }
 
+/**
+ * Os quatro arquétipos de autopercepção.
+ *
+ * 🔑 Os nomes antigos julgavam a pessoa — "Talento sub-utilizado" e "Padrão
+ *    impostor" são diagnósticos clínicos que ninguém pediu, entregues num
+ *    relatório que a pessoa lê sozinha. Os novos descrevem a RELAÇÃO entre a
+ *    autoimagem e o que os cenários mediram, que é o que o instrumento
+ *    realmente observa. O critério de classificação não mudou: mesma contagem
+ *    de gaps, mesmos limiares.
+ */
+const ARQUETIPOS = [
+  { chave: 'integrado', nome: 'Integrado',
+    curta: 'Consistente e alinhado: a autoimagem caminha em total sintonia com o que os cenários aferem.' },
+  { chave: 'latente', nome: 'Potencial Latente',
+    curta: 'A autoavaliação se posiciona acima da leitura percebida da empresa.' },
+  { chave: 'evolutivo', nome: 'Perfil Evolutivo',
+    curta: 'A autoavaliação se apresenta abaixo do desempenho demonstrado nos cenários.' },
+  { chave: 'fluido', nome: 'Perfil Fluido',
+    curta: 'As variações na leitura alternam de direção a depender da dimensão analisada.' },
+];
+
+const LEITURA_ARQUETIPO = {
+  latente: 'Você se posiciona acima da leitura que faz da empresa na maioria das dimensões. Isso costuma apontar capacidade instalada que o contexto ainda não puxa — potencial disponível e sub-aproveitado. Vale a conversa sobre escopo e autonomia: quando a régua da organização fica abaixo da sua, o risco não é de desempenho, é de desengajamento silencioso. Também vale calibrar com feedback de pares, porque autopercepção alta e consistente merece evidência que a sustente.',
+  evolutivo: 'Você se avalia abaixo do que os cenários demonstraram. É o perfil com maior espaço de ganho rápido: o desempenho já existe, o que falta é o reconhecimento dele. Traga evidências concretas dos últimos seis meses para cada dimensão em que a nota que você deu ficou abaixo do medido — a lacuna costuma ser de leitura, não de entrega. Contexto que puxa para cima acelera esse perfil.',
+  integrado: 'Sua autoavaliação acompanha o resultado dos cenários com precisão em praticamente todas as dimensões. É autoconhecimento calibrado: você sabe onde está forte e onde não está, e isso é a base mais sólida para qualquer plano de desenvolvimento. Perfis integrados costumam responder melhor a metas ambiciosas, justamente porque partem de um retrato honesto.',
+  fluido: 'Suas leituras alternam de direção conforme a dimensão: em algumas você se coloca acima da empresa, em outras abaixo. Longe de ser inconsistência, esse é o padrão mais comum em quem lê contexto com nuance. O valor está no detalhe, não no conjunto — vá às dimensões específicas listadas em Competências Prioritárias, porque é ali que o desenvolvimento individual tem maior alavancagem.',
+};
+
+function classificaArquetipo(scores) {
+  const dims = ['D1','D2','D3','D4','D5'];
+  const positivos = dims.filter(d => scores[d].gap > 0.7).length;
+  const negativos = dims.filter(d => scores[d].gap < -0.7).length;
+  if (positivos >= 3) return 'latente';
+  if (negativos >= 3) return 'evolutivo';
+  if (positivos + negativos <= 1) return 'integrado';
+  return 'fluido';
+}
+
 function renderAutopercepcao(scores) {
-  const gapsPositivos = ['D1','D2','D3','D4','D5'].filter(d => scores[d].gap > 0.7).length;
-  const gapsNegativos = ['D1','D2','D3','D4','D5'].filter(d => scores[d].gap < -0.7).length;
-  let texto;
-  if (gapsPositivos >= 3) texto = 'Você se avalia consistentemente acima do que percebe na sua empresa em múltiplas dimensões. Esse padrão indica talento sub-utilizado ou frustração latente — risco de turnover se a organização não acompanhar seu nível. Por outro lado, pode também sinalizar autopercepção otimista que vale ser calibrada com feedback 360.';
-  else if (gapsNegativos >= 3) texto = 'Você se avalia consistentemente abaixo do que percebe na sua empresa em múltiplas dimensões. Pode indicar oportunidade de desenvolvimento clara onde a empresa puxa para cima, ou síndrome do impostor que vale ser explorada em coaching. Em qualquer caso, há terreno fértil para PDI estruturado.';
-  else if (gapsPositivos + gapsNegativos <= 1) texto = 'Você apresenta alinhamento entre autopercepção e visão organizacional na maioria das dimensões. Esse padrão indica boa calibragem entre indivíduo e contexto — sinal saudável de quem está bem integrado à cultura e ciente das próprias forças e limitações.';
-  else texto = 'Você apresenta padrão misto — em algumas dimensões se vê acima da empresa, em outras abaixo. Esse perfil é comum e indica leitura realista do contexto. Os pontos de gap específico, listados em Competências Prioritárias, são onde o desenvolvimento individual tem maior alavancagem.';
-  document.getElementById('r-autopercepcao').textContent = texto;
+  const seu = classificaArquetipo(scores);
+  const dims = ['D1','D2','D3','D4','D5'];
+  const desvio = dims.reduce((s, d) => s + Math.abs(scores[d].gap), 0) / dims.length;
+  const maior = Math.max(...dims.map(d => Math.abs(scores[d].gap)));
+
+  const cartoes = ARQUETIPOS.map(a => {
+    const meu = a.chave === seu;
+    return `<div style="flex:1;min-width:150px;padding:14px 16px;background:${meu ? 'var(--soft)' : 'transparent'};
+      border:1px solid ${meu ? 'var(--primary)' : 'var(--border)'};border-top:3px solid ${meu ? 'var(--primary)' : 'var(--border)'};">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:${meu ? 'var(--primary)' : 'var(--muted)'};">
+        ${a.nome}${meu ? '<div style="display:inline-block;background:var(--primary);color:#fff;padding:2px 7px;font-size:9px;letter-spacing:1px;margin-top:6px;">seu perfil</div>' : ''}
+      </div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-top:6px;">${a.curta}</div>
+    </div>`;
+  }).join('');
+
+  const nome = ARQUETIPOS.find(a => a.chave === seu).nome;
+  document.getElementById('r-autopercepcao').innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px;">${cartoes}</div>
+    <p style="margin-bottom:10px;"><strong>Seu arquétipo é o ${nome}.</strong> A distância média entre a sua
+      autoavaliação e o que os cenários mediram é de <strong>${desvio.toFixed(1)} ponto</strong>,
+      e nenhuma dimensão passa de ${maior.toFixed(1)}.</p>
+    <p>${LEITURA_ARQUETIPO[seu]}</p>`;
 }
 
 function renderPlano(scores, id) {

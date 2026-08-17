@@ -206,6 +206,36 @@ function classificaTag(v: number): { label: string; cls: string } {
   return { label: 'Critico', cls: 'tag-critico' };
 }
 
+/**
+ * Os quatro arquetipos de autopercepcao.
+ *
+ * 🔑 Os nomes antigos julgavam a pessoa — "Talento sub-utilizado" e "Padrao
+ *    impostor" sao diagnosticos que ninguem pediu, num relatorio que ela le
+ *    sozinha. Os novos descrevem a RELACAO entre a autoimagem e o que os
+ *    cenarios mediram, que e o que o instrumento de fato observa. O criterio
+ *    de classificacao nao mudou: mesma contagem de gaps, mesmos limiares.
+ *
+ * 🔒 Os mesmos quatro, com os mesmos textos, vivem no frontend/index.html.
+ *    Se mudar aqui, mude la — sao a mesma devolutiva em suportes diferentes.
+ */
+const ARQUETIPOS = [
+  { chave: 'integrado', nome: 'Integrado',
+    curta: 'Consistente e alinhado: a autoimagem caminha em total sintonia com o que os cenarios aferem.' },
+  { chave: 'latente', nome: 'Potencial Latente',
+    curta: 'A autoavaliacao se posiciona acima da leitura percebida da empresa.' },
+  { chave: 'evolutivo', nome: 'Perfil Evolutivo',
+    curta: 'A autoavaliacao se apresenta abaixo do desempenho demonstrado nos cenarios.' },
+  { chave: 'fluido', nome: 'Perfil Fluido',
+    curta: 'As variacoes na leitura alternam de direcao a depender da dimensao analisada.' },
+];
+
+const LEITURA_ARQUETIPO: Record<string, string> = {
+  latente: 'Voce se posiciona acima da leitura que faz da empresa na maioria das dimensoes. Isso costuma apontar capacidade instalada que o contexto ainda nao puxa — potencial disponivel e sub-aproveitado. Vale a conversa sobre escopo e autonomia: quando a regua da organizacao fica abaixo da sua, o risco nao e de desempenho, e de desengajamento silencioso. Tambem vale calibrar com feedback de pares, porque autopercepcao alta e consistente merece evidencia que a sustente.',
+  evolutivo: 'Voce se avalia abaixo do que os cenarios demonstraram. E o perfil com maior espaco de ganho rapido: o desempenho ja existe, o que falta e o reconhecimento dele. Traga evidencias concretas dos ultimos seis meses para cada dimensao em que a nota que voce deu ficou abaixo do medido — a lacuna costuma ser de leitura, nao de entrega. Contexto que puxa para cima acelera esse perfil.',
+  integrado: 'Sua autoavaliacao acompanha o resultado dos cenarios com precisao em praticamente todas as dimensoes. E autoconhecimento calibrado: voce sabe onde esta forte e onde nao esta, e isso e a base mais solida para qualquer plano de desenvolvimento. Perfis integrados costumam responder melhor a metas ambiciosas, justamente porque partem de um retrato honesto.',
+  fluido: 'Suas leituras alternam de direcao conforme a dimensao: em algumas voce se coloca acima da empresa, em outras abaixo. Longe de ser inconsistencia, esse e o padrao mais comum em quem le contexto com nuance. O valor esta no detalhe, nao no conjunto — va as dimensoes especificas listadas em Competencias Prioritarias, porque e ali que o desenvolvimento individual tem maior alavancagem.',
+};
+
 function detectaAutopercepcao(scores: Record<string, any>): string {
   let pos = 0, neg = 0;
   for (const d of ['D1', 'D2', 'D3', 'D4', 'D5']) {
@@ -213,20 +243,25 @@ function detectaAutopercepcao(scores: Record<string, any>): string {
     if (gap > 0.7) pos++;
     if (gap < -0.7) neg++;
   }
-  if (pos >= 3) return 'Talento sub-utilizado';
-  if (neg >= 3) return 'Padrao impostor';
-  if (pos === 0 && neg === 0) return 'Integrado';
-  return 'Oscilante';
+  if (pos >= 3) return 'latente';
+  if (neg >= 3) return 'evolutivo';
+  if (pos + neg <= 1) return 'integrado';
+  return 'fluido';
 }
 
-function textoAutopercepcao(padrao: string): string {
-  const m: Record<string, string> = {
-    'Talento sub-utilizado': 'Em multiplas dimensoes voce se avalia acima de como le a empresa.',
-    'Padrao impostor': 'Voce se avalia consistentemente abaixo de como percebe a empresa.',
-    'Integrado': 'Autopercepcao alinhada com a leitura organizacional. Boa calibracao interna.',
-    'Oscilante': 'Gaps em direcoes opostas em dimensoes diferentes.',
-  };
-  return m[padrao] || '';
+/** Os quatro cartoes, com o da pessoa destacado. Tabela, porque e para papel. */
+function cartoesArquetipo(chave: string, m: Marca): string {
+  const celulas = ARQUETIPOS.map((a) => {
+    const meu = a.chave === chave;
+    const fundo = meu ? m.metaBloco : 'transparent';
+    const borda = meu ? m.primaria : m.linha;
+    const cor = meu ? m.primaria : m.muted;
+    const selo = meu
+      ? `<div style="display:inline-block;background:${m.primaria};color:#FFFFFF;padding:1pt 5pt;font-size:7pt;letter-spacing:1pt;margin-top:4pt;">SEU PERFIL</div>`
+      : '';
+    return `<td width="25%" style="padding:9pt;vertical-align:top;background:${fundo};border:1pt solid ${borda};border-top:3pt solid ${borda};"><div style="font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1pt;color:${cor};">${a.nome}</div>${selo}<div style="font-size:8pt;color:${m.muted};line-height:1.45;margin-top:5pt;">${a.curta}</div></td>`;
+  }).join('');
+  return `<table width="100%" cellspacing="4" cellpadding="0" style="margin:10pt 0;"><tr>${celulas}</tr></table>`;
 }
 
 function renderPdfHtml(data: { respondente: any; relatorio: any; payload: GatePayload; m: Marca }): string {
@@ -258,8 +293,11 @@ function renderPdfHtml(data: { respondente: any; relatorio: any; payload: GatePa
     gap: (scores[d]?.empresa || 0) - 4.0,
   })).sort((a, b) => a.gap - b.gap);
 
-  const autoPadrao = detectaAutopercepcao(scores);
-  const autoTexto = textoAutopercepcao(autoPadrao);
+  const autoChave = detectaAutopercepcao(scores);
+  const autoNome = ARQUETIPOS.find((a) => a.chave === autoChave)!.nome;
+  const autoTexto = LEITURA_ARQUETIPO[autoChave];
+  const autoDesvio = ['D1','D2','D3','D4','D5'].reduce((t, d) => t + Math.abs(scores[d]?.gap || 0), 0) / 5;
+  const autoMaior = Math.max(...['D1','D2','D3','D4','D5'].map((d) => Math.abs(scores[d]?.gap || 0)));
 
   const risco = rel.risco_estrategico ?? Math.round((5 - scoreGeral) * 20);
   let riscoNivel = 'Baixo', riscoCor = m.ok;
@@ -305,7 +343,7 @@ function renderPdfHtml(data: { respondente: any; relatorio: any; payload: GatePa
 
   const sec7 = `<div class="card page-break"><h2>CDL · Custo da Disfuncionalidade da Lideranca</h2><p class="card-sub">Estimativa financeira anual do impacto das disfuncoes identificadas — metodologia proprietaria ${m.nome}.</p><div class="conceito-block">O <strong>CDL — Custo da Disfuncionalidade da Lideranca</strong> — e uma metrica financeira proprietaria ${m.nome} que estima, em R$ anuais, o impacto economico das disfuncoes de lideranca identificadas neste diagnostico. Diferente de KPIs operacionais, o CDL captura o que normalmente fica <em>invisivel no PnL</em>: retrabalho por decisao atrasada, oportunidade perdida por desalinhamento estrategico, custo de churn de talento por feedback inexistente, gargalo de execucao por lideranca centralizadora. A metodologia pondera porte da empresa, nivel de decisao do respondente avaliado e magnitude dos gaps observados nas 5 dimensoes.<div class="conceito-mini">Como ler: faixa min-max anual — nao e numero exato (nenhuma metodologia honesta da numero exato sobre custo invisivel). Decomposicao em tres niveis mostra onde o dinheiro esta vazando: Estrategico · Tatico · Operacional.</div></div><div class="cdl-box"><div class="meta-label">Faixa anual estimada</div><div class="cdl-value">${fmtMoney(cdlMin)} – ${fmtMoney(cdlMax)}</div><div class="cdl-decomp"><div class="cdl-decomp-item"><div class="cdl-decomp-label">Estrategico</div><div class="cdl-decomp-value">${fmtMoney(cdlEst)}</div></div><div class="cdl-decomp-item"><div class="cdl-decomp-label">Tatico</div><div class="cdl-decomp-value">${fmtMoney(cdlTat)}</div></div><div class="cdl-decomp-item"><div class="cdl-decomp-label">Operacional</div><div class="cdl-decomp-value">${fmtMoney(cdlOp)}</div></div></div></div><div class="subsidios-block"><strong>Subsidio para financas e RH</strong>CDL acima de 5% da receita anual costuma justificar investimento em programa estruturado de desenvolvimento de lideranca — o ROI da intervencao paga em 18-24 meses se bem executada. Decomposicao estrategico-pesada indica que a alavanca esta em rituais de C-suite; operacional-pesada, em processos e ferramentas.</div></div>`;
 
-  const sec8 = `<div class="card page-break"><h2>Analise de Autopercepcao</h2><p class="card-sub">Padrao comportamental identificado a partir do contraste entre como voce se ve e como percebe a empresa.</p><div class="conceito-block">Como voce se ve e como voce le o contexto <strong>raramente coincidem</strong> — e a forma da divergencia diz mais sobre voce do que cada nota isolada. Quatro padroes classicos descritos na literatura de avaliacao: <strong>o talento sub-utilizado</strong> (auto &gt; empresa em multiplas dimensoes) · <strong>o impostor</strong> (auto &lt; empresa consistentemente) · <strong>o integrado</strong> (autoimagem casa com a realidade lida) · <strong>o oscilante</strong> (gaps em direcoes opostas). Cada padrao tem implicacoes distintas para PDI.<div class="conceito-mini">Como ler: o texto abaixo descreve o padrao identificado nas suas respostas, baseado na contagem e direcao dos gaps significativos (acima de 0.7 ponto) entre suas notas pessoa-empresa.</div></div><h3>Padrao identificado: ${autoPadrao}</h3><p style="font-size:10pt;margin-top:6pt;">${autoTexto}</p><div class="subsidios-block"><strong>Subsidio para autoconhecimento</strong>Para cada nota que voce deu, tente identificar um KR (Key Result) ou comportamento factual dos ultimos 6 meses que sustente a auto-avaliacao. Onde nao houver evidencia, considere ajustar para o patamar de desenvolvimento — sinal claro de vies de autopercepcao.</div></div>`;
+  const sec8 = `<div class="card page-break"><h2>Analise de Autopercepcao</h2><p class="card-sub">Padrao comportamental identificado a partir do contraste entre como voce se ve e como percebe a empresa.</p><div class="conceito-block">Como voce se ve e como voce le o contexto <strong>raramente coincidem</strong> — e a forma da divergencia diz mais sobre voce do que cada nota isolada. Quatro arquetipos organizam essas leituras: <strong>Integrado</strong> (a autoimagem acompanha o que os cenarios aferem) · <strong>Potencial Latente</strong> (a autoavaliacao se posiciona acima da leitura da empresa) · <strong>Perfil Evolutivo</strong> (a autoavaliacao fica abaixo do desempenho demonstrado) · <strong>Perfil Fluido</strong> (as variacoes alternam de direcao conforme a dimensao). Eles descrevem o seu momento de autopercepcao — um retrato de aprendizado, nao um rotulo fixo — e cada um aponta um caminho distinto de evolucao.<div class="conceito-mini">Como ler: o texto abaixo descreve o padrao identificado nas suas respostas, baseado na contagem e direcao dos gaps significativos (acima de 0.7 ponto) entre suas notas pessoa-empresa.</div></div>${cartoesArquetipo(autoChave, m)}<p style="font-size:10pt;"><strong>Seu arquetipo e o ${autoNome}.</strong> A distancia media entre a sua autoavaliacao e o que os cenarios mediram e de <strong>${autoDesvio.toFixed(1)} ponto</strong>, e nenhuma dimensao passa de ${autoMaior.toFixed(1)}.</p><p style="font-size:10pt;">${autoTexto}</p><div class="subsidios-block"><strong>Subsidio para autoconhecimento</strong>Para cada nota que voce deu, tente identificar um KR (Key Result) ou comportamento factual dos ultimos 6 meses que sustente a auto-avaliacao. Onde nao houver evidencia, considere ajustar para o patamar de desenvolvimento — sinal claro de vies de autopercepcao.</div></div>`;
 
   const sec9 = `<div class="card page-break"><h2>Plano de Acao Prioritario</h2><p class="card-sub">Tres frentes mapeadas pela combinacao dos seus maiores gaps com benchmark de mercado do seu setor e porte.</p><div class="conceito-block"><strong>Tres frentes. Nao uma, nao cinco.</strong> Toda literatura sobre mudanca comportamental (BJ Fogg em <em>Tiny Habits</em>, James Clear em <em>Atomic Habits</em>, Marshall Goldsmith em <em>What Got You Here Won't Get You There</em>) converge no mesmo ponto: foco em poucas alavancas, alta repeticao, ritual de acompanhamento. As tres frentes abaixo derivam da interseccao entre seus maiores gaps internos e o benchmark de mercado — ordenadas pelo maior potencial de impacto nos proximos 90 dias.<div class="conceito-mini">Como ler: cada frente tem titulo, justificativa e tres praticas concretas. Nao tente as nove praticas — pegue <strong>uma de cada frente</strong> e implemente nas proximas 4 semanas.</div></div><p style="font-size:9.5pt;color:${m.muted};">Dimensao de maior gap: <strong>${dimDestaque}</strong>.</p><div class="plano-item"><div class="plano-num">1</div><div class="plano-content"><h4>Construir cobertura estrategica de tempo</h4><ul><li>Bloco fixo de 4h/semana para trabalho estrategico</li><li>Delegacao de 2 decisoes operacionais</li><li>Ritual semanal de revisao</li></ul></div></div><div class="plano-item"><div class="plano-num">2</div><div class="plano-content"><h4>Cultura de feedback estruturado</h4><ul><li>1:1s semanais de 30min</li><li>Framework SBI em conversas dificeis</li><li>Avaliacao 360 em 60 dias</li></ul></div></div><div class="plano-item"><div class="plano-num">3</div><div class="plano-content"><h4>Performance e cadencia</h4><ul><li>OKRs vivos com check-in semanal</li><li>Business Review trimestral</li><li>Vinculacao a metricas de impacto</li></ul></div></div><div class="subsidios-block"><strong>Subsidio para os proximos 30 dias</strong>Nao tente as nove praticas. Escolha exatamente <strong>uma</strong> de cada frente (tres no total) e implemente nas proximas quatro semanas. Quando virar habito observavel, adicione a proxima.</div></div>`;
 
