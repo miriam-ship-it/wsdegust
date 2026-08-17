@@ -56,3 +56,6 @@ desktop.ini
 # Outputs locais (dev)
 /tmp/
 .scratch/
+
+# Estado local do CLI do Netlify — traz caminho absoluto da maquina
+.netlify/
