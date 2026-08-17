@@ -746,19 +746,31 @@ async function renderGraficos() {
   const riscoMedio = riscos.length ? riscos.reduce((a, b) => a + b, 0) / riscos.length : null;
   const cdls = _leads.map(l => l.cdl_max).filter(v => v != null).sort((a, b) => a - b);
   const cdlMediana = cdls.length ? cdls[Math.floor(cdls.length / 2)] : null;
+  // 🔴 O KPI do arquetipo tambem precisa respeitar empate. Ele dizia "dominante:
+  //    Perfil Fluido" enquanto o grafico logo abaixo dizia "2 categorias empatam
+  //    em 40%, nenhuma domina" — duas afirmacoes contrarias na mesma tela, e a
+  //    do KPI era a inventada: ele pegava o primeiro depois de ordenar.
   const arqs = _leads.map(l => ARQUETIPO_NOME[_arquetipos?.get(l.respondente_id)]).filter(Boolean);
-  const arqTopo = arqs.length ? [...arqs.reduce((m, a) => m.set(a, (m.get(a) || 0) + 1), new Map())]
-    .sort((a, b) => b[1] - a[1])[0] : null;
+  const arqContagem = [...arqs.reduce((m, a) => m.set(a, (m.get(a) || 0) + 1), new Map())]
+    .sort((a, b) => b[1] - a[1]);
+  const arqTopo = arqContagem[0] || null;
+  const arqEmpate = arqContagem.filter(a => a[1] === arqTopo?.[1]).length > 1;
 
   const kpi = (rot, val, nota) => `<div class="g-kpi"><div class="g-kpi-rot">${rot}</div>
     <div class="g-kpi-val">${val}</div><div class="g-kpi-nota">${nota}</div></div>`;
 
+  // "Respondentes" nao entra aqui: ja esta na faixa do topo da pagina, e numero
+  // repetido duas vezes na mesma tela so gasta espaco e faz duvidar de qual e o certo.
   const resumo = `<div class="g-resumo">
-    ${kpi('Respondentes', n, `${n === 1 ? 'pessoa' : 'pessoas'} com os filtros atuais`)}
-    ${media != null ? kpi('Maturidade média', `${media.toFixed(0)}<small> / 100</small>`, `de ${scores.length} com relatório calculado`) : ''}
+    ${media != null ? kpi('Maturidade média', `${media.toFixed(0)}<small> / 100</small>`, `de ${scores.length} ${scores.length === 1 ? 'respondente' : 'respondentes'} com relatório`) : ''}
     ${riscoMedio != null ? kpi('Risco médio', `${riscoMedio.toFixed(0)}<small>%</small>`, riscoMedio >= 60 ? 'acima de 60% — prioridade do trimestre' : riscoMedio >= 40 ? 'faixa moderada' : 'faixa confortável') : ''}
     ${cdlMediana != null ? kpi('CDL mediano', `R$ ${Math.round(cdlMediana / 1000)}<small>k / ano</small>`, 'metade da base está acima disso') : ''}
-    ${arqTopo ? kpi('Arquétipo dominante', `<span style="font-size:19px;line-height:1.3;display:block;">${arqTopo[0]}</span>`, `${Math.round((arqTopo[1] / n) * 100)}% dos respondentes`) : ''}
+    ${arqTopo ? kpi(
+        arqEmpate ? 'Arquétipo' : 'Arquétipo dominante',
+        `<span style="font-size:19px;line-height:1.3;display:block;">${arqEmpate ? 'Sem predominância' : arqTopo[0]}</span>`,
+        arqEmpate
+          ? `${arqContagem.filter(a => a[1] === arqTopo[1]).map(a => a[0]).join(' e ')} empatam em ${Math.round((arqTopo[1] / n) * 100)}%`
+          : `${Math.round((arqTopo[1] / n) * 100)}% dos respondentes`) : ''}
   </div>`;
 
   alvo.innerHTML = resumo + '<div class="g-grade">'
