@@ -101,6 +101,38 @@
   .badge-frio { background: var(--soft); color: var(--muted); }
   .badge-grade { background: var(--navy); color: white; min-width: 32px; text-align: center; }
 
+  /* Abas */
+  .abas { display: flex; gap: 2px; margin-bottom: -1px; }
+  .aba {
+    background: transparent; border: 1px solid transparent; border-bottom: none;
+    padding: 10px 20px; font-family: inherit; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px; color: var(--muted); cursor: pointer;
+  }
+  .aba:hover { color: var(--navy); }
+  .aba.ativa { background: white; border-color: var(--border); color: var(--navy); }
+
+  /* ===== Gráficos =====
+     Barras em HTML, sem biblioteca: sao contagens por categoria, serie unica.
+     A magnitude ja esta no COMPRIMENTO da barra, entao a cor nao codifica nada
+     — e por isso e uma so.
+
+     🔴 Eu ia usar tres cores no grafico de risco (verde/gold/terracota) e o
+        validador de paleta reprovou: gold x terracota da ΔE 2.1 em deuteranopia,
+        praticamente a mesma cor para quem tem daltonismo. A paleta da casa e
+        discreta demais para carregar tres estados sozinha. Identidade fica no
+        ROTULO, que todo mundo le. */
+  .g-bloco { margin-bottom: 26px; }
+  .g-titulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--navy); margin-bottom: 2px; }
+  .g-sub { font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
+  .g-linha { display: grid; grid-template-columns: 150px 1fr 92px; align-items: center; gap: 10px; padding: 3px 0; }
+  .g-rotulo { font-size: 12px; color: var(--text); text-align: right; }
+  .g-trilho { background: var(--soft); height: 20px; position: relative; }
+  .g-barra { background: var(--navy); height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; transition: width .3s ease; }
+  .g-valor { font-size: 12px; color: var(--muted); }
+  .g-valor b { color: var(--text); font-size: 13px; }
+  .g-vazio { color: var(--muted); font-size: 13px; padding: 30px 0; text-align: center; }
+  @media (max-width: 700px) { .g-linha { grid-template-columns: 110px 1fr 76px; } }
+
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; }
   .toolbar .info { font-size: 13px; color: var(--muted); }
 
@@ -197,7 +229,26 @@ window.__createSupabaseClient = createClient;
       <div class="stat"><div class="stat-label">Erros geração</div><div class="stat-value" id="stat-err">—</div></div>
     </div>
 
-    <!-- Filtros + Tabela -->
+    <!-- Abas -->
+    <div class="abas">
+      <button class="aba ativa" id="aba-leads" onclick="trocarAba('leads')">Leads</button>
+      <button class="aba" id="aba-stats" onclick="trocarAba('stats')">Distribuições</button>
+    </div>
+
+    <!-- ============ ABA: DISTRIBUIÇÕES ============ -->
+    <div id="painel-stats" class="hidden">
+      <div class="card">
+        <h2>Distribuição por indicador</h2>
+        <p class="muted" style="font-size:13px;margin-bottom:4px;">
+          Calculado sobre os leads que passam pelos filtros da aba anterior —
+          mude um filtro lá e os gráficos acompanham.
+        </p>
+        <div id="graficos"></div>
+      </div>
+    </div>
+
+    <!-- ============ ABA: LEADS ============ -->
+    <div id="painel-leads">
     <div class="card">
       <h2>Leads do evento</h2>
       <div class="filters">
@@ -277,6 +328,7 @@ window.__createSupabaseClient = createClient;
         </table>
       </div>
     </div>
+    </div><!-- /painel-leads -->
   </div>
 </div>
 
@@ -490,6 +542,9 @@ async function loadLeads() {
     if (error) throw error;
     _leads = data || [];
     renderLeads();
+    // os graficos leem o MESMO _leads: mudar um filtro reflete nos dois lugares,
+    // e nunca aparece um numero na tabela que nao bate com o do grafico
+    if (!document.getElementById('painel-stats').classList.contains('hidden')) renderGraficos();
   } catch (err) {
     console.error(err);
     document.getElementById('leads-info').textContent = 'Erro: ' + err.message;
@@ -506,6 +561,102 @@ function fmtDate(iso) {
 function fmtMoney(v) {
   if (v == null) return '—';
   return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+}
+
+// ============ ABA DE DISTRIBUIÇÕES ============
+
+/** A view devolve o setor como codigo. "V5" nao diz nada para quem le. */
+const SETOR_NOME = {
+  V1: 'Tecnologia & Inovação', V2: 'Financeiro & Fintech', V3: 'Varejo & Consumo',
+  V4: 'Indústria & Manufatura', V5: 'Serviços Profissionais', V6: 'Saúde & Farma',
+  V7: 'Educação', V8: 'Setor Público', V9: 'Outros',
+};
+
+function trocarAba(qual) {
+  document.getElementById('painel-leads').classList.toggle('hidden', qual !== 'leads');
+  document.getElementById('painel-stats').classList.toggle('hidden', qual !== 'stats');
+  document.getElementById('aba-leads').classList.toggle('ativa', qual === 'leads');
+  document.getElementById('aba-stats').classList.toggle('ativa', qual === 'stats');
+  if (qual === 'stats') renderGraficos();
+}
+
+/**
+ * Um gráfico de distribuição.
+ *
+ * 🔑 Barra horizontal, e não pizza: a pergunta aqui é "quanto de cada", e
+ *    comparar comprimentos é muito mais fácil do que comparar ângulos —
+ *    principalmente com seis ou mais categorias, onde a pizza vira adivinhação.
+ *
+ * 🔑 A ordem das categorias é FIXA quando ela significa alguma coisa (D→AAA,
+ *    Baixo→Alto). Ordenar por contagem embaralharia a escala e faria a mesma
+ *    distribuição parecer diferente a cada filtro. Onde a ordem não significa
+ *    nada (setor), aí sim ordena por frequência.
+ */
+function grafico(titulo, sub, pares, total) {
+  const maior = Math.max(...pares.map(p => p[1]), 1);
+  const linhas = pares.map(([rotulo, n]) => {
+    const pct = total ? Math.round((n / total) * 100) : 0;
+    return `<div class="g-linha" title="${rotulo}: ${n} de ${total} (${pct}%)">
+      <div class="g-rotulo">${rotulo}</div>
+      <div class="g-trilho"><div class="g-barra" style="width:${(n / maior) * 100}%"></div></div>
+      <div class="g-valor"><b>${n}</b> · ${pct}%</div>
+    </div>`;
+  }).join('');
+  return `<div class="g-bloco"><div class="g-titulo">${titulo}</div>
+    <div class="g-sub">${sub}</div>${linhas}</div>`;
+}
+
+/** Conta ocorrências mantendo uma ordem declarada; o resto entra por frequência. */
+function contar(itens, chave, ordem) {
+  const mapa = new Map();
+  for (const it of itens) {
+    const v = chave(it);
+    if (v == null || v === '') continue;
+    mapa.set(v, (mapa.get(v) || 0) + 1);
+  }
+  if (ordem) return ordem.filter(o => mapa.has(o)).map(o => [o, mapa.get(o)]);
+  return [...mapa.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function renderGraficos() {
+  const alvo = document.getElementById('graficos');
+  const n = _leads.length;
+  if (!n) { alvo.innerHTML = '<div class="g-vazio">Nenhum lead com esses filtros — não há o que distribuir.</div>'; return; }
+
+  const faixaRisco = (v) => v == null ? null : v >= 60 ? 'Alto (acima de 60%)' : v >= 40 ? 'Moderado (40 a 60%)' : 'Baixo (abaixo de 40%)';
+  const faixaCdl = (v) => {
+    if (v == null) return null;
+    if (v < 250000) return 'até R$ 250k';
+    if (v < 500000) return 'R$ 250k – 500k';
+    if (v < 1000000) return 'R$ 500k – 1M';
+    return 'acima de R$ 1M';
+  };
+
+  const maturidades = ['D', 'C', 'B', 'A', 'AA', 'AAA'];
+  const scores = _leads.map(l => l.maturidade_score).filter(v => v != null);
+  const media = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+
+  alvo.innerHTML =
+    (media != null ? `<div class="g-bloco"><div class="g-titulo">Maturidade média</div>
+       <div style="font-size:34px;font-weight:800;color:var(--navy);line-height:1.1;">${media.toFixed(1)}<span style="font-size:16px;color:var(--muted);font-weight:600;"> / 100</span></div>
+       <div class="g-sub">média de ${scores.length} ${scores.length === 1 ? 'respondente' : 'respondentes'} com relatório calculado</div></div>` : '')
+    + grafico('Indicador de maturidade', 'Da escala D (crítico) a AAA (excelência). A ordem é a da escala, não a da contagem.',
+        contar(_leads, l => l.maturidade_letra, maturidades), n)
+    + grafico('Risco estratégico', 'Probabilidade do plano não acontecer com o time atual.',
+        contar(_leads, l => faixaRisco(l.risco_estrategico),
+          ['Baixo (abaixo de 40%)', 'Moderado (40 a 60%)', 'Alto (acima de 60%)']), n)
+    + grafico('CDL estimado', 'Custo anual das disfunções, pelo teto da faixa de cada respondente.',
+        contar(_leads, l => faixaCdl(l.cdl_max),
+          ['até R$ 250k', 'R$ 250k – 500k', 'R$ 500k – 1M', 'acima de R$ 1M']), n)
+    + grafico('Nível hierárquico', 'Quem respondeu.',
+        contar(_leads, l => l.nivel_hierarquico,
+          ['Analista', 'Coordenador', 'Gerente/Diretor', 'C-Level']), n)
+    + grafico('Porte da empresa', 'Número de colaboradores.',
+        contar(_leads, l => porteCurto(l.porte), ['Até 50', '51–250', '251–1.000', '1.000+']), n)
+    + grafico('Setor', 'Ordenado por frequência — aqui a ordem não tem escala.',
+        contar(_leads, l => SETOR_NOME[l.setor_id] || l.setor_id), n)
+    + grafico('Temperatura do lead', 'Classificação comercial derivada dos indicadores.',
+        contar(_leads, l => (l.score_lead || '').toUpperCase(), ['QUENTE', 'MORNO', 'FRIO']), n);
 }
 
 /**
