@@ -37,7 +37,9 @@
   .logout { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.3); padding: 6px 14px; font-size: 12px; cursor: pointer; font-family: inherit; }
   .logout:hover { background: rgba(255,255,255,0.1); }
 
-  .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  /* 13 colunas nao cabem em 1280px: a tabela cortava e a rolagem horizontal
+     escondia justamente as acoes, que ficam na ponta direita. */
+  .container { max-width: min(1720px, 96vw); margin: 0 auto; padding: 24px; }
   .card { background: white; border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
   h2 { font-size: 14px; font-weight: 700; color: var(--navy); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1px; }
 
@@ -55,7 +57,10 @@
   .btn:disabled { background: #b8b8b0; cursor: not-allowed; }
   .btn-secondary { background: white; color: var(--navy); border: 1px solid var(--navy); }
   .btn-secondary:hover { background: var(--soft); color: var(--navy); }
-  .btn-small { padding: 6px 12px; font-size: 11px; width: auto; }
+  .btn-small { padding: 5px 9px; font-size: 10.5px; width: auto; letter-spacing: 0.5px; }
+  /* exclusao e irreversivel: o botao nao pode parecer com os outros dois */
+  .btn-perigo { background: white; color: var(--red-forte); border: 1px solid var(--red); }
+  .btn-perigo:hover { background: var(--red); color: white; }
   .alert-error { background: #F0E2DC; color: var(--red-forte); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border-left: 3px solid var(--red); }
 
   /* Stats */
@@ -75,9 +80,20 @@
 
   /* Tabela */
   .table-wrap { overflow-x: auto; margin-top: 16px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { background: var(--soft); padding: 10px 12px; text-align: left; font-weight: 700; color: var(--navy); border-bottom: 2px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
-  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  /* 🔑 A coluna de acoes gruda na borda direita.
+     So alargar o container nao bastava: com 13 colunas a tabela pede ~1385px e
+     num monitor de 1440 sobram ~1275 — a rolagem horizontal empurrava para
+     fora justamente PDF, Reenviar e Excluir, que ficam na ponta. Grudada, ela
+     fica visivel em qualquer largura, e o resto rola por baixo. */
+  th:last-child, td:last-child {
+    position: sticky; right: 0; background: white;
+    box-shadow: -7px 0 7px -7px rgba(27,27,28,.22);
+  }
+  th:last-child { background: var(--soft); }
+  tr:hover td:last-child { background: var(--soft); }
+  th { background: var(--soft); padding: 9px 10px; text-align: left; font-weight: 700; color: var(--navy); border-bottom: 2px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
   tr:hover td { background: var(--soft); }
   .badge { display: inline-block; padding: 2px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
   .badge-quente { background: #F0E2DC; color: #7E3F2C; }
@@ -492,6 +508,22 @@ function fmtMoney(v) {
   return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
+/**
+ * "251 a 1.000 colaboradores" -> "251–1.000".
+ * A palavra "colaboradores" se repete em toda linha da coluna e nao informa
+ * nada: o cabecalho ja diz Porte. Por extenso, ela sozinha empurrava a tabela
+ * para fora da tela e escondia a coluna Lead atras das acoes.
+ */
+function porteCurto(p) {
+  if (!p) return '—';
+  return String(p)
+    .replace(/\s*colaboradores\s*/i, '')
+    .replace(/^Mais de\s*/i, '')
+    .replace(/\s+a\s+/i, '–')
+    .replace(/^(\d[\d.]*)$/, '$1+')
+    .trim();
+}
+
 function renderLeads() {
   const tbody = document.getElementById('leads-tbody');
   document.getElementById('leads-info').textContent = `${_leads.length} lead(s)`;
@@ -504,8 +536,12 @@ function renderLeads() {
     const gradeBadge = l.maturidade_letra
       ? `<span class="badge badge-grade">${l.maturidade_letra}</span> ${l.maturidade_score ? l.maturidade_score.toFixed(0) : ''}`
       : '—';
+    // compacto: "R$ 180k – 780k". Por extenso, esta coluna sozinha ocupava
+    // tres linhas e empurrava a tabela para alem da tela. O valor exato
+    // continua no relatorio e no CSV — aqui e leitura de varredura.
+    const mil = (v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`;
     const cdlRange = (l.cdl_min && l.cdl_max)
-      ? `${fmtMoney(l.cdl_min)} – ${fmtMoney(l.cdl_max)}` : '—';
+      ? `<span style="white-space:nowrap;">R$ ${mil(l.cdl_min)} – ${mil(l.cdl_max)}</span>` : '—';
     const risco = l.risco_estrategico != null ? `${l.risco_estrategico.toFixed(0)}%` : '—';
     return `<tr>
       <td>${fmtDate(l.submetido_em)}</td>
@@ -513,7 +549,7 @@ function renderLeads() {
       <td>${l.empresa || '—'}</td>
       <td class="muted">${l.cargo || '—'}</td>
       <td>${l.nivel_hierarquico || '—'}</td>
-      <td>${l.porte || '—'}</td>
+      <td style="white-space:nowrap;">${porteCurto(l.porte)}</td>
       <td>${l.setor_id || '—'}</td>
       <td><a href="mailto:${l.email}">${l.email || '—'}</a></td>
       <td>${gradeBadge}</td>
@@ -524,6 +560,7 @@ function renderLeads() {
         ${l.pdf_enviado_em ? `<span title="Enviado em ${fmtDate(l.pdf_enviado_em)}">✉</span>` : '<span class="muted" title="Nunca enviado">—</span>'}
         <button class="btn btn-secondary btn-small" onclick="verPdf('${l.respondente_id}')">PDF</button>
         <button class="btn btn-secondary btn-small" onclick="reenviar('${l.respondente_id}')">Reenviar</button>
+        <button class="btn btn-small btn-perigo" onclick="excluir('${l.respondente_id}')">Excluir</button>
       </td>
     </tr>`;
   }).join('');
@@ -551,6 +588,46 @@ async function verPdf(respondenteId) {
     window.open(data.pdf_url, '_blank', 'noopener');
   } catch (e) {
     alert('Não consegui abrir o PDF: ' + e.message);
+  }
+}
+
+/**
+ * Exclui o respondente.
+ *
+ * 🔑 Apaga UMA linha — a de `respondentes`. As respostas e o relatorio vao
+ *    junto por cascade, definido no schema. Por isso a policy de DELETE existe
+ *    so nessa tabela: menos superficie aberta, mesmo resultado.
+ *
+ * 🔒 O que o banco garante: `authenticated` so apaga respondente de evento que
+ *    e dele. Medido — a Thamirys apaga 5 da Boomit e 0 dos 71 do IBMEC.
+ *
+ * ⚠️ O PDF no Storage nao e alcancado por RLS de tabela, entao e removido em
+ *    separado. Se essa remocao falhar, a exclusao do dado NAO e desfeita: o
+ *    registro da pessoa some, e no maximo sobra um arquivo orfao no bucket,
+ *    sem link em lugar nenhum. Prefiro o arquivo orfao a um "excluido" que nao
+ *    excluiu.
+ */
+async function excluir(respondenteId) {
+  const l = _leads.find(x => x.respondente_id === respondenteId);
+  const quem = [l?.nome, l?.empresa].filter(Boolean).join(' · ') || respondenteId;
+  if (!confirm(`Excluir ${quem}?\n\nVai junto, e não tem como desfazer:\n· as respostas do questionário\n· o relatório e os indicadores\n· o PDF gerado\n\nO e-mail que já foi enviado continua na caixa de quem recebeu.`)) return;
+
+  try {
+    const sb = await getClient();
+    const { error } = await sb.from('respondentes').delete().eq('id', respondenteId);
+    if (error) throw error;
+
+    // o arquivo, em separado — best-effort, como diz o comentario acima
+    if (l?.evento_id) {
+      try { await sb.storage.from('relatorios').remove([`${l.evento_id}/${respondenteId}.pdf`]); }
+      catch (e) { console.warn('PDF do Storage nao removido (registro ja foi):', e); }
+    }
+
+    document.getElementById('leads-info').textContent = 'Excluído.';
+    loadStats();
+    loadLeads();
+  } catch (e) {
+    alert('Não consegui excluir: ' + e.message);
   }
 }
 
