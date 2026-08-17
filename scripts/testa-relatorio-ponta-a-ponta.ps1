@@ -26,6 +26,8 @@
 param(
   [string]$Email  = "miriam@boomit.com.br",
   [string]$Evento = "boomit-degustacao",
+  [ValidateSet("integrado","latente","evolutivo","fluido")]
+  [string]$Perfil = "integrado",
   [switch]$Limpar
 )
 
@@ -41,7 +43,7 @@ $anon = $Matches[1]
 
 $token = [guid]::NewGuid().ToString()
 $carimbo = Get-Date -Format "HHmm"
-$nome  = "TESTE $carimbo"
+$nome  = "TESTE $carimbo $Perfil"
 
 $hAnon = @{ "apikey" = $anon; "Authorization" = "Bearer $anon"; "Content-Type" = "application/json" }
 
@@ -78,6 +80,28 @@ $respondenteId = $novo[0].id
 Write-Host "[2/3] Respondente criado e devolvido pelo RETURNING: $respondenteId" -ForegroundColor Green
 Write-Host "      (isso prova que a RLS por token esta funcionando)" -ForegroundColor DarkGray
 
+# --- os scores que produzem cada arquetipo ---
+# gap = pessoa - empresa. A classificacao conta gaps acima de +0.7 e abaixo de
+# -0.7: 3 ou mais positivos -> Potencial Latente; 3 ou mais negativos -> Perfil
+# Evolutivo; no maximo 1 no total -> Integrado; o resto -> Perfil Fluido.
+function dim([double]$pessoa, [double]$empresa) {
+  @{ pessoa = $pessoa; empresa = $empresa; media = [math]::Round(($pessoa + $empresa) / 2, 2); gap = [math]::Round($pessoa - $empresa, 2) }
+}
+$conjuntos = @{
+  # autoimagem acima da leitura da empresa em 4 dimensoes
+  latente   = @{ D1 = (dim 4.4 3.0); D2 = (dim 4.2 2.8); D3 = (dim 4.0 2.9); D4 = (dim 4.2 3.1); D5 = (dim 3.4 3.2) }
+  # autoimagem abaixo do que os cenarios mediram em 4 dimensoes
+  evolutivo = @{ D1 = (dim 2.8 4.2); D2 = (dim 2.6 4.0); D3 = (dim 3.0 4.1); D4 = (dim 2.9 4.0); D5 = (dim 3.3 3.5) }
+  # tudo colado: nenhum gap significativo
+  integrado = @{ D1 = (dim 3.6 3.5); D2 = (dim 3.2 3.3); D3 = (dim 3.8 3.7); D4 = (dim 4.0 3.9); D5 = (dim 3.0 3.2) }
+  # alterna de direcao: dois acima, dois abaixo
+  fluido    = @{ D1 = (dim 4.3 3.0); D2 = (dim 2.7 4.0); D3 = (dim 4.2 3.1); D4 = (dim 2.8 4.1); D5 = (dim 3.5 3.4) }
+}
+$scores = $conjuntos[$Perfil]
+$esperado = @{ latente = 'Potencial Latente'; evolutivo = 'Perfil Evolutivo'; integrado = 'Integrado'; fluido = 'Perfil Fluido' }[$Perfil]
+Write-Host " Perfil:  $Perfil  ->  o relatorio deve dizer '$esperado'" -ForegroundColor Cyan
+Write-Host ""
+
 # --- 3. a funcao: gera PDF e envia ---
 $corpoGate = @{
   token = $token; email = $Email; consentimento_marketing = $false
@@ -85,13 +109,7 @@ $corpoGate = @{
   cdl_min = 180000; cdl_max = 780000
   scores_json = @{
     scoreGeral = 3.2
-    scores = @{
-      D1 = @{ empresa = 3.2; pessoa = 3.8; media = 3.5; gap = 0.6 }
-      D2 = @{ empresa = 2.8; pessoa = 3.4; media = 3.1; gap = 0.6 }
-      D3 = @{ empresa = 3.6; pessoa = 3.2; media = 3.4; gap = -0.4 }
-      D4 = @{ empresa = 4.0; pessoa = 4.2; media = 4.1; gap = 0.2 }
-      D5 = @{ empresa = 2.4; pessoa = 3.0; media = 2.7; gap = 0.6 }
-    }
+    scores = $scores
     identificacao = @{ nome = $nome; empresa = "Boomit" }
   }
 } | ConvertTo-Json -Depth 6 -Compress
