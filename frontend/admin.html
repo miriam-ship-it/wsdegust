@@ -121,19 +121,35 @@
         praticamente a mesma cor para quem tem daltonismo. A paleta da casa e
         discreta demais para carregar tres estados sozinha. Identidade fica no
         ROTULO, que todo mundo le. */
-  .g-bloco { margin-bottom: 26px; }
-  .g-titulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--navy); margin-bottom: 2px; }
-  .g-sub { font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
-  .g-linha { display: grid; grid-template-columns: 190px 1fr 118px; align-items: center; gap: 12px; padding: 4px 0; }
-  .g-rotulo { font-size: 12.5px; color: var(--muted); text-align: right; }
+  /* Resumo antes do detalhe: quem abre a aba ve os quatro numeros primeiro,
+     e so depois decide em qual distribuicao entrar. */
+  .g-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .g-kpi { background: white; border: 1px solid var(--border); border-top: 3px solid var(--navy); padding: 16px 18px; }
+  .g-kpi-rot { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 700; }
+  .g-kpi-val { font-size: 30px; font-weight: 800; color: var(--navy); line-height: 1.15; margin-top: 5px; font-variant-numeric: tabular-nums; }
+  .g-kpi-val small { font-size: 14px; color: var(--muted); font-weight: 600; }
+  .g-kpi-nota { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+
+  /* Duas colunas quando cabe: sete graficos empilhados viravam uma rolagem
+     interminavel, e comparar dois indicadores exigia subir e descer. */
+  .g-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 14px; }
+  .g-bloco { background: white; border: 1px solid var(--border); padding: 18px 20px 16px; display: flex; flex-direction: column; }
+  .g-titulo { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--navy); }
+  .g-sub { font-size: 11.5px; color: var(--muted); margin: 3px 0 14px; line-height: 1.45; }
+  .g-linha { display: grid; grid-template-columns: minmax(96px, 34%) 1fr 96px; align-items: center; gap: 10px; padding: 3px 0; }
+  .g-rotulo { font-size: 12px; color: var(--muted); text-align: right; line-height: 1.3; }
   .g-rotulo-forte { color: var(--navy); font-weight: 700; }
-  .g-trilho { background: var(--soft); height: 22px; position: relative; }
-  .g-barra { background: var(--navy); height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; transition: width .35s ease; }
-  .g-valor { font-size: 11.5px; color: var(--muted); }
-  .g-valor b { color: var(--navy); font-size: 15px; font-weight: 800; margin-right: 3px; }
+  .g-trilho { background: var(--soft); height: 20px; }
+  .g-barra { background: var(--navy); height: 100%; border-radius: 0 4px 4px 0; min-width: 3px; transition: width .4s cubic-bezier(.2,.7,.3,1); }
+  /* a dominante ganha peso; as demais recuam, para o olho achar sozinho */
+  .g-linha:not(.g-forte) .g-barra { background: var(--royal); }
+  .g-valor { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .g-valor b { color: var(--navy); font-size: 15px; font-weight: 800; margin-right: 4px; }
   /* a frase que traduz o grafico — sem ela o painel e so barra */
-  .g-leitura { background: var(--soft); border-left: 3px solid var(--yellow); padding: 9px 13px; margin-top: 10px; font-size: 12.5px; line-height: 1.5; color: var(--text); }
+  .g-leitura { background: var(--soft); border-left: 3px solid var(--yellow); padding: 10px 13px; margin-top: auto; font-size: 12.5px; line-height: 1.55; color: var(--text); }
   .g-leitura b { color: var(--navy); }
+  .g-leitura-topo { margin-top: 14px; }
+  @media (max-width: 560px) { .g-linha { grid-template-columns: minmax(80px, 40%) 1fr 78px; } }
   .g-vazio { color: var(--muted); font-size: 13px; padding: 30px 0; text-align: center; }
   @media (max-width: 700px) { .g-linha { grid-template-columns: 110px 1fr 76px; } }
 
@@ -631,13 +647,18 @@ function trocarAba(qual) {
 function grafico(titulo, sub, pares, total, leitura) {
   if (!pares.length) return '';
   const maior = Math.max(...pares.map(p => p[1]), 1);
+  // 🔴 Empate: quando duas ou mais categorias tem a mesma contagem maxima,
+  //    ninguem domina. Destacar todas nao destaca nada, e eleger uma pela
+  //    ordem do array e inventar um vencedor que os dados nao deram.
+  const empatadas = pares.filter(p => p[1] === maior).length;
+  const empate = empatadas > 1;
   const linhas = pares.map(([rotulo, n]) => {
     const pct = total ? Math.round((n / total) * 100) : 0;
-    const forte = n === maior;
-    return `<div class="g-linha" title="${rotulo}: ${n} de ${total} (${pct}%)">
+    const forte = n === maior && !empate;
+    return `<div class="g-linha${forte ? ' g-forte' : ''}" title="${rotulo}: ${n} de ${total} (${pct}%)">
       <div class="g-rotulo${forte ? ' g-rotulo-forte' : ''}">${rotulo}</div>
       <div class="g-trilho"><div class="g-barra" style="width:${(n / maior) * 100}%"></div></div>
-      <div class="g-valor"><b>${pct}%</b> <span>${n} ${n === 1 ? 'pessoa' : 'pessoas'}</span></div>
+      <div class="g-valor"><b>${pct}%</b> <span>${n}</span></div>
     </div>`;
   }).join('');
 
@@ -645,7 +666,10 @@ function grafico(titulo, sub, pares, total, leitura) {
   //    ve barras e precisa fazer a conta na cabeca para dizer alguma coisa.
   const [topo, qtd] = pares.reduce((a, b) => (b[1] > a[1] ? b : a));
   const pctTopo = total ? Math.round((qtd / total) * 100) : 0;
-  const frase = leitura ? leitura(topo, qtd, pctTopo, total) : `<b>${topo}</b> concentra ${pctTopo}% dos respondentes.`;
+  const frase = empate
+    ? `Distribuição equilibrada — ${empatadas} categorias empatam em ${pctTopo}%, nenhuma domina.`
+    : leitura ? leitura(topo, qtd, pctTopo, total)
+    : `<b>${topo}</b> concentra ${pctTopo}% dos respondentes.`;
 
   return `<div class="g-bloco"><div class="g-titulo">${titulo}</div>
     <div class="g-sub">${sub}</div>${linhas}
@@ -717,10 +741,27 @@ async function renderGraficos() {
   const scores = _leads.map(l => l.maturidade_score).filter(v => v != null);
   const media = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 
-  alvo.innerHTML =
-    (media != null ? `<div class="g-bloco"><div class="g-titulo">Maturidade média</div>
-       <div style="font-size:34px;font-weight:800;color:var(--navy);line-height:1.1;">${media.toFixed(1)}<span style="font-size:16px;color:var(--muted);font-weight:600;"> / 100</span></div>
-       <div class="g-sub">média de ${scores.length} ${scores.length === 1 ? 'respondente' : 'respondentes'} com relatório calculado</div></div>` : '')
+  // --- os quatro numeros do topo ---
+  const riscos = _leads.map(l => l.risco_estrategico).filter(v => v != null);
+  const riscoMedio = riscos.length ? riscos.reduce((a, b) => a + b, 0) / riscos.length : null;
+  const cdls = _leads.map(l => l.cdl_max).filter(v => v != null).sort((a, b) => a - b);
+  const cdlMediana = cdls.length ? cdls[Math.floor(cdls.length / 2)] : null;
+  const arqs = _leads.map(l => ARQUETIPO_NOME[_arquetipos?.get(l.respondente_id)]).filter(Boolean);
+  const arqTopo = arqs.length ? [...arqs.reduce((m, a) => m.set(a, (m.get(a) || 0) + 1), new Map())]
+    .sort((a, b) => b[1] - a[1])[0] : null;
+
+  const kpi = (rot, val, nota) => `<div class="g-kpi"><div class="g-kpi-rot">${rot}</div>
+    <div class="g-kpi-val">${val}</div><div class="g-kpi-nota">${nota}</div></div>`;
+
+  const resumo = `<div class="g-resumo">
+    ${kpi('Respondentes', n, `${n === 1 ? 'pessoa' : 'pessoas'} com os filtros atuais`)}
+    ${media != null ? kpi('Maturidade média', `${media.toFixed(0)}<small> / 100</small>`, `de ${scores.length} com relatório calculado`) : ''}
+    ${riscoMedio != null ? kpi('Risco médio', `${riscoMedio.toFixed(0)}<small>%</small>`, riscoMedio >= 60 ? 'acima de 60% — prioridade do trimestre' : riscoMedio >= 40 ? 'faixa moderada' : 'faixa confortável') : ''}
+    ${cdlMediana != null ? kpi('CDL mediano', `R$ ${Math.round(cdlMediana / 1000)}<small>k / ano</small>`, 'metade da base está acima disso') : ''}
+    ${arqTopo ? kpi('Arquétipo dominante', `<span style="font-size:19px;line-height:1.3;display:block;">${arqTopo[0]}</span>`, `${Math.round((arqTopo[1] / n) * 100)}% dos respondentes`) : ''}
+  </div>`;
+
+  alvo.innerHTML = resumo + '<div class="g-grade">'
     + grafico('Indicador de maturidade', 'Estágio em que a liderança joga hoje. A ordem é a da escala, não a da contagem.',
         contar(_leads, l => MATURIDADE_NOME[l.maturidade_letra], maturidades.map(m => MATURIDADE_NOME[m])), n,
         (topo, q, pct) => `Concentração em <b>${topo}</b> — ${umEmCada(pct)} dos respondentes. É esse estágio que calibra a régua de cobrança realista.`)
@@ -749,7 +790,8 @@ async function renderGraficos() {
     + grafico('Setor', 'Ordenado por frequência — aqui a ordem não tem escala.',
         contar(_leads, l => SETOR_NOME[l.setor_id] || l.setor_id), n)
     + grafico('Temperatura do lead', 'Classificação comercial derivada dos indicadores.',
-        contar(_leads, l => (l.score_lead || '').toUpperCase(), ['QUENTE', 'MORNO', 'FRIO']), n);
+        contar(_leads, l => (l.score_lead || '').toUpperCase(), ['QUENTE', 'MORNO', 'FRIO']), n)
+    + '</div>';
 }
 
 /**
