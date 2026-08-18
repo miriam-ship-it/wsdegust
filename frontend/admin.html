@@ -202,8 +202,8 @@ window.__createSupabaseClient = createClient;
     <h1>Admin · Diagnóstico Boomit</h1>
     <div class="sub">Acesso restrito · faça login com sua conta Supabase</div>
     <div id="login-error" class="alert-error hidden"></div>
-    <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="miriam@boomit.com.br"></div>
-    <div class="form-group"><label>Senha</label><input type="password" id="login-password"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="login-email" autocomplete="username"></div>
+    <div class="form-group"><label>Senha</label><input type="password" id="login-password" autocomplete="current-password"></div>
     <button class="btn" id="btn-login" onclick="login()">Entrar</button>
   </div>
 </div>
