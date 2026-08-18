@@ -430,7 +430,13 @@ const TIPO_DO_LINK = (function lerAntesQueOGotrueApague() {
   const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
   const q = new URLSearchParams(location.search);
   const tipo = h.get('type') || q.get('type');
-  return (tipo === 'invite' || tipo === 'recovery') ? tipo : null;
+  if (tipo === 'invite' || tipo === 'recovery') return tipo;
+  // 🔴 No fluxo PKCE o link chega só com ?code= — sem `type` nenhum. Antes isso
+  //    não era reconhecido: a pessoa entrava, o gotrue criava a sessão e ela ia
+  //    parar no painel com a conta ainda SEM SENHA, que é o problema que esta
+  //    tela existe para evitar. Aqui não há outro motivo para um `code` na URL.
+  if (q.has('code') || q.has('token_hash')) return 'recovery';
+  return null;
 })();
 
 // 🔑 O fragmento é de uso único e some no primeiro carregamento. Se a pessoa

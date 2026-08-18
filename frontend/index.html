@@ -1416,18 +1416,27 @@ function reiniciar() {
   goTo('landing');
 }
 
-// 🔑 O convite do Supabase manda a pessoa para o Site URL configurado no
-//    projeto — que costuma ser a RAIZ, ou seja, este formulário. Ela chegaria
-//    aqui com `#access_token=...&type=invite` e veria o questionário, sem
-//    nenhuma tela para definir senha. Quem trata isso é o admin.html, então
-//    encaminhamos, preservando o fragmento (que é onde o token viaja).
-//    Assim o convite funciona com o Site URL na raiz OU no /admin.html.
-(function encaminharConviteParaOPainel() {
-  const frag = (location.hash || '').replace(/^#/, '');
-  const tipo = new URLSearchParams(frag).get('type');
-  if (tipo === 'invite' || tipo === 'recovery') {
-    location.replace('admin.html' + location.hash);
-  }
+// 🔑 O convite e o "redefinir senha" do Supabase mandam a pessoa para o Site
+//    URL do projeto — que é a RAIZ, ou seja, este formulário. Quem trata isso
+//    é o admin.html, então encaminhamos.
+//
+// 🔴 A versão anterior só olhava `type` no FRAGMENTO, e por isso o link caía no
+//    questionário: dependendo do fluxo, o Supabase entrega o token de três
+//    formas diferentes —
+//      #access_token=...&type=recovery   (implícito)
+//      ?code=...                          (PKCE)
+//      ?token_hash=...&type=recovery      (verificação por hash)
+//    Só a primeira era reconhecida. Agora qualquer uma encaminha, e o erro
+//    também vai junto, para a mensagem aparecer no painel e não no formulário.
+(function encaminharLinkDeEmailParaOPainel() {
+  const frag = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+  const busca = new URLSearchParams(location.search);
+  const tipo = frag.get('type') || busca.get('type');
+  const eDeEmail =
+    tipo === 'recovery' || tipo === 'invite' ||
+    busca.has('code') || busca.has('token_hash') ||
+    frag.has('error') || busca.has('error');
+  if (eDeEmail) location.replace('admin.html' + location.search + location.hash);
 })();
 
 document.getElementById('f-lgpd-gate').addEventListener('change', checkGate);
