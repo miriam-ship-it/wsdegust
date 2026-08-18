@@ -61,6 +61,13 @@
   /* exclusao e irreversivel: o botao nao pode parecer com os outros dois */
   .btn-perigo { background: white; color: var(--red-forte); border: 1px solid var(--red); }
   .btn-perigo:hover { background: var(--red); color: white; }
+  .link-sutil {
+    background: none; border: none; width: 100%; margin-top: 14px; padding: 4px;
+    font-family: inherit; font-size: 12.5px; color: var(--muted);
+    text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+  }
+  .link-sutil:hover { color: var(--navy); }
+  .alert-ok { background: #E4EBE4; color: #3F573F; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border-left: 3px solid var(--green); line-height: 1.5; }
   .alert-error { background: #F0E2DC; color: var(--red-forte); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; border-left: 3px solid var(--red); }
 
   /* Stats */
@@ -200,11 +207,17 @@ window.__createSupabaseClient = createClient;
 <div id="view-login" class="login-wrap view">
   <div class="card">
     <h1>Admin · Diagnóstico Boomit</h1>
-    <div class="sub">Acesso restrito · faça login com sua conta Supabase</div>
+    <div class="sub">Acesso restrito à equipe Boomit</div>
     <div id="login-error" class="alert-error hidden"></div>
+    <div id="login-aviso" class="alert-ok hidden"></div>
     <div class="form-group"><label>Email</label><input type="email" id="login-email" autocomplete="username"></div>
     <div class="form-group"><label>Senha</label><input type="password" id="login-password" autocomplete="current-password"></div>
     <button class="btn" id="btn-login" onclick="login()">Entrar</button>
+    <!-- 🔑 Sem isto, quem nunca definiu senha fica preso: ve "credenciais
+         invalidas" e nao tem para onde ir a nao ser pedir ajuda. Primeiro
+         acesso e "esqueci a senha" sao a MESMA coisa aqui — nos dois casos o
+         que falta e uma senha, e o caminho e o mesmo link. -->
+    <button class="link-sutil" onclick="pedirLink()">Primeiro acesso ou esqueci minha senha</button>
   </div>
 </div>
 
@@ -377,9 +390,25 @@ function showView(id) {
   document.getElementById('view-' + id).classList.remove('hidden');
 }
 
+/**
+ * As mensagens do Supabase chegam em inglês e em linguagem de sistema. Quem
+ * abre este painel não tem que decifrar "Invalid login credentials" — ainda
+ * mais quando o motivo real, aqui, costuma ser outro: a pessoa nunca definiu
+ * uma senha. A tradução aponta a saída, em vez de só constatar a falha.
+ */
+function traduzErro(msg) {
+  const m = String(msg || '');
+  if (/Invalid login credentials/i.test(m))
+    return 'E-mail ou senha não conferem. Se este é seu primeiro acesso, use o link abaixo para definir sua senha.';
+  if (/Email not confirmed/i.test(m)) return 'Este e-mail ainda não foi confirmado. Use o link abaixo.';
+  if (/rate limit|too many/i.test(m)) return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos.';
+  if (/network|fetch|Failed to fetch/i.test(m)) return 'Não consegui falar com o servidor. Verifique sua conexão.';
+  return m;
+}
+
 function showError(msg) {
   const el = document.getElementById('login-error');
-  el.textContent = msg;
+  el.textContent = traduzErro(msg);
   el.classList.remove('hidden');
 }
 
@@ -470,6 +499,48 @@ async function checkSession() {
     showView('login');
   }
 }
+
+/**
+ * Manda o link de definir senha para o proprio e-mail digitado.
+ *
+ * 🔑 `redirectTo` aponta para o admin.html. Sem ele, o Supabase joga a pessoa
+ *    no Site URL do projeto — a raiz, que e o formulario de diagnostico. Foi
+ *    exatamente o que aconteceu com a Thamirys: ela clicou e caiu no
+ *    questionario. O encaminhamento do formulario cobre esse caso, mas o certo
+ *    e o link ja nascer apontando para o lugar.
+ *
+ * 🔒 A resposta e sempre a mesma, exista a conta ou nao: dizer "esse e-mail nao
+ *    esta cadastrado" numa tela publica entrega quem tem acesso ao painel.
+ */
+async function pedirLink() {
+  const email = document.getElementById('login-email').value.trim();
+  const erro = document.getElementById('login-error');
+  const aviso = document.getElementById('login-aviso');
+  erro.classList.add('hidden'); aviso.classList.add('hidden');
+
+  if (!email) {
+    erro.textContent = 'Escreva seu e-mail no campo acima e clique aqui de novo.';
+    erro.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const sb = await getClient();
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: location.origin + '/admin.html',
+    });
+    if (error) throw error;
+    aviso.textContent = 'Se houver conta com esse e-mail, o link acabou de sair. Abra pelo computador, defina a senha e você já entra.';
+    aviso.classList.remove('hidden');
+  } catch (e) {
+    const m = /rate limit|too many/i.test(e.message)
+      ? 'Muitos e-mails enviados na última hora. Tente de novo daqui a pouco.'
+      : 'Não consegui enviar agora: ' + e.message;
+    erro.textContent = m;
+    erro.classList.remove('hidden');
+  }
+}
+
 
 async function definirSenha() {
   const err = document.getElementById('senha-error');
