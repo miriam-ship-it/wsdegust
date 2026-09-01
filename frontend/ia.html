@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico de Maturidade de IA · Boomit</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23545E54'/><circle cx='32' cy='17' r='5' fill='%23EDE9E4'/><rect x='27' y='27' width='10' height='22' rx='5' fill='%23EDE9E4'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- A fonte da marca é a PP Mori, que não é webfont pública. O produto Boomit
+     que está no ar resolve isso com Inter + fallback do sistema — mesma
+     escolha aqui, para não inventar uma terceira tipografia. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    /* BOOMIT — paleta da marca (guia BerrielBrands 2023).
+       Valores copiados de 3-produto/regras/design/boomit-design-tokens.json
+       no repo do redesenho — mesma fonte de verdade do produto, não
+       amostrados de tela. */
+    --boomit-assinatura: #545E54;  /* a única cor própria da marca */
+    --boomit-preto:      #1B1B1C;  /* Pantone 419C */
+    --boomit-creme:      #EDE9E4;  /* Apoio 03 */
+    --boomit-taupe:      #9D9482;  /* Apoio 04 */
+
+    /* Semantic tokens — herdam da paleta Boomit.
+       🔑 Os NOMES não mudaram: o resto do arquivo continua pedindo --primary,
+       --accent, --soft. Trocar a marca é trocar este bloco, não o CSS todo. */
+    --primary:      #545E54;       /* verde assinatura — era o navy IBMEC */
+    --primary-dark: #485048;       /* verde escuro p/ hover */
+    --accent:       #9A7B3C;       /* gold: foco/atenção. No guia é acento
+                                      RESTRITO — usar pouco, e nunca como
+                                      cor de fundo grande */
+    --accent-light: #C9A24E;       /* gold claro */
+    --bg:           #EDE9E4;       /* creme — era o cinza frio */
+    --card:         #FBFAF8;
+    --text:         #1B1B1C;       /* preto Boomit */
+    --muted:        #6E746A;       /* cinza quente */
+    --border:       #DAD4CB;
+    --soft:         #E5E0D8;       /* fundo de blocos */
+    --green:        #5C7A5C;       /* semântica: forte/positivo */
+    --yellow:       #9A7B3C;       /* semântica: atenção/destaque (= accent) */
+    --red:          #A0543E;       /* semântica: lacuna/crítico */
+    --neg:          #A0543E;
+    --royal:        #9D9482;       /* taupe: hover, blocos secundários */
+
+    /* Passos mais escuros dos tokens acima, SÓ para rótulo pequeno em caixa
+       alta sobre fundo tingido. Não são cores novas da marca: são o mesmo
+       matiz descido até passar 4.5:1 de contraste. Com o token puro esses
+       rótulos ficavam em 3.3–4.3 — legível para título, não para 10px. */
+    --red-forte:    #7E3F2C;       /* sobre #F0E2DC → 6.3:1 */
+    --gold-forte:   #6F5525;       /* sobre #F0E9DC → 5.8:1 */
+    --green-forte:  #3F573F;       /* sobre #E4EBE4 → 6.5:1 */
+  }
+  body {
+    font-family: 'PP Mori', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    min-height: 100vh;
+    font-size: 15px;
+  }
+  .container { max-width: 880px; margin: 0 auto; padding: 24px; }
+  .container.wide { max-width: 1100px; }
+  .header {
+    background: var(--primary-dark);
+    color: white;
+    padding: 14px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid var(--accent);
+  }
+  .logo { display: flex; align-items: center; }
+  .logo img { height: 32px; width: auto; display: block; }
+  .progress-bar {
+    background: rgba(255,255,255,0.15);
+    height: 3px;
+    width: 100%;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill { background: var(--accent); height: 100%; transition: width 0.3s ease; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card h2, .section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 4px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h2 .icon { color: var(--accent); font-size: 18px; }
+  .card-sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; margin-top: -4px; }
+  h1 { font-size: 36px; font-weight: 800; color: var(--primary-dark); letter-spacing: -0.5px; line-height: 1.1; }
+  h3 { font-size: 14px; font-weight: 700; color: var(--primary-dark); margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 1px; }
+  p { margin-bottom: 10px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .form-group { margin-bottom: 14px; }
+  label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 13px; }
+  input[type="text"], input[type="email"], select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    font-size: 15px; background: white; font-family: inherit;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+  .checkbox-row { display: flex; align-items: start; gap: 10px; margin: 14px 0; font-size: 13px; }
+  .checkbox-row input { margin-top: 4px; }
+  .checkbox-row label { font-weight: 400; line-height: 1.45; }
+  .btn {
+    background: var(--primary-dark); color: white; border: none;
+    padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background 0.2s; width: 100%; font-family: inherit;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .btn:hover:not(:disabled) { background: var(--royal); }
+  .btn:disabled { background: #C4BFB6; cursor: not-allowed; }
+  .btn-secondary { background: white; color: var(--primary-dark); border: 1px solid var(--primary-dark); }
+  .btn-secondary:hover:not(:disabled) { background: var(--soft); }
+
+  /* Likert */
+  .likert { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 24px 0; }
+  .likert-item {
+    background: white; border: 1px solid var(--border); padding: 14px 6px;
+    text-align: center; cursor: pointer; transition: all 0.15s;
+    font-size: 12px; user-select: none;
+  }
+  .likert-item:hover { border-color: var(--accent); }
+  .likert-item.selected { background: var(--primary-dark); color: white; border-color: var(--primary-dark); }
+  .likert-value { font-size: 22px; font-weight: 700; display: block; margin-bottom: 2px; }
+  .likert-label { font-size: 11px; line-height: 1.2; }
+  .question-meta {
+    display: flex; justify-content: space-between; margin-bottom: 16px;
+    font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;
+  }
+  .question-text { font-size: 19px; font-weight: 500; margin: 12px 0 4px; line-height: 1.4; color: var(--primary-dark); }
+  .nav { display: flex; gap: 10px; margin-top: 24px; }
+  .nav .btn { width: auto; flex: 1; }
+
+  /* Gate */
+  .gate-preview {
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    color: white; padding: 24px; margin: 16px 0; position: relative;
+  }
+  .gate-preview .label { font-size: 11px; opacity: 0.7; letter-spacing: 2px; text-transform: uppercase; }
+  .gate-stars { font-size: 26px; color: var(--accent); letter-spacing: 4px; margin: 8px 0; }
+  .blur { filter: blur(4px); opacity: 0.6; font-size: 13px; }
+
+  /* ============ RESULT (REPORT STYLE) ============ */
+  .report-header {
+    background: white; border: 1px solid var(--border); padding: 32px;
+    border-left: 4px solid var(--accent); margin-bottom: 16px;
+  }
+  .report-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+  .report-meta-item { background: var(--soft); padding: 12px 16px; }
+  .report-meta-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  .report-meta-value { font-size: 15px; font-weight: 700; color: var(--primary-dark); margin-top: 2px; }
+  .badge-confidencial { background: var(--soft); padding: 10px 14px; font-size: 12px; color: var(--muted); border-left: 3px solid var(--accent); margin-bottom: 16px; }
+
+  /* Maturity letter grade */
+  .maturity-hero {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center; margin: 16px 0;
+  }
+  .maturity-grade-circle {
+    width: 110px; height: 110px; border-radius: 50%; background: var(--primary-dark);
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-size: 56px; font-weight: 800; margin: 0 auto;
+  }
+  .maturity-scale { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 4px; font-size: 13px; font-weight: 600; }
+  .maturity-scale span { padding: 4px 8px; }
+  .maturity-scale .current { background: var(--primary-dark); color: white; }
+  .maturity-score { text-align: center; font-size: 13px; color: var(--muted); }
+  .maturity-bars { display: flex; gap: 2px; margin: 12px 0; }
+  .maturity-bar { flex: 1; height: 16px; background: var(--border); }
+  .maturity-bar.active { background: var(--primary); }
+
+  /* Régua de Posicionamento */
+  .regua-container { background: var(--soft); padding: 24px 20px; margin: 12px 0; position: relative; }
+  .regua-track {
+    /* a régua sobe pela HIERARQUIA da marca: operacional → tático → estratégico */
+    background: linear-gradient(to right, #E5E0D8, #A7A091, #545E54, #1B1B1C);
+    height: 32px; position: relative; border: 1px solid var(--border);
+  }
+  .regua-label { position: absolute; font-size: 12px; font-weight: 600; }
+  .regua-current { position: absolute; top: -12px; transform: translateX(-50%); }
+  .regua-current .dot { width: 16px; height: 16px; background: var(--primary-dark); border-radius: 50%; margin: 0 auto; border: 3px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .regua-current .label-bottom { font-size: 11px; font-weight: 700; margin-top: 6px; text-align: center; white-space: nowrap; }
+  .regua-zones { display: flex; justify-content: space-between; padding: 6px 0; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Componentes do Alinhamento */
+  .componente-row { display: flex; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .componente-row:last-child { border-bottom: none; }
+  .componente-info { flex: 1; }
+  .componente-title { font-weight: 600; font-size: 14px; }
+  .componente-desc { font-size: 12px; color: var(--muted); }
+  .componente-bar-wrap { flex: 2; }
+  .componente-bar { background: var(--border); height: 8px; position: relative; }
+  .componente-bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--primary); }
+  .componente-value { font-size: 18px; font-weight: 700; color: var(--primary-dark); min-width: 70px; text-align: right; }
+  .componente-tag { font-size: 10px; padding: 2px 6px; margin-left: 4px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+  /* Os QUATRO patamares precisam de quatro cores distintas — na primeira
+     passada da marca, "saudável" e "em desenvolvimento" cairam ambos em
+     var(--accent) e viraram a mesma tarja. A escala vai de verde (bom) a
+     terracota (crítico), com o taupe da marca no meio como "ainda apagado".
+     A cor do texto de cada uma foi medida: tarja é 10px em caixa alta, e
+     abaixo de 4.5:1 vira decoração ilegível. */
+  .tag-forte { background: var(--green); color: white; }          /* 4.8:1 */
+  .tag-saudavel { background: #8A6D34; color: white; }            /* 4.9:1 — gold um passo abaixo */
+  .tag-atencao { background: var(--royal); color: var(--text); }  /* 5.7:1 — taupe */
+  .tag-critico { background: var(--red); color: white; }          /* 5.5:1 */
+
+  /* Competências priorizadas */
+  .comp-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--border); }
+  .comp-row:last-child { border-bottom: none; }
+  .comp-rank { font-size: 22px; font-weight: 800; color: var(--accent); min-width: 36px; }
+  .comp-name { flex: 1; font-weight: 600; }
+  .comp-bar-track { flex: 2; height: 10px; background: var(--border); position: relative; }
+  .comp-bar-current { position: absolute; height: 100%; background: var(--primary); }
+  .comp-bar-expected { position: absolute; height: 100%; top: 0; border-right: 2px solid var(--accent); }
+  .comp-scores { font-size: 13px; color: var(--muted); min-width: 80px; text-align: right; }
+  .comp-gap { font-size: 13px; font-weight: 700; min-width: 50px; text-align: right; }
+  .comp-gap.neg { color: var(--red); }
+  .comp-gap.pos { color: var(--green); }
+
+  /* Risco Estratégico */
+  .risco-hero { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: center; }
+  .risco-circle {
+    width: 90px; height: 90px; border-radius: 50%; border: 6px solid var(--red);
+    display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800;
+    color: var(--primary-dark);
+  }
+  .risco-circle.moderado { border-color: var(--accent); }
+  .risco-circle.baixo { border-color: var(--green); }
+  .risco-level { font-size: 13px; padding: 3px 10px; display: inline-block; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+  .risco-level.alto { background: #F0E2DC; color: var(--red-forte); }
+  .risco-level.moderado { background: #F0E9DC; color: var(--gold-forte); }
+  .risco-level.baixo { background: #E4EBE4; color: var(--green-forte); }
+
+  /* PPL */
+  .ppl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .ppl-box { background: var(--soft); padding: 14px; }
+  .ppl-box-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
+  .ppl-box-value { font-size: 18px; font-weight: 700; color: var(--primary-dark); margin-top: 2px; }
+  .ppl-perda { background: #F0E2DC; padding: 18px; margin: 16px 0; border-left: 4px solid var(--red); }
+  .ppl-perda-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
+  .ppl-perda-value { font-size: 24px; font-weight: 800; color: var(--red); margin: 6px 0; }
+  .ppl-perda-decomp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .ppl-decomp-item { background: white; padding: 10px; border: 1px solid var(--border); }
+  .ppl-decomp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
+  .ppl-decomp-value { font-size: 13px; font-weight: 700; color: var(--primary-dark); margin-top: 4px; }
+
+  /* Plano de Ação */
+  .plano-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .plano-item:last-child { border-bottom: none; }
+  .plano-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--primary-dark); color: white; display: flex;
+    align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0;
+  }
+  .plano-content h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: var(--primary-dark); }
+  .plano-content p { font-size: 13px; color: var(--muted); margin: 0; }
+  .plano-content ul { margin: 6px 0 0 16px; font-size: 13px; color: var(--muted); }
+  .plano-content li { margin-bottom: 2px; }
+
+  /* Cronograma */
+  .crono-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  @media (max-width: 700px) { .crono-grid { grid-template-columns: 1fr; } }
+  .crono-etapa { background: var(--soft); padding: 14px; border-top: 3px solid var(--accent); }
+  .crono-num { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 700; }
+  .crono-titulo { font-size: 14px; font-weight: 700; color: var(--primary-dark); margin: 4px 0 8px; }
+  .crono-bullets { font-size: 12px; color: var(--muted); }
+  .crono-bullets li { margin: 2px 0 2px 14px; }
+
+  /* Radar */
+  .radar-container { margin: 16px 0; text-align: center; }
+  .radar-legend { display: flex; justify-content: center; gap: 24px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .legend-swatch { display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 6px; }
+
+  /* Glossário */
+  .gloss-item { padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .gloss-item:last-child { border-bottom: none; }
+  .gloss-term { font-weight: 700; color: var(--primary-dark); }
+  .gloss-def { color: var(--muted); }
+
+  /* Sources at bottom */
+  .sources { font-size: 11px; color: var(--muted); padding: 14px; background: var(--soft); margin-top: 16px; }
+  .sources strong { color: var(--primary-dark); }
+
+  /* Footer report */
+  .report-footer { text-align: center; color: var(--muted); font-size: 11px; padding: 16px 0; margin-top: 8px; border-top: 1px solid var(--border); }
+
+  .actions-bar {
+    position: sticky; bottom: 0; background: white; padding: 14px;
+    margin: 16px -28px -28px; border-top: 1px solid var(--border);
+    display: flex; gap: 12px;
+  }
+  .actions-bar .btn { flex: 1; }
+
+  .hidden { display: none !important; }
+
+
+
+  /* Storytelling blocks */
+  .conceito-block {
+    background: var(--soft);
+    padding: 16px 20px;
+    border-left: 3px solid var(--accent);
+    margin: 12px 0 18px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .conceito-block strong { color: var(--primary-dark); }
+  .conceito-mini {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+  .subsidios-block {
+    background: white;
+    padding: 14px 18px;
+    border: 1px dashed var(--border);
+    margin-top: 16px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+  .subsidios-block strong { color: var(--primary-dark); display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; }
+  .ref-list {
+    font-size: 11px; color: var(--muted); margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* Option cards (substitui Likert) */
+  .option-cards { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 8px; }
+  .option-card { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); background: white; cursor: pointer; transition: all 0.15s; }
+  .option-card:hover { border-color: var(--accent); background: var(--soft); }
+  .option-card.selected { border-color: var(--primary-dark); background: var(--primary-dark); color: white; }
+  .option-card.selected .option-letter { background: var(--accent); color: var(--primary-dark); }
+  .option-letter { width: 28px; height: 28px; flex-shrink: 0; background: var(--soft); color: var(--primary-dark); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+  .option-text { flex: 1; font-size: 14px; line-height: 1.45; padding-top: 2px; }
+
+
+  /* === Mobile tweaks === */
+  @media (max-width: 600px) {
+    body { font-size: 15px; }
+    .container { padding: 16px; }
+    .card { padding: 20px 18px; }
+    h1 { font-size: 26px; line-height: 1.15; }
+    .btn { padding: 14px 20px; font-size: 14px; min-height: 48px; }
+    .option-card { padding: 16px 14px; min-height: 56px; }
+    .option-letter { width: 32px; height: 32px; }
+    .option-text { font-size: 15px; }
+    .likert-item { padding: 16px 6px; min-height: 52px; }
+    .nav .btn { min-height: 48px; }
+    input[type="text"], input[type="email"], select { padding: 12px 14px; font-size: 16px; }
+    .question-text { font-size: 17px; }
+    .report-meta { grid-template-columns: 1fr; }
+    .maturity-hero { grid-template-columns: 1fr; gap: 14px; text-align: center; }
+    .risco-hero { grid-template-columns: 1fr; gap: 14px; }
+    .ppl-grid { grid-template-columns: 1fr; }
+    .crono-grid { grid-template-columns: 1fr; }
+  }
+  @media print {
+    /* 🔑 O PDF É ESTE CSS. O botão "Baixar PDF" chama window.print(), e o
+       navegador DESCARTA todo fundo colorido por padrão — o relatório
+       dependia de fundo para significar, então saía mutilado: as tarjas têm
+       texto branco sobre cor (fundo some → branco no branco → some a
+       palavra), a régua é um gradiente (some → caixa vazia com dois pontos),
+       e as barras do Alinhamento são fundo puro (somem → tudo em zero).
+       Esta linha é o que faz o PDF respeitar o que está na tela. */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .header, .actions-bar, .no-print { display: none !important; }
+    body { background: white; font-size: 12px; }
+    .card { border: 1px solid #ddd; padding: 14px; page-break-inside: avoid; margin-bottom: 8px; }
+    .container { max-width: none; padding: 12px; }
+    h1 { font-size: 28px; }
+    .maturity-grade-circle { width: 80px; height: 80px; font-size: 42px; }
+  }
+</style>
+<script type="module">
+// Supabase JS (ESM)
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+window.__createSupabaseClient = createClient;
+</script>
+</head>
+<body>
+
+<div class="header no-print">
+  <div class="logo"><img src="logo-boomit.png" alt="Boomit" height="28" style="height:28px;width:auto;display:block;"></div>
+  <div id="progress-text" style="font-size: 12px; color: var(--bg); letter-spacing: 1px;"></div>
+</div>
+<div id="progress-bar-wrap" class="hidden"><div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div></div>
+
+<!-- ============ LANDING ============ -->
+<div class="container view" id="view-landing">
+  <div class="card" style="padding: 48px 32px;">
+    <div style="font-size: 11px; color: var(--gold-forte); text-transform: uppercase; letter-spacing: 3px; font-weight: 700; margin-bottom: 12px;">Diagnóstico Boomit · Degustação</div>
+    <h1>Maturidade de IA da sua empresa</h1>
+    <p class="muted" style="margin-top: 12px; font-size: 16px;">Um retrato rápido de onde sua organização está na jornada de Inteligência Artificial — nos 6 eixos do Modelo Centauro — com o nível de maturidade e o próximo passo mais urgente.</p>
+    <div style="margin: 32px 0; padding: 20px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: center;">
+        <div><div style="font-size: 32px; font-weight: 800; color: var(--primary-dark);">2 min</div><div class="muted" style="font-size: 12px;">Preenchimento</div></div>
+        <div><div style="font-size: 32px; font-weight: 800; color: var(--primary-dark);">9</div><div class="muted" style="font-size: 12px;">Perguntas</div></div>
+        <div><div style="font-size: 32px; font-weight: 800; color: var(--primary-dark);">6</div><div class="muted" style="font-size: 12px;">Eixos avaliados</div></div>
+      </div>
+    </div>
+    <button class="btn" onclick="goTo('identificacao')">Iniciar diagnóstico</button>
+    <p class="muted" style="margin-top:16px;font-size:12px;text-align:center;">Leva 2 minutos. Sem cadastro para começar.</p>
+  </div>
+</div>
+
+<!-- ============ IDENTIFICAÇÃO ============ -->
+<div class="container view hidden" id="view-identificacao">
+  <div class="card">
+    <div class="section-title"><span class="icon">◐</span> Sobre você e a empresa</div>
+    <p class="card-sub">Só o essencial para calibrar a leitura. O e-mail fica para o final.</p>
+    <div class="form-group">
+      <label for="f-nome">Seu nome</label>
+      <input type="text" id="f-nome" placeholder="Como podemos te chamar" autocomplete="name">
+    </div>
+    <div class="form-group">
+      <label for="f-empresa">Empresa</label>
+      <input type="text" id="f-empresa" placeholder="Nome da empresa" autocomplete="organization">
+    </div>
+    <div class="row">
+      <div class="form-group">
+        <label for="f-cargo">Seu cargo / papel</label>
+        <input type="text" id="f-cargo" placeholder="Ex.: Diretor, Gerente, Sócio" autocomplete="organization-title">
+      </div>
+      <div class="form-group">
+        <label for="f-porte">Porte da empresa</label>
+        <select id="f-porte">
+          <option value="">Selecione</option>
+          <option value="S1">Até 50 colaboradores</option>
+          <option value="S2">51 a 250</option>
+          <option value="S3">251 a 1.000</option>
+          <option value="S4">Mais de 1.000</option>
+        </select>
+      </div>
+    </div>
+    <div class="nav">
+      <button class="btn btn-secondary" onclick="goTo('landing')">Voltar</button>
+      <button class="btn" id="btn-iniciar" onclick="iniciarQuestionario()">Começar as perguntas</button>
+    </div>
+    <p class="muted" id="ident-erro" style="color:var(--red);margin-top:10px;display:none;"></p>
+  </div>
+</div>
+
+<!-- ============ QUESTIONÁRIO ============ -->
+<div class="container view hidden" id="view-questionario">
+  <div class="card">
+    <div class="question-meta">
+      <span id="q-eixo">Eixo</span>
+      <span id="q-contador">1 / 9</span>
+    </div>
+    <div class="question-text" id="q-stem"></div>
+    <div class="option-cards" id="q-options"></div>
+    <div class="nav">
+      <button class="btn btn-secondary" id="btn-voltar" onclick="voltarPergunta()">Voltar</button>
+      <button class="btn" id="btn-proxima" onclick="proximaPergunta()" disabled>Próxima</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ GATE E-MAIL ============ -->
+<div class="container view hidden" id="view-gate">
+  <div class="card">
+    <div class="section-title"><span class="icon">✦</span> Seu diagnóstico está pronto</div>
+    <p class="card-sub">Deixe seu e-mail para ver o resultado completo e receber os próximos passos.</p>
+    <div class="gate-preview">
+      <div class="label">Prévia do seu nível de maturidade de IA</div>
+      <div class="gate-stars">★ ★ ★ ★ ★</div>
+      <div class="blur">Nível Centauro · leitura dos 6 eixos · elo mais fraco · próxima onda de ação</div>
+    </div>
+    <div class="form-group">
+      <label for="f-email">Seu melhor e-mail</label>
+      <input type="email" id="f-email" placeholder="voce@empresa.com.br" autocomplete="email">
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="f-consent">
+      <label for="f-consent">Autorizo a Boomit a usar meu contato para me enviar este diagnóstico e falar sobre soluções de IA e gestão. Posso pedir a exclusão a qualquer momento. (LGPD)</label>
+    </div>
+    <button class="btn" id="btn-ver" onclick="verResultado()">Ver meu diagnóstico</button>
+    <p class="muted" id="gate-erro" style="color:var(--red);margin-top:10px;display:none;"></p>
+  </div>
+</div>
+
+<!-- ============ RESULTADO ============ -->
+<div class="container wide view hidden" id="view-resultado">
+  <div id="resultado-conteudo"></div>
+  <div class="report-footer no-print">
+    Diagnóstico de Maturidade de IA · Modelo Centauro (6 eixos) · Boomit · Régua determinística ADR-0009 · Este é um retrato de degustação, não um assessment completo.
+  </div>
+</div>
+
+<script>
+window.APP_CONFIG = {
+  SUPABASE_URL: 'https://klnpnjumogojspubyabi.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsbnBuanVtb2dvanNwdWJ5YWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODI1NjcsImV4cCI6MjA5NjE1ODU2N30.D3L-wybr8jf0Esi3HcJC2kMrmqrBgKfQ3KIo8dV0DUI',
+  EVENTO_SLUG: 'boomit-degustacao-ia',
+  VERSAO: 'ia-teaser-v1'
+};
+</script>
+
+<script>
+// =================== DADOS · MODELO CENTAURO (6 EIXOS) ===================
+// Eixos e pesos vêm do ADR-0009 (motor `calculate-ai-maturity`):
+//   BT/EI/UP/PP = 0.20 · GR/ES = 0.10. Teaser cobre os 6 com 9 perguntas.
+const EIXOS = {
+  BT: { nome: 'Base Tecnológica',        peso: 0.20 },
+  EI: { nome: 'Estratégia & Entendimento', peso: 0.20 },
+  UP: { nome: 'Uso Prático',             peso: 0.20 },
+  PP: { nome: 'Prontidão das Pessoas',   peso: 0.20 },
+  GR: { nome: 'Governança & Risco',      peso: 0.10 },
+  ES: { nome: 'Escala & Sustentação',    peso: 0.10 }
+};
+
+// Cada opção mapeia para um valor 1-5 (o mesmo domínio do motor Centauro).
+const PERGUNTAS = [
+  { id: 'ia_q1', eixo: 'BT',
+    stem: 'Os dados que uma IA precisaria usar na sua empresa hoje estão…',
+    options: [
+      { t: 'Espalhados em planilhas e sistemas que não conversam', s: 1 },
+      { t: 'Em alguns sistemas, mas a integração é manual', s: 2 },
+      { t: 'Centralizados e acessíveis para a maioria das áreas', s: 4 },
+      { t: 'Governados, versionados e prontos para consumo por modelos', s: 5 }
+    ] },
+  { id: 'ia_q2', eixo: 'BT',
+    stem: 'Que infraestrutura de IA a empresa tem de fato?',
+    options: [
+      { t: 'Nenhuma além de ferramentas gratuitas avulsas', s: 1 },
+      { t: 'Assinaturas de IA generativa usadas individualmente', s: 2 },
+      { t: 'Ferramentas de IA integradas a alguns processos', s: 4 },
+      { t: 'Plataforma ou pipeline de IA próprio e bem integrado', s: 5 }
+    ] },
+  { id: 'ia_q3', eixo: 'EI',
+    stem: 'A IA dentro da estratégia da empresa é…',
+    options: [
+      { t: 'Um assunto que ainda não entrou na pauta', s: 1 },
+      { t: 'Curiosidade de alguns, sem direção formal', s: 2 },
+      { t: 'Um tema com iniciativas priorizadas por área', s: 4 },
+      { t: 'Parte explícita do plano estratégico, com metas', s: 5 }
+    ] },
+  { id: 'ia_q4', eixo: 'UP',
+    stem: 'Com que frequência as pessoas usam IA no trabalho, de verdade?',
+    options: [
+      { t: 'Praticamente ninguém usa', s: 1 },
+      { t: 'Alguns entusiastas, de forma esporádica', s: 2 },
+      { t: 'Uso semanal, em várias áreas', s: 4 },
+      { t: 'Uso diário, incorporado à rotina', s: 5 }
+    ] },
+  { id: 'ia_q5', eixo: 'UP',
+    stem: 'Quando usam IA, é principalmente para…',
+    options: [
+      { t: 'Não se aplica — não usam', s: 1 },
+      { t: 'Tirar dúvidas e escrever textos soltos', s: 2 },
+      { t: 'Acelerar tarefas recorrentes com algum método', s: 4 },
+      { t: 'Automatizar fluxos e apoiar decisão com dados', s: 5 }
+    ] },
+  { id: 'ia_q6', eixo: 'PP',
+    stem: 'Sobre o preparo das pessoas para usar IA…',
+    options: [
+      { t: 'Ninguém foi treinado; cada um se vira', s: 1 },
+      { t: 'Uns poucos aprenderam por conta própria', s: 2 },
+      { t: 'Há treinamentos pontuais oferecidos pela empresa', s: 4 },
+      { t: 'Existe um programa contínuo de capacitação em IA', s: 5 }
+    ] },
+  { id: 'ia_q7', eixo: 'PP',
+    stem: 'Quando alguém propõe usar IA num processo, o que costuma acontecer?',
+    options: [
+      { t: 'Esbarra em resistência ou medo de substituição', s: 1 },
+      { t: 'Depende muito da área e da chefia', s: 2 },
+      { t: 'Em geral é bem recebido e testado', s: 4 },
+      { t: 'A empresa incentiva ativamente a experimentação', s: 5 }
+    ] },
+  { id: 'ia_q8', eixo: 'GR',
+    stem: 'Sobre regras de uso de IA (dados sensíveis, privacidade, o que pode e o que não pode)…',
+    options: [
+      { t: 'Não existem regras; cada um decide sozinho', s: 1 },
+      { t: 'Conversas informais, nada escrito', s: 2 },
+      { t: 'Diretrizes básicas comunicadas ao time', s: 4 },
+      { t: 'Política formal, com responsáveis e revisão periódica', s: 5 }
+    ] },
+  { id: 'ia_q9', eixo: 'ES',
+    stem: 'As iniciativas de IA que dão certo na sua empresa…',
+    options: [
+      { t: 'Não temos iniciativas de IA', s: 1 },
+      { t: 'Ficam restritas a quem começou', s: 2 },
+      { t: 'São replicadas para outras áreas, com esforço', s: 4 },
+      { t: 'Viram processo mantido e medido continuamente', s: 5 }
+    ] }
+];
+
+// Vocabulário oficial da organização (ADR-0009 §3).
+const NIVEIS = {
+  1: { nome: 'Operacional Ágil',       diag: 'Sua empresa ainda usa IA de forma pontual e individual. O valor aparece em ganhos isolados de produtividade — falta base de dados confiável, direção estratégica e gente preparada para transformar isso em vantagem.' },
+  2: { nome: 'Gestor Tático',          diag: 'Há uso real de IA em algumas frentes, mas ainda dependente de pessoas específicas. O próximo salto é transformar iniciativas soltas em processos, com método e dados em que dá para confiar.' },
+  3: { nome: 'Estrategista de Escala', diag: 'A IA já resolve problemas concretos em várias áreas e entra na conversa estratégica. O desafio agora é sustentar: governança, capacitação contínua e replicação do que funciona.' },
+  4: { nome: 'Arquiteto de Soluções',  diag: 'A empresa desenha soluções de IA integradas ao negócio, com dados governados e times preparados. O foco passa a ser escala consistente e medição de impacto.' },
+  5: { nome: 'Criador de Tecnologia',  diag: 'A IA é parte de como a empresa compete e cria valor. Vocês não só usam — constroem. O trabalho aqui é manter a liderança e não parar de reinventar.' }
+};
+
+// Próxima onda de ação, ancorada no eixo mais fraco.
+const ACAO_EIXO = {
+  BT: 'Comece organizando e integrando seus dados. Sem base confiável, nenhum modelo entrega valor que se sustente.',
+  EI: 'Traga a IA para o plano estratégico com metas claras. Sem direção, o uso fica preso a entusiastas isolados.',
+  UP: 'Crie rituais de uso: escolha 2 ou 3 processos e incorpore IA na rotina semanal — não só em experimentos avulsos.',
+  PP: 'Invista em capacitação contínua. A maturidade trava no elo mais fraco, e gente despreparada segura toda a jornada.',
+  GR: 'Escreva uma política mínima de uso de IA (dados sensíveis, privacidade, o que pode) antes de escalar. Governança fraca vira risco na hora errada.',
+  ES: 'Transforme os pilotos que deram certo em processo mantido e medido. Senão o valor evapora junto com quem começou.'
+};
+
+const PORTE_NOMES = { S1:'Até 50 colaboradores', S2:'51 a 250', S3:'251 a 1.000', S4:'Mais de 1.000' };
+
+const state = { ident: {}, respostas: {}, idx: 0, resultado: null };
+
+// =================== MOTOR CENTAURO (determinístico, ADR-0009) ===================
+// SCORE_MAP: "1"->0, "2"->2.5, "3"->5, "4"->7.5, "5"->10.
+function valorParaScore(v) { return ({1:0, 2:2.5, 3:5, 4:7.5, 5:10})[v]; }
+
+function calcularResultado() {
+  // média por eixo (0-10)
+  const porEixo = {};
+  for (const codigo of Object.keys(EIXOS)) {
+    const perguntasDoEixo = PERGUNTAS.filter(p => p.eixo === codigo);
+    const scores = perguntasDoEixo
+      .map(p => state.respostas[p.id])
+      .filter(v => v != null)
+      .map(valorParaScore);
+    porEixo[codigo] = scores.length
+      ? scores.reduce((a,b) => a+b, 0) / scores.length
+      : null;
+  }
+  // média ponderada renormalizada sobre eixos respondidos -> 0-10 -> x10 = 0-100
+  let somaPeso = 0, somaPond = 0;
+  for (const codigo of Object.keys(EIXOS)) {
+    if (porEixo[codigo] == null) continue;
+    somaPeso += EIXOS[codigo].peso;
+    somaPond += porEixo[codigo] * EIXOS[codigo].peso;
+  }
+  const score10 = somaPeso ? somaPond / somaPeso : 0;
+  const score100 = Math.round(score10 * 10);
+
+  // nível base por cortes 85/65/45/25 (ADR-0009)
+  let nivel;
+  if (score100 >= 85) nivel = 5;
+  else if (score100 >= 65) nivel = 4;
+  else if (score100 >= 45) nivel = 3;
+  else if (score100 >= 25) nivel = 2;
+  else nivel = 1;
+
+  // trava suave (ADR-0009 §2): elo mais fraco = min(Prontidão das Pessoas, Uso Prático).
+  // Se esse elo está no chão, rebaixa UM nível — não joga para o piso.
+  const elo = Math.min(
+    porEixo.PP != null ? porEixo.PP : 10,
+    porEixo.UP != null ? porEixo.UP : 10
+  );
+  const travaAplicada = (elo < 2.5 && nivel > 1);
+  if (travaAplicada) nivel -= 1;
+
+  // eixo mais fraco (para a próxima onda de ação)
+  let eixoFraco = null, menor = Infinity;
+  for (const codigo of Object.keys(EIXOS)) {
+    if (porEixo[codigo] != null && porEixo[codigo] < menor) { menor = porEixo[codigo]; eixoFraco = codigo; }
+  }
+
+  return { porEixo, score100, nivel, eixoFraco, travaAplicada };
+}
+
+function tagPara(score10) {
+  if (score10 >= 7.5) return { cls: 'tag-forte',    label: 'Forte' };
+  if (score10 >= 5)   return { cls: 'tag-saudavel', label: 'Saudável' };
+  if (score10 >= 2.5) return { cls: 'tag-atencao',  label: 'Em desenvolvimento' };
+  return { cls: 'tag-critico', label: 'Crítico' };
+}
+
+// =================== NAVEGAÇÃO ===================
+function goTo(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.getElementById('view-' + view).classList.remove('hidden');
+  const mostraBarra = ['questionario'].includes(view);
+  document.getElementById('progress-bar-wrap').classList.toggle('hidden', !mostraBarra);
+  window.scrollTo(0, 0);
+}
+
+function iniciarQuestionario() {
+  const nome = document.getElementById('f-nome').value.trim();
+  const empresa = document.getElementById('f-empresa').value.trim();
+  const erro = document.getElementById('ident-erro');
+  if (!nome || !empresa) {
+    erro.textContent = 'Preencha ao menos nome e empresa para continuar.';
+    erro.style.display = 'block';
+    return;
+  }
+  erro.style.display = 'none';
+  state.ident = {
+    nome,
+    empresa,
+    cargo: document.getElementById('f-cargo').value.trim() || null,
+    tamanho: document.getElementById('f-porte').value || null
+  };
+  state.idx = 0;
+  goTo('questionario');
+  renderPergunta();
+}
+
+function renderPergunta() {
+  const p = PERGUNTAS[state.idx];
+  document.getElementById('q-eixo').textContent = EIXOS[p.eixo].nome;
+  document.getElementById('q-contador').textContent = (state.idx + 1) + ' / ' + PERGUNTAS.length;
+  document.getElementById('q-stem').textContent = p.stem;
+  document.getElementById('progress-fill').style.width = (((state.idx) / PERGUNTAS.length) * 100) + '%';
+  document.getElementById('progress-text').textContent = 'Pergunta ' + (state.idx + 1) + ' de ' + PERGUNTAS.length;
+
+  const cont = document.getElementById('q-options');
+  cont.innerHTML = '';
+  const letras = ['A','B','C','D','E'];
+  p.options.forEach((opt, i) => {
+    const card = document.createElement('div');
+    card.className = 'option-card' + (state.respostas[p.id] === opt.s ? ' selected' : '');
+    card.innerHTML = '<div class="option-letter">' + letras[i] + '</div><div class="option-text">' + opt.t + '</div>';
+    card.onclick = () => {
+      state.respostas[p.id] = opt.s;
+      renderPergunta();
+      document.getElementById('btn-proxima').disabled = false;
+    };
+    cont.appendChild(card);
+  });
+
+  document.getElementById('btn-voltar').style.visibility = state.idx === 0 ? 'hidden' : 'visible';
+  document.getElementById('btn-proxima').disabled = state.respostas[p.id] == null;
+  document.getElementById('btn-proxima').textContent = state.idx === PERGUNTAS.length - 1 ? 'Concluir' : 'Próxima';
+}
+
+function proximaPergunta() {
+  const p = PERGUNTAS[state.idx];
+  if (state.respostas[p.id] == null) return;
+  if (state.idx < PERGUNTAS.length - 1) {
+    state.idx++;
+    renderPergunta();
+  } else {
+    goTo('gate');
+  }
+}
+
+function voltarPergunta() {
+  if (state.idx > 0) { state.idx--; renderPergunta(); }
+}
+
+// =================== RESULTADO + CAPTURA DE LEAD ===================
+function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+
+async function verResultado() {
+  const email = document.getElementById('f-email').value.trim();
+  const consent = document.getElementById('f-consent').checked;
+  const erro = document.getElementById('gate-erro');
+  if (!isValidEmail(email)) {
+    erro.textContent = 'Informe um e-mail válido para ver o diagnóstico.';
+    erro.style.display = 'block'; return;
+  }
+  if (!consent) {
+    erro.textContent = 'Marque a autorização (LGPD) para continuar.';
+    erro.style.display = 'block'; return;
+  }
+  erro.style.display = 'none';
+  const btn = document.getElementById('btn-ver');
+  btn.disabled = true; btn.textContent = 'Calculando…';
+
+  state.resultado = calcularResultado();
+  state.ident.email = email;
+  state.ident.consent = true;
+
+  // grava o lead (não bloqueia o resultado se falhar)
+  try { await gravarLead(); } catch (e) { console.warn('Lead não gravado:', e && e.message); }
+
+  renderResultado();
+  goTo('resultado');
+  btn.disabled = false; btn.textContent = 'Ver meu diagnóstico';
+}
+
+function renderResultado() {
+  const r = state.resultado;
+  const nivel = NIVEIS[r.nivel];
+  const dataPt = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+
+  // barras dos 5 níveis
+  let barras = '';
+  for (let i = 1; i <= 5; i++) barras += '<div class="maturity-bar' + (i <= r.nivel ? ' active' : '') + '"></div>';
+
+  // linhas dos 6 eixos
+  let eixosHtml = '';
+  for (const codigo of Object.keys(EIXOS)) {
+    const v = r.porEixo[codigo];
+    const pct = v != null ? (v / 10) * 100 : 0;
+    const tag = tagPara(v != null ? v : 0);
+    const ehFraco = codigo === r.eixoFraco;
+    eixosHtml +=
+      '<div class="componente-row">' +
+        '<div class="componente-info" style="flex:1.2;">' +
+          '<div class="componente-title">' + EIXOS[codigo].nome + (ehFraco ? ' · <span style="color:var(--red);font-size:11px;text-transform:uppercase;letter-spacing:1px;">elo mais fraco</span>' : '') + '</div>' +
+          '<div class="componente-desc">Peso ' + Math.round(EIXOS[codigo].peso * 100) + '% no índice</div>' +
+        '</div>' +
+        '<div class="componente-bar-wrap"><div class="componente-bar"><div class="componente-bar-fill" style="width:' + pct + '%;"></div></div></div>' +
+        '<div class="componente-value">' + (v != null ? v.toFixed(1) : '—') + '<span style="font-size:11px;color:var(--muted);">/10</span><span class="componente-tag ' + tag.cls + '">' + tag.label + '</span></div>' +
+      '</div>';
+  }
+
+  const travaNota = r.travaAplicada
+    ? '<div class="conceito-mini">Trava suave aplicada: como o uso prático e o preparo das pessoas estão baixos, o nível foi rebaixado em um degrau. Sem gente usando IA no dia a dia, a maturidade não se sustenta — mas o que já foi construído em tecnologia e estratégia não é apagado. <em>(regra ADR-0009)</em></div>'
+    : '';
+
+  const html =
+    '<div class="report-header">' +
+      '<div style="font-size:11px;color:var(--gold-forte);text-transform:uppercase;letter-spacing:3px;font-weight:700;">Diagnóstico de Maturidade de IA</div>' +
+      '<h1 style="margin-top:8px;">' + esc(state.ident.empresa) + '</h1>' +
+      '<div class="report-meta">' +
+        '<div class="report-meta-item"><div class="report-meta-label">Respondente</div><div class="report-meta-value">' + esc(state.ident.nome) + '</div></div>' +
+        '<div class="report-meta-item"><div class="report-meta-label">Nível Centauro</div><div class="report-meta-value">' + r.nivel + ' · ' + nivel.nome + '</div></div>' +
+        '<div class="report-meta-item"><div class="report-meta-label">Data</div><div class="report-meta-value">' + dataPt + '</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="section-title"><span class="icon">◐</span> Seu nível de maturidade de IA</div>' +
+      '<p class="card-sub">Consolidado dos 6 eixos do Modelo Centauro, na escala 1 → 5.</p>' +
+      '<div class="maturity-hero">' +
+        '<div style="text-align:center;">' +
+          '<div class="maturity-grade-circle">' + r.nivel + '</div>' +
+          '<div class="maturity-score" style="margin-top:8px;">Índice: ' + r.score100 + '/100</div>' +
+        '</div>' +
+        '<div>' +
+          '<h3 style="margin-top:0;">' + nivel.nome + '</h3>' +
+          '<p style="font-size:14px;">' + nivel.diag + '</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="maturity-bars">' + barras + '</div>' +
+      '<div class="regua-zones"><span>1 Operacional</span><span>2 Tático</span><span>3 Escala</span><span>4 Arquiteto</span><span>5 Criador</span></div>' +
+      travaNota +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="section-title"><span class="icon">▣</span> Leitura dos 6 eixos</div>' +
+      '<p class="card-sub">Onde está sua força e onde está o gargalo. A maturidade trava no elo mais fraco.</p>' +
+      '<div class="conceito-block">O Modelo Centauro lê a maturidade de IA em seis eixos — não numa nota só. Uma empresa pode ter ótima <strong>base tecnológica</strong> e mesmo assim travar por <strong>prontidão das pessoas</strong>. É por isso que o eixo mais fraco, e não a média, costuma definir o próximo passo.</div>' +
+      eixosHtml +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="section-title"><span class="icon">➜</span> Sua próxima onda de ação</div>' +
+      '<p class="card-sub">O movimento com maior retorno agora, ancorado no seu eixo mais fraco: <strong>' + EIXOS[r.eixoFraco].nome + '</strong>.</p>' +
+      '<div class="plano-item"><div class="plano-num">1</div><div class="plano-content"><h4>' + EIXOS[r.eixoFraco].nome + '</h4><p>' + ACAO_EIXO[r.eixoFraco] + '</p></div></div>' +
+      '<div class="subsidios-block"><strong>Subsídio para a conversa</strong>Este é um retrato de degustação, calculado em 9 perguntas. O assessment completo da Boomit abre cada eixo em detalhe, cruza com benchmark de mercado e desenha o plano por área. Use este resultado para começar a conversa com seu time.</div>' +
+    '</div>' +
+
+    '<div class="sources"><strong>Como lemos:</strong> Modelo Centauro de maturidade de IA — 6 eixos (Base Tecnológica, Estratégia & Entendimento, Uso Prático, Prontidão das Pessoas, Governança & Risco, Escala & Sustentação), régua determinística (ADR-0009). Índice 0-100 = média ponderada dos eixos; nível 1-5 por faixas, com trava suave pelo elo mais fraco.</div>';
+
+  document.getElementById('resultado-conteudo').innerHTML = html;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// =================== SUPABASE ===================
+let _client = null, _token = null, _eventoId = null;
+
+async function getClient() {
+  if (_client) return _client;
+  if (!window.__createSupabaseClient) throw new Error('Supabase JS ainda não carregou');
+  _client = window.__createSupabaseClient(
+    window.APP_CONFIG.SUPABASE_URL,
+    window.APP_CONFIG.SUPABASE_ANON_KEY,
+    { auth: { persistSession: false },
+      global: { headers: _token ? { 'x-sessao': _token } : {} } }
+  );
+  return _client;
+}
+
+function novoToken() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map(x => x.toString(16).padStart(2,'0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+
+async function getEventoId() {
+  if (_eventoId) return _eventoId;
+  const sb = await getClient();
+  const { data, error } = await sb.from('eventos').select('id')
+    .eq('slug', window.APP_CONFIG.EVENTO_SLUG).eq('ativo', true).single();
+  if (error || !data) throw new Error('Evento não encontrado');
+  _eventoId = data.id;
+  return _eventoId;
+}
+
+// O lead nasce no fim, num único INSERT (com e-mail e consentimento). O token
+// da sessão nasce aqui e já vai no cabeçalho x-sessao, para o RETURNING do
+// INSERT enxergar a própria linha sob a RLS. (mesmo desenho do form de liderança)
+async function gravarLead() {
+  const evento_id = await getEventoId();
+  _token = novoToken();
+  _client = null; // recria o cliente com o cabeçalho do token
+  const sb = await getClient();
+  const r = state.resultado;
+  const payload = {
+    evento_id,
+    token_sessao: _token,
+    nome: state.ident.nome,
+    empresa: state.ident.empresa,
+    cargo: state.ident.cargo,
+    tamanho: state.ident.tamanho,
+    email: state.ident.email,
+    email_capturado_em: new Date().toISOString(),
+    consentimento_lgpd: true,
+    consentimento_marketing: state.ident.consent === true,
+    versao_questionario: window.APP_CONFIG.VERSAO,
+    ia_resultado: {
+      nivel: r.nivel,
+      nivel_nome: NIVEIS[r.nivel].nome,
+      score100: r.score100,
+      eixos: r.porEixo,
+      eixo_fraco: r.eixoFraco,
+      trava_suave: r.travaAplicada,
+      respostas: state.respostas
+    }
+  };
+  const { error } = await sb.from('respondentes').insert(payload).select('id').single();
+  if (error) throw new Error(error.message);
+}
+</script>
+
+</body>
+</html>
