@@ -3,11 +3,9 @@
 --
 -- v_leads_export e v_resumo_evento são views SECURITY DEFINER com dono
 -- postgres: elas consultam as tabelas com a permissão de QUEM AS CRIOU, não
--- de quem pergunta. Resultado: mesmo depois de apertar a RLS, `anon` (chave
--- pública) ainda lia 57 linhas de v_leads_export — nome, empresa e e-mail de
--- todo respondente que deixou contato. A view passava por cima da policy.
---
--- Sem esta migration, a anterior é cosmética.
+-- de quem pergunta. Resultado: mesmo com a RLS apertada, `anon` (chave
+-- pública) lia 57 linhas de v_leads_export — nome, empresa, e-mail dos
+-- respondentes que deixaram contato. A view passava por cima da policy.
 --
 -- Duas travas, não uma:
 --   1. tirar o SELECT de anon — quem exporta lead é o painel, e o painel

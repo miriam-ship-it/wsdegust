@@ -4,15 +4,10 @@
 -- Antes: respondentes/respostas/relatorios tinham policies de anon com
 -- `using (true)`. A anon key é pública (está no HTML servido e no repo), então
 -- qualquer pessoa lia nome, empresa, cargo e e-mail de todos os respondentes —
--- e, pelo UPDATE aberto, podia alterá-los. Eram 71 pessoas.
+-- e, pelo UPDATE aberto, podia alterá-los.
 --
 -- Agora: o front gera o token da sessão, manda no cabeçalho `x-sessao`, e a
 -- policy só devolve a linha cujo token bate. Sem cabeçalho, zero linha.
---
--- ⚠️ Esta migration EXIGE o front que manda o cabeçalho. Um front antigo, que
---    deixa o token nascer no default da coluna, para de conseguir criar
---    respondente: o RETURNING do INSERT passa pela policy de SELECT e volta
---    vazio.
 -- =============================================================
 
 -- O token que veio no cabeçalho desta requisição. Texto, não uuid: cabeçalho é
@@ -21,7 +16,6 @@ create or replace function public.sessao_do_cabecalho()
 returns text
 language sql
 stable
-set search_path = public, pg_temp
 as $$
   select nullif(current_setting('request.headers', true)::json ->> 'x-sessao', '')
 $$;

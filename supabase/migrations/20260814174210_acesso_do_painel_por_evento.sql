@@ -13,13 +13,6 @@
 -- A amarração é por E-MAIL, não por user_id, de propósito: assim dá para
 -- liberar o acesso de alguém ANTES de a conta existir, e o convite do Supabase
 -- (a pessoa escolhe a própria senha) funciona sem ninguém trocar senha.
---
--- MEDIDO (role authenticated, em transação com rollback):
---   miriam@boomit.com.br         -> 2 eventos, 71 respondentes, 57 leads
---   thamiryssilva@boomit.com.br  -> 1 evento (boomit-degustacao), 0, 0
---   logado fora da tabela        -> 0, 0, 0
---   delete from respondentes     -> 0 linhas apagadas
---   anon (formulário público)    -> acha o evento, 0 respondentes
 -- =============================================================
 
 create table if not exists public.admin_eventos (
@@ -40,8 +33,8 @@ create policy "admin_eventos_le_a_propria_linha"
   to authenticated
   using (lower(email) = lower(auth.jwt() ->> 'email'));
 
--- Os eventos que o usuário desta requisição pode ver. O e-mail vem do JWT, que
--- o Supabase assina — não é entrada livre como o cabeçalho do formulário.
+-- Os eventos que o usuário desta requisição pode ver. Sem cast de uuid solto:
+-- o e-mail vem do JWT, que o Supabase assina — não é entrada livre.
 create or replace function public.eventos_do_usuario()
 returns setof uuid
 language sql
@@ -83,11 +76,3 @@ create policy "relatorios_admin_select_dos_seus"
   using (respondente_id in (
     select id from public.respondentes
     where evento_id in (select public.eventos_do_usuario())));
-
--- ----- quem cuida de quê -----
--- (dado, não estrutura: repetir é seguro por causa do on conflict)
-insert into public.admin_eventos (email, evento_id)
-select 'miriam@boomit.com.br', id from public.eventos
-union all
-select 'thamiryssilva@boomit.com.br', id from public.eventos where slug = 'boomit-degustacao'
-on conflict do nothing;
