@@ -21,10 +21,10 @@ screener/
     └── motor.test.mjs                pontuação, cobertura, gaps, governança, matriz, prioridades
 ```
 
-Rodar os testes:
+Rodar os testes (motor + loader):
 
 ```bash
-cd screener/motor && node --test
+node --test screener/motor/*.test.mjs screener/loader/*.test.mjs
 ```
 
 Sem dependências: `node --test` nativo (Node ≥ 22). Motor em `.mjs` com JSDoc — o
