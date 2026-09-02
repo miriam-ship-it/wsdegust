@@ -1,0 +1,12 @@
+{
+  "name": "screener-loader-behavioral",
+  "private": true,
+  "type": "module",
+  "description": "Testes de comportamento da carga (schema + loader) contra Postgres efemero (pglite). Isolado: nao afeta o Netlify (fora de frontend/) nem o resto do repo.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.0"
+  }
+}

@@ -46,42 +46,81 @@ export function gerarCargaSQL(def = instrumento) {
 --    screener/instrumento/${code}.json — NÃO editar à mão. Para mudar o
 --    conteúdo, edite o JSON e regenere (o checksum muda junto).
 --
--- Transacional e idempotente: no-op se a versão já existir com o mesmo
--- checksum; FALHA se existir com checksum diferente. Integra o replay greenfield
--- (rode DEPOIS da migration de schema screener_*).
+-- Transacional (bloco DO atômico) e idempotente com falha explícita:
+--   INSTRUMENTO: insere se ausente; no-op só se checksum E definição batem;
+--     falha se checksum diverge, ou se checksum bate mas definição diverge
+--     (pega checksum cadastrado errado).
+--   VÍNCULO: idempotência explícita (nada de cláusula silenciosa de conflito).
+--     Se o vínculo exato não existe, falha caso já haja OUTRO vínculo corrente
+--     para o evento; senão insere. Se existe,
+--     compara todos os campos pretendidos: no-op se coincidem, falha se algum
+--     diverge. Assim a carga nunca "termina com sucesso sem criar o pretendido".
+-- Integra o replay greenfield (rode DEPOIS da migration de schema screener_*).
 --
--- Depende do MESMO canonicalize do motor: o checksum abaixo é
--- sha256(canonicalize(definição)). checksum = ${sum}
+-- checksum = sha256(canonicalize(definição)) = ${sum}
 -- =============================================================
 do $$
 declare
-  v_code       text  := ${sqlLit(code)};
-  v_version    text  := ${sqlLit(version)};
-  v_checksum   text  := ${sqlLit(sum)};
-  v_definition jsonb := ${TAG}${canonical}${TAG}::jsonb;
-  v_existing   text;
+  v_code        text  := ${sqlLit(code)};
+  v_version     text  := ${sqlLit(version)};
+  v_checksum    text  := ${sqlLit(sum)};
+  v_definition  jsonb := ${TAG}${canonical}${TAG}::jsonb;
+  -- configuração PRETENDIDA do vínculo técnico interno
+  v_slug        text    := 'preview-interno-ia-v1';
+  v_status      text    := 'internal_preview';
+  v_is_current  boolean := true;
+  v_result_mode text    := 'immediate';
+  v_lead_mode   text    := 'optional_after_submit';
+  v_branding    jsonb   := '{}'::jsonb;
+  -- estado existente
+  v_ex_sum   text;
+  v_ex_def   jsonb;
+  v_b        public.screener_event_bindings%rowtype;
 begin
-  select checksum into v_existing
+  -- ---------- INSTRUMENTO ----------
+  select checksum, definition into v_ex_sum, v_ex_def
     from public.screener_instrument_versions
     where instrument_code = v_code and instrument_version = v_version;
 
-  if v_existing is null then
+  if not found then
     insert into public.screener_instrument_versions
       (instrument_code, instrument_version, definition, checksum, status)
       values (v_code, v_version, v_definition, v_checksum, 'inactive');
-    raise notice 'carga: % % inserido (inativo)', v_code, v_version;
-  elsif v_existing = v_checksum then
-    raise notice 'carga: % % já presente com o mesmo checksum — no-op', v_code, v_version;
+    raise notice 'carga: instrumento % % inserido (inativo)', v_code, v_version;
+  elsif v_ex_sum is distinct from v_checksum then
+    raise exception 'carga recusada: checksum divergente para % % (banco=%, repo=%). Publique uma nova versão.',
+      v_code, v_version, v_ex_sum, v_checksum;
+  elsif v_ex_def is distinct from v_definition then
+    raise exception 'carga recusada: checksum igual mas definição divergente para % % — possível checksum cadastrado incorretamente.',
+      v_code, v_version;
   else
-    raise exception 'carga recusada: checksum divergente para % % (banco=%, repo=%). Publique uma nova versão do instrumento.',
-      v_code, v_version, v_existing, v_checksum;
+    raise notice 'carga: instrumento % % já presente e coincidente — no-op', v_code, v_version;
   end if;
 
-  -- vínculo técnico interno (idempotente): preview sem prazo público
-  insert into public.screener_event_bindings
-    (event_slug, instrument_code, instrument_version, is_current, status)
-    values ('preview-interno-ia-v1', v_code, v_version, true, 'internal_preview')
-  on conflict (event_slug, instrument_code, instrument_version) do nothing;
+  -- ---------- VÍNCULO (idempotência explícita) ----------
+  select * into v_b
+    from public.screener_event_bindings
+    where event_slug = v_slug and instrument_code = v_code and instrument_version = v_version;
+
+  if not found then
+    if exists (select 1 from public.screener_event_bindings where event_slug = v_slug and is_current) then
+      raise exception 'carga recusada: já existe outro vínculo corrente para o evento % — recuso criar duplicado.', v_slug;
+    end if;
+    insert into public.screener_event_bindings
+      (event_slug, instrument_code, instrument_version, is_current, status, result_mode, lead_capture_mode, branding)
+      values (v_slug, v_code, v_version, v_is_current, v_status, v_result_mode, v_lead_mode, v_branding);
+    raise notice 'carga: vínculo % criado (status %)', v_slug, v_status;
+  elsif v_b.status = v_status
+        and v_b.is_current = v_is_current
+        and v_b.result_mode = v_result_mode
+        and v_b.lead_capture_mode = v_lead_mode
+        and v_b.branding = v_branding
+        and v_b.session_retention_days is null
+        and v_b.lead_retention_days is null then
+    raise notice 'carga: vínculo % já presente e coincidente — no-op', v_slug;
+  else
+    raise exception 'carga recusada: vínculo % existe com configuração divergente — recuso sobrescrever.', v_slug;
+  end if;
 end
 $$;
 `;

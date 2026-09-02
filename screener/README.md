@@ -21,10 +21,17 @@ screener/
     └── motor.test.mjs                pontuação, cobertura, gaps, governança, matriz, prioridades
 ```
 
-Rodar os testes (motor + loader):
+Rodar os testes estáticos (motor + gerador, zero dependência):
 
 ```bash
 node --test screener/motor/*.test.mjs screener/loader/*.test.mjs
+```
+
+Rodar os testes de comportamento da carga (executam SQL contra um Postgres
+efêmero via pglite; isolados, com dependência própria):
+
+```bash
+cd screener/loader/behavioral && npm install && node --test
 ```
 
 Sem dependências: `node --test` nativo (Node ≥ 22). Motor em `.mjs` com JSDoc — o
