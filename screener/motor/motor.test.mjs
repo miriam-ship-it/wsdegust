@@ -208,8 +208,9 @@ test("determinismo: mesma entrada → snapshot idêntico byte a byte", () => {
   assert.equal(a, b);
 });
 
-test("resultado carrega o checksum do instrumento e as versões", () => {
+test("resultado carrega contract_version, checksum e versões", () => {
   const r = calcular({ respostas: preencher("E3") });
+  assert.equal(r.contract_version, "ScoreResultV1"); // exigido pelo check do snapshot
   assert.match(r.instrument_checksum, /^[0-9a-f]{64}$/);
   assert.equal(r.instrument_version, "1.0.0");
   assert.equal(r.scoring_version, "1.0.0");

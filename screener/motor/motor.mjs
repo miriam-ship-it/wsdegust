@@ -266,6 +266,7 @@ export function calcular({
   const respondentCount = respondent_scope.respondent_count ?? 1;
 
   return {
+    contract_version: "ScoreResultV1",
     instrument_version: instrumento.instrument.version,
     scoring_version: "1.0.0",
     report_version,
