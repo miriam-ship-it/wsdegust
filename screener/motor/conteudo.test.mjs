@@ -77,6 +77,32 @@ test("pair_code forma par Pessoa × Empresa na mesma dimensão", () => {
   }
 });
 
+test("exatamente 5 eixos de IA e 5 dimensões Pessoa/Empresa (não seis)", () => {
+  const ia = instrumento.dimensions.filter((d) => d.block === "ai");
+  const org = instrumento.dimensions.filter((d) => d.block === "individual_organization");
+  assert.equal(ia.length, 5, `IA deveria ter 5 eixos, tem ${ia.length}`);
+  assert.equal(org.length, 5, `Pessoa/Empresa deveria ter 5 dimensões, tem ${org.length}`);
+  assert.deepEqual(
+    ia.map((d) => d.code).sort(),
+    ["IA_DAT", "IA_EST", "IA_GOV", "IA_PES", "IA_USO"],
+  );
+  // e cada eixo de IA tem exatamente 2 itens
+  for (const eixo of ia) {
+    const n = instrumento.items.filter((it) => it.block === "ai" && it.dimension === eixo.code).length;
+    assert.equal(n, 2, `${eixo.code} tem ${n} itens (esperado 2)`);
+  }
+});
+
+test("presentation: 3 blocos com nome, instrução e período de referência", () => {
+  const blocks = instrumento.presentation.blocks;
+  assert.deepEqual(blocks.map((b) => b.code), ["individual", "organization", "ai"]);
+  for (const b of blocks) {
+    assert.ok(b.name && b.name.trim().length > 0, `${b.code} sem nome`);
+    assert.ok(b.instruction && b.instruction.trim().length > 0, `${b.code} sem instrução`);
+    assert.ok(b.reference_period && b.reference_period.trim().length > 0, `${b.code} sem período`);
+  }
+});
+
 test("todos os enunciados e textos de opção são não-vazios", () => {
   for (const it of instrumento.items) {
     assert.ok(it.prompt && it.prompt.trim().length > 0, `${it.code} sem enunciado`);

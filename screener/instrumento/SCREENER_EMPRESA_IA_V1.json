@@ -19,6 +19,28 @@
       "Classificação definitiva da maturidade da empresa com apenas um respondente"
     ]
   },
+  "presentation": {
+    "blocks": [
+      {
+        "code": "individual",
+        "name": "Bloco Pessoa",
+        "reference_period": "Últimos 90 dias",
+        "instruction": "Considere os últimos 90 dias e escolha a alternativa que melhor descreve sua prática predominante. Responda pelo que ocorreu com maior frequência, não pelo que seria ideal. Quando não tiver vivido situação suficiente, marque a opção correspondente."
+      },
+      {
+        "code": "organization",
+        "name": "Bloco Empresa",
+        "reference_period": "Prática predominante observada nos últimos 90 dias",
+        "instruction": "Considere a prática predominante que você observou em {assessment_unit_name} nos últimos 90 dias. Responda sobre como o trabalho realmente aconteceu. Se não tiver contato ou informação suficiente, use a última opção."
+      },
+      {
+        "code": "ai",
+        "name": "Bloco IA",
+        "reference_period": "Estado atual da unidade ou empresa avaliada",
+        "instruction": "Considere o estado atual de {assessment_unit_name}. Responda apenas sobre práticas que você conhece. Não presuma que uma ferramenta existe ou que um controle funciona; quando não tiver informação suficiente, use a última opção."
+      }
+    ]
+  },
   "scoring": {
     "storage_unit": "basis_points_0_10000",
     "stage_points_bp": {

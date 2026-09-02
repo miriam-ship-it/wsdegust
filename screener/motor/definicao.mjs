@@ -2,18 +2,20 @@
 // SCREENER_EMPRESA_IA_V1 — Definição do instrumento
 //
 // Duas representações, como decidido no grilling (01-02/09):
-//   1. DEFINIÇÃO PRIVADA (`instrumento`): textos, estágios, pontos,
-//      dimensões, pesos e regras. NUNCA vai para o navegador — só a edge lê.
-//   2. PROJEÇÃO PÚBLICA (`projecaoPublica`): identificadores opacos, enunciados
-//      e opções (texto), sem pontos, sem E1–E4, sem resposta ideal, sem pesos,
-//      sem dimensão, sem regra. É o único formato que o front recebe.
+//   1. DEFINIÇÃO PRIVADA (`instrumento`): textos, estágios, pontos, dimensões,
+//      lentes, pesos e regras. NUNCA vai para o navegador — só a edge lê.
+//   2. PROJEÇÃO PÚBLICA (`projecaoPublica`): versão, blocos (nome, instrução,
+//      período de referência), enunciados e opções — com identificadores opacos
+//      e SEM pontos, E1–E4, resposta ideal, pesos, dimensão, lente ou regra.
+//      É o único formato que o front recebe; os textos vivem só aqui (nunca
+//      duplicados no HTML).
 //
-// O checksum é calculado sobre a serialização canônica (chaves ordenadas), de
-// modo que qualquer mudança no instrumento muda o hash — a âncora de
-// reprodutibilidade dos snapshots.
+// Ordem das alternativas FIXA na versão 1.0.0 — embaralhamento produtivo é
+// impossível (lança erro). Spec §5.5 + parecer P0.7: o efeito de ordem só será
+// analisado no piloto; até lá, ordem fixa E1→E4.
 //
-// Puro e sem I/O de runtime: o JSON é importado no load do módulo; nenhuma
-// função abaixo faz leitura/escrita.
+// Puro e sem I/O de runtime: o JSON é importado no load; nenhuma função abaixo
+// faz leitura/escrita.
 // =============================================================
 
 import { createHash } from "node:crypto";
@@ -23,7 +25,6 @@ export { instrumento };
 
 /**
  * Serialização canônica: chaves de objeto em ordem alfabética, arrays na ordem.
- * Determinística e estável entre execuções e ambientes.
  * @param {unknown} value
  * @returns {string}
  */
@@ -57,31 +58,21 @@ function fnv1a(str) {
 function idOpaco(seed, label) {
   return fnv1a(seed + "|" + label).toString(16).padStart(8, "0");
 }
-/** PRNG determinístico mulberry32. @param {number} a @returns {() => number} */
-function mulberry32(a) {
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-/** Embaralhamento determinístico (Fisher-Yates) por semente numérica. */
-function embaralharDeterministico(arr, seedNum) {
-  const a = arr.slice();
-  const rnd = mulberry32(seedNum);
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+
+/**
+ * @typedef {object} BlocoPublico
+ * @property {"individual"|"organization"|"ai"} code
+ * @property {string} name
+ * @property {string} instruction
+ * @property {string} reference_period
+ * @property {{id:string, prompt:string, options:{id:string,text:string}[]}[]} items
+ */
 
 /**
  * @typedef {object} ProjecaoPublica
- * @property {{id:string, prompt:string, options:{id:string,text:string}[]}[]} items
- *   O que o navegador recebe — zero metadado metodológico.
+ * @property {{code:string, version:string}} instrument
+ * @property {{intended_use:string, prohibited_uses:string[]}} consent
+ * @property {BlocoPublico[]} blocks   Na ordem Pessoa → Empresa → IA.
  * @property {{
  *   items: Record<string,string>,
  *   options: Record<string,{item:string, stage:string}>
@@ -89,43 +80,54 @@ function embaralharDeterministico(arr, seedNum) {
  */
 
 /**
- * Projeta a definição privada no formato público sanitizado.
+ * Projeta a definição privada no formato público sanitizado, agrupado por bloco.
  *
- * Embaralhamento: DESLIGADO por default (ordem fixa E1→E4), respeitando a spec
- * §5.5 ("o piloto analisará efeito de ordem antes de qualquer embaralhamento")
- * e o parecer P0.7. A capacidade existe (`shuffle:true` + `sessionSeed`) para
- * quando a Miriam bater o martelo depois do piloto. Quando ligado, é
- * determinístico por sessão (reprodutível e testável).
+ * A ordem das opções é SEMPRE fixa (E1→E4, N/A por último). `shuffle:true` é
+ * rejeitado — não existe embaralhamento produtivo na versão 1.0.0.
  *
  * @param {object} [def=instrumento]
- * @param {{sessionSeed?:string, shuffle?:boolean}} [opts]
+ * @param {{sessionSeed?:string, assessmentUnitName?:string|null, shuffle?:boolean}} [opts]
  * @returns {ProjecaoPublica}
  */
-export function projecaoPublica(def = instrumento, { sessionSeed = "", shuffle = false } = {}) {
+export function projecaoPublica(def = instrumento, { sessionSeed = "", assessmentUnitName = null, shuffle = false } = {}) {
+  if (shuffle) {
+    throw new Error("Embaralhamento não é suportado na versão 1.0.0: a ordem das alternativas é fixa (spec §5.5).");
+  }
   const seed = sessionSeed || "SCREENER_PUBLIC_FIXO";
-  const items = [];
   /** @type {Record<string,string>} */
   const itemMap = {};
   /** @type {Record<string,{item:string,stage:string}>} */
   const optionMap = {};
 
-  for (const it of def.items) {
+  const projetarItem = (it) => {
     const itemId = idOpaco(seed, it.code);
     itemMap[itemId] = it.code;
-
-    let opts = it.options;
-    if (shuffle && sessionSeed) {
-      opts = embaralharDeterministico(opts, fnv1a(seed + "|ord|" + it.code));
-    }
-
-    const options = opts.map((op) => {
+    const options = it.options.map((op) => {
       const optId = idOpaco(seed, it.code + "#" + op.code);
       optionMap[optId] = { item: it.code, stage: op.code };
-      return { id: optId, text: op.text };
+      return { id: optId, text: op.text }; // ordem preservada da definição (fixa)
     });
+    return { id: itemId, prompt: it.prompt, options };
+  };
 
-    items.push({ id: itemId, prompt: it.prompt, options });
-  }
+  const substituirUnidade = (texto) =>
+    assessmentUnitName ? texto.replaceAll("{assessment_unit_name}", assessmentUnitName) : texto;
 
-  return { items, mapping: { items: itemMap, options: optionMap } };
+  const blocks = def.presentation.blocks.map((b) => ({
+    code: b.code,
+    name: b.name,
+    instruction: substituirUnidade(b.instruction),
+    reference_period: b.reference_period,
+    items: def.items
+      .filter((it) => it.block === b.code)
+      .sort((a, c) => a.order - c.order)
+      .map(projetarItem),
+  }));
+
+  return {
+    instrument: { code: def.instrument.code, version: def.instrument.version },
+    consent: { intended_use: def.instrument.intended_use, prohibited_uses: def.instrument.prohibited_uses },
+    blocks,
+    mapping: { items: itemMap, options: optionMap },
+  };
 }

@@ -8,93 +8,110 @@ test("checksum é estável entre execuções", () => {
   assert.match(checksum(), /^[0-9a-f]{64}$/);
 });
 
-test("mudança no instrumento altera o checksum", () => {
+test("mudança no instrumento altera o checksum (texto e pontuação)", () => {
   const base = checksum();
-  const mutado = structuredClone(instrumento);
-  mutado.items[0].prompt = mutado.items[0].prompt + " (alterado)";
-  assert.notEqual(checksum(mutado), base);
-});
-
-test("mudança de pontuação altera o checksum", () => {
-  const base = checksum();
-  const mutado = structuredClone(instrumento);
-  mutado.items[0].options[0].score_bp = 1;
-  assert.notEqual(checksum(mutado), base);
+  const m1 = structuredClone(instrumento);
+  m1.items[0].prompt += " (alterado)";
+  assert.notEqual(checksum(m1), base);
+  const m2 = structuredClone(instrumento);
+  m2.items[0].options[0].score_bp = 1;
+  assert.notEqual(checksum(m2), base);
 });
 
 test("canonicalize é insensível à ordem das chaves", () => {
-  const a = canonicalize({ x: 1, y: [{ b: 2, a: 1 }] });
-  const b = canonicalize({ y: [{ a: 1, b: 2 }], x: 1 });
-  assert.equal(a, b);
+  assert.equal(canonicalize({ x: 1, y: [{ b: 2, a: 1 }] }), canonicalize({ y: [{ a: 1, b: 2 }], x: 1 }));
 });
 
-test("projeção pública tem 30 itens, cada um com id, prompt e 5 opções {id,text}", () => {
-  const { items } = projecaoPublica();
+test("projeção pública: versão, consentimento e 3 blocos na ordem Pessoa→Empresa→IA", () => {
+  const p = projecaoPublica();
+  assert.equal(p.instrument.version, "1.0.0");
+  assert.equal(p.instrument.code, "SCREENER_EMPRESA_IA_V1");
+  assert.ok(p.consent.intended_use.length > 0);
+  assert.ok(Array.isArray(p.consent.prohibited_uses) && p.consent.prohibited_uses.length > 0);
+  assert.deepEqual(p.blocks.map((b) => b.code), ["individual", "organization", "ai"]);
+  for (const b of p.blocks) {
+    assert.ok(b.name && b.instruction && b.reference_period, `bloco ${b.code} incompleto`);
+    assert.equal(b.items.length, 10);
+  }
+});
+
+test("projeção pública: 30 itens no total, cada opção só {id,text}", () => {
+  const p = projecaoPublica();
+  const items = p.blocks.flatMap((b) => b.items);
   assert.equal(items.length, 30);
+  let opcoes = 0;
   for (const it of items) {
     assert.deepEqual(Object.keys(it).sort(), ["id", "options", "prompt"]);
-    assert.equal(typeof it.id, "string");
-    assert.equal(typeof it.prompt, "string");
     assert.equal(it.options.length, 5);
     for (const op of it.options) {
-      // ESTRUTURAL: cada opção só pode ter id e text — nada de código, ponto, estágio.
       assert.deepEqual(Object.keys(op).sort(), ["id", "text"]);
+      opcoes++;
     }
   }
+  assert.equal(opcoes, 150);
 });
 
-test("projeção pública NÃO vaza pontos, estágios, pesos, dimensões, resposta ideal nem regras", () => {
-  const { items } = projecaoPublica();
-  const blob = JSON.stringify(items);
-  for (const proibido of [
-    "score_bp", "stage", "E1", "E2", "E3", "E4",
-    "dimension", "pair_code", "lens", "block",
-    "weight", "peso", "is_na", "scoring", "band", "matrix",
-  ]) {
-    assert.ok(!blob.includes(proibido), `projeção pública vazou "${proibido}"`);
-  }
-  // e não expõe os códigos internos dos itens (que revelam dimensão)
-  for (const it of instrumento.items) {
-    assert.ok(!blob.includes(it.code), `projeção pública vazou o código ${it.code}`);
-  }
+test("instrução do bloco substitui {assessment_unit_name} quando fornecido; mantém token quando não", () => {
+  const semNome = projecaoPublica();
+  const org = semNome.blocks.find((b) => b.code === "organization");
+  assert.ok(org.instruction.includes("{assessment_unit_name}"));
+  const comNome = projecaoPublica(instrumento, { assessmentUnitName: "Comercial" });
+  const org2 = comNome.blocks.find((b) => b.code === "organization");
+  assert.ok(!org2.instruction.includes("{assessment_unit_name}"));
+  assert.ok(org2.instruction.includes("Comercial"));
 });
 
-test("mapping (edge-only) traduz id opaco → item/estágio e cobre todas as opções", () => {
-  const { items, mapping } = projecaoPublica(instrumento, { sessionSeed: "s-abc" });
-  let totalOpcoes = 0;
-  for (const it of items) {
-    assert.ok(mapping.items[it.id], "item sem mapping");
-    for (const op of it.options) {
-      const alvo = mapping.options[op.id];
-      assert.ok(alvo, "opção sem mapping");
-      assert.equal(alvo.item, mapping.items[it.id]);
-      assert.ok(["E1", "E2", "E3", "E4", "NA"].includes(alvo.stage));
-      totalOpcoes++;
-    }
-  }
-  assert.equal(totalOpcoes, 150); // 30 itens × 5
-});
-
-test("ordem fixa por default: opções seguem E1..E4,NA (via mapping)", () => {
-  const { items, mapping } = projecaoPublica(); // shuffle desligado
-  const primeiro = items[0];
-  const estagios = primeiro.options.map((op) => mapping.options[op.id].stage);
+test("ordem das opções é fixa (E1..E4,NA via mapping)", () => {
+  const p = projecaoPublica();
+  const primeiro = p.blocks[0].items[0];
+  const estagios = primeiro.options.map((op) => p.mapping.options[op.id].stage);
   assert.deepEqual(estagios, ["E1", "E2", "E3", "E4", "NA"]);
 });
 
-test("embaralhamento é determinístico por semente e é uma permutação", () => {
-  const a = projecaoPublica(instrumento, { sessionSeed: "sem-1", shuffle: true });
-  const b = projecaoPublica(instrumento, { sessionSeed: "sem-1", shuffle: true });
-  // determinístico: mesma semente → ids e ordem idênticos
-  assert.deepEqual(a.items, b.items);
-  // permutação: mesmo conjunto de estágios, possivelmente outra ordem
-  for (const it of a.items) {
-    const estagios = it.options.map((op) => a.mapping.options[op.id].stage).sort();
-    assert.deepEqual(estagios, ["E1", "E2", "E3", "E4", "NA"]);
+test("embaralhamento produtivo é IMPOSSÍVEL: shuffle=true lança erro", () => {
+  assert.throws(() => projecaoPublica(instrumento, { sessionSeed: "s", shuffle: true }), /não é suportado|fixa/i);
+});
+
+test("projeção pública NÃO contém chaves privadas (checagem estrutural)", () => {
+  const p = projecaoPublica(instrumento, { sessionSeed: "s", assessmentUnitName: "Unidade" });
+  const publico = { instrument: p.instrument, consent: p.consent, blocks: p.blocks }; // exclui mapping (edge-only)
+  const permitidas = new Set([
+    "instrument", "code", "version", "consent", "intended_use", "prohibited_uses",
+    "blocks", "name", "instruction", "reference_period", "items", "id", "prompt", "options", "text",
+  ]);
+  const chaves = new Set();
+  (function coletar(v) {
+    if (Array.isArray(v)) return v.forEach(coletar);
+    if (v && typeof v === "object") for (const k of Object.keys(v)) { chaves.add(k); coletar(v[k]); }
+  })(publico);
+  const vazadas = [...chaves].filter((k) => !permitidas.has(k));
+  assert.deepEqual(vazadas, [], `chaves privadas vazadas: ${vazadas.join(", ")}`);
+});
+
+test("projeção pública NÃO vaza pontos, códigos internos, action_library nem códigos de item", () => {
+  const p = projecaoPublica(instrumento, { sessionSeed: "s", assessmentUnitName: "Unidade" });
+  const blob = JSON.stringify({ instrument: p.instrument, consent: p.consent, blocks: p.blocks });
+  for (const token of ["score_bp", "stage_points_bp", "action_library", "matrix_cut_bp", "pair_code"]) {
+    assert.ok(!blob.includes(token), `vazou "${token}"`);
   }
-  // sementes diferentes tendem a produzir ao menos uma ordem diferente
-  const c = projecaoPublica(instrumento, { sessionSeed: "sem-2", shuffle: true });
-  const ordemA = a.items.map((it) => it.options.map((op) => a.mapping.options[op.id].stage).join(""));
-  const ordemC = c.items.map((it) => it.options.map((op) => c.mapping.options[op.id].stage).join(""));
-  assert.notDeepEqual(ordemA, ordemC);
+  for (const it of instrumento.items) {
+    assert.ok(!blob.includes(it.code), `vazou o código interno ${it.code}`);
+  }
+});
+
+test("mapping (edge-only) traduz id opaco → item/estágio e cobre as 150 opções", () => {
+  const p = projecaoPublica(instrumento, { sessionSeed: "s-abc" });
+  let total = 0;
+  for (const b of p.blocks) {
+    for (const it of b.items) {
+      assert.ok(p.mapping.items[it.id]);
+      for (const op of it.options) {
+        const alvo = p.mapping.options[op.id];
+        assert.ok(alvo && alvo.item === p.mapping.items[it.id]);
+        assert.ok(["E1", "E2", "E3", "E4", "NA"].includes(alvo.stage));
+        total++;
+      }
+    }
+  }
+  assert.equal(total, 150);
 });

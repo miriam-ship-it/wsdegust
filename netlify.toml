@@ -1,4 +1,6 @@
 # Só o front é publicado — nunca o repositório inteiro.
-# `docs/`, `supabase/` e `scripts/` ficam no repo e fora do ar.
+# `docs/`, `supabase/`, `scripts/` e `screener/` ficam no repo e fora do ar.
+# A definição privada e o motor do screener vivem em `screener/` (fora daqui)
+# e a fronteira é PROVADA em screener/motor/fronteira-de-publicacao.test.mjs.
 [build]
   publish = "frontend"
