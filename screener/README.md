@@ -53,12 +53,21 @@ Sem dependências: `node --test` nativo (Node ≥ 22). Motor em `.mjs` com JSDoc
 - Pontos em basis points (0 / 3333 / 6667 / 10000 / null); arredonda só na exibição.
 - Indivíduo **não tem nota geral** — só o perfil das cinco dimensões.
 
-## Decisão em aberto (registrada)
+## Ordem das alternativas — travada na 1.0.0
 
-**Embaralhamento das opções.** `projecaoPublica` suporta embaralhamento determinístico
-por semente de sessão (`{ sessionSeed, shuffle:true }`), mas o **default é ordem fixa**
-(E1→E4). A spec §5.5 e o parecer P0.7 pedem ordem fixa até o piloto analisar efeito de
-ordem. A capacidade existe; a política (ligar ou não) é decisão da Miriam pós-piloto.
+**Embaralhamento produtivo é impossível.** `projecaoPublica` sempre entrega ordem fixa
+(E1→E4, N/A por último) e **lança erro** se alguém passar `shuffle:true`. Spec §5.5 e
+parecer P0.7: o efeito de ordem só será analisado no piloto. Reabrir isso exige uma nova
+versão do instrumento (e uma decisão explícita da Miriam), não um flag em produção.
+
+## Fronteira de publicação (edge-only, verificável)
+
+O Netlify publica **apenas `frontend/`** (`netlify.toml`). A definição privada e o motor
+vivem em `screener/`, fora do publish dir. Isso é **provado** por
+`fronteira-de-publicacao.test.mjs`, que lê o publish dir, garante que definição/motor
+estão fora dele e que nenhum arquivo publicado contém pontos, `action_library`, o código
+do instrumento, códigos internos de item nem os enunciados/instruções — que chegam em
+runtime pela edge, nunca embutidos no HTML.
 
 ## Próximos cortes (ainda não feitos)
 
