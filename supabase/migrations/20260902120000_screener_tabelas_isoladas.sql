@@ -1,8 +1,9 @@
 -- =============================================================
 -- SCREENER EMPRESA + IA — tabelas isoladas no projeto Ibmec (corte 2)
 --
--- ⚠️ NÃO APLICADA. Escrita para revisão (2ª rodada, 02/09). Nenhuma linha roda
---    no Supabase; nenhum dado legado é tocado.
+-- ✅ APLICADA em 02/09/2026 no projeto Ibmec (klnpnjumogojspubyabi), após
+--    aprovação da Miriam. Verificado: 6 tabelas, RLS em 6/6, 0 policies,
+--    trigger de imutabilidade presente, 24 check constraints, legado intacto.
 --
 -- Decisões materializadas:
 --   Q7=(b) Supabase "Ibmec" com ISOLAMENTO LÓGICO (prefixo `screener_*`).
