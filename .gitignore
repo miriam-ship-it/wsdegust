@@ -23,6 +23,9 @@ yarn-error.log*
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+# Exceção escopada: o lockfile dos testes de comportamento da carga é versionado
+# (reprodutibilidade do npm ci). É a única dependência da casa — e é de DEV.
+!screener/loader/behavioral/package-lock.json
 
 # Editor
 .vscode/

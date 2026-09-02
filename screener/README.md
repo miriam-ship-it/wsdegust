@@ -31,8 +31,15 @@ Rodar os testes de comportamento da carga (executam SQL contra um Postgres
 efêmero via pglite; isolados, com dependência própria):
 
 ```bash
-cd screener/loader/behavioral && npm install && node --test
+cd screener/loader/behavioral && npm ci && node --test
 ```
+
+> **Metodológico — PGlite é dependência exclusiva de DESENVOLVIMENTO.** Ela existe
+> só para os testes de comportamento em `screener/loader/behavioral/` (Postgres
+> efêmero em WASM) e **não integra o motor produtivo**. O motor (`screener/motor/`)
+> e o gerador da carga permanecem `.mjs` puros, **sem nenhuma dependência externa**
+> — rodam com o Node nativo. O lockfile daquela pasta é versionado (exceção
+> escopada no `.gitignore`) para tornar o `npm ci` reprodutível.
 
 Sem dependências: `node --test` nativo (Node ≥ 22). Motor em `.mjs` com JSDoc — o
 `wsdegust` não tem toolchain TypeScript.
