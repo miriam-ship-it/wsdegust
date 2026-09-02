@@ -60,6 +60,20 @@ test("a definição privada e o motor estão FORA do diretório publicado", () =
   assert.ok(!fs.existsSync(path.join(publishDir, "screener")), "screener/ não pode estar dentro de frontend/");
 });
 
+test("protótipo legado ia.html não está publicado nem é referenciado (Q9)", () => {
+  const publishDir = path.resolve(RAIZ, lerPublishDir());
+  // 1. não existe arquivo ia.html no publish dir
+  const publicados = arquivosDe(publishDir).map((f) => path.basename(f).toLowerCase());
+  assert.ok(!publicados.includes("ia.html"), "ia.html não pode estar no diretório publicado");
+  // 2. o arquivo foi preservado fora do publish dir (congelado, não apagado)
+  assert.ok(fs.existsSync(path.resolve(RAIZ, "legado/ia.html")), "ia.html deveria ter sido movido para legado/");
+  // 3. nenhum arquivo publicado referencia /ia.html
+  for (const f of arquivosDe(publishDir).filter((x) => EXT_TEXTO.has(path.extname(x).toLowerCase()))) {
+    const txt = fs.readFileSync(f, "utf8");
+    assert.ok(!txt.includes("ia.html"), `${path.relative(RAIZ, f)} referencia ia.html`);
+  }
+});
+
 test("nenhum arquivo publicado contém conteúdo privado do screener", () => {
   const publishDir = path.resolve(RAIZ, lerPublishDir());
   const arquivos = arquivosDe(publishDir).filter((f) => EXT_TEXTO.has(path.extname(f).toLowerCase()));
