@@ -27,11 +27,17 @@ Rodar os testes estáticos (motor + gerador, zero dependência):
 node --test screener/motor/*.test.mjs screener/loader/*.test.mjs
 ```
 
-Rodar os testes de comportamento da carga (executam SQL contra um Postgres
-efêmero via pglite; isolados, com dependência própria):
+Rodar os testes de comportamento (carga + fluxo da edge; executam SQL contra um
+Postgres efêmero via pglite; isolados, com dependência própria):
 
 ```bash
 cd screener/loader/behavioral && npm ci && node --test
+```
+
+Rodar os testes puros da edge (lógica de estado, token, projeção, sanitização):
+
+```bash
+node --test screener/edge/logica.test.mjs
 ```
 
 > **Metodológico — PGlite é dependência exclusiva de DESENVOLVIMENTO.** Ela existe
