@@ -19,6 +19,25 @@ export async function sha256Hex(str) {
 /** Hash do token para persistência (só o hash vai ao banco). */
 export const hashToken = sha256Hex;
 
+/**
+ * Avalia a credencial de prévia — revogável POR VÍNCULO, não só por env.
+ * Fonte do hash esperado, expiração e revogação: `binding.branding`:
+ *   { preview_credential_sha256, preview_expires_at?, preview_revoked_at? }
+ * Fallback: `envHash` (env global). Revogar = setar `preview_revoked_at` no
+ * vínculo (sem mexer no ambiente) ou passar da expiração.
+ * @returns {Promise<boolean>}
+ */
+export async function avaliarCredencialPrevia(previewKey, branding, envHash, now) {
+  if (!previewKey) return false;
+  const b = branding || {};
+  const esperado = b.preview_credential_sha256 || envHash || null;
+  if (!esperado) return false;
+  if ((await sha256Hex(previewKey)) !== esperado) return false;
+  if (b.preview_revoked_at) return false;                               // revogada no vínculo
+  if (b.preview_expires_at && new Date(b.preview_expires_at) <= now) return false; // expirada
+  return true;
+}
+
 // ---------- matriz de estados ----------
 /**
  * @typedef {object} Capacidades
@@ -95,9 +114,17 @@ function coberturaQual(bp) {
   return "insuficiente";
 }
 
+/** Exibição 0–100 a partir de basis points (nunca expõe o bp cru). */
+function disp(bp) { return bp == null ? null : Math.round(bp / 100); }
+
 /**
- * Converte o ScoreResultV1 interno no PublicResultV1 sanitizado.
- * Remove pontos, códigos de estágio, pesos, regras, cortes e respostas individuais.
+ * Converte o ScoreResultV1 interno no PublicResultV1.
+ * MANTÉM os resultados agregados da devolutiva: pontuação de EXIBIÇÃO 0–100 por
+ * dimensão/eixo/índice, cobertura, direção e intensidade dos gaps, quadrante,
+ * gate, prioridades e narrativas.
+ * REMOVE: basis points, código de estágio (E1–E4), pesos, cortes, regra de
+ * conversão e respostas individuais. O indivíduo continua sem nota geral, mas
+ * cada uma das cinco dimensões tem resultado mensurável (0–100).
  * @param {object} r  ScoreResultV1 (saída do motor)
  * @param {object} [def=instrumento]
  * @returns {object} PublicResultV1
@@ -105,7 +132,7 @@ function coberturaQual(bp) {
 export function paraPublico(r, def = instrumento) {
   const nomeDim = new Map(def.dimensions.map((d) => [d.code, d.name]));
   const quad = new Map((def.matrix?.quadrants || []).map((q) => [q.code, q]));
-  const dimPub = (d) => ({ name: d.name, band_label: d.band ? d.band.label : null });
+  const dimPub = (d) => ({ name: d.name, display_score: disp(d.score_bp), band_label: d.band ? d.band.label : null });
 
   const q = r.matrix.available ? quad.get(r.matrix.quadrant) : null;
 
@@ -118,9 +145,10 @@ export function paraPublico(r, def = instrumento) {
       organization: coberturaQual(r.coverage.organization_bp),
       ai: coberturaQual(r.coverage.ai_bp),
     },
-    individual: { dimensions: r.individual.dimensions.map(dimPub) },
-    organization: { band_label: r.organization.band ? r.organization.band.label : null, dimensions: r.organization.dimensions.map(dimPub) },
+    individual: { overall: null, dimensions: r.individual.dimensions.map(dimPub) },
+    organization: { index_display: disp(r.organization.index_bp), band_label: r.organization.band ? r.organization.band.label : null, dimensions: r.organization.dimensions.map(dimPub) },
     ai: {
+      index_display: disp(r.ai.index_bp),
       band_label: r.ai.band ? r.ai.band.label : null,
       dimensions: r.ai.dimensions.map(dimPub),
       governance: r.ai.governance_gate,

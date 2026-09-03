@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { instrumento, projecaoPublica } from "../motor/definicao.mjs";
 import { calcular } from "../motor/motor.mjs";
-import { gerarToken, hashToken, sha256Hex, capacidades, resolverOpcao, validarSubmissao, paraPublico } from "./logica.mjs";
+import { gerarToken, hashToken, sha256Hex, capacidades, resolverOpcao, validarSubmissao, paraPublico, avaliarCredencialPrevia } from "./logica.mjs";
 
 const NOW = new Date("2026-09-10T12:00:00Z");
 function preencher(stage) { const r = {}; for (const it of instrumento.items) r[it.code] = stage; return r; }
@@ -63,20 +63,42 @@ test("validarSubmissao: completa ok; incompleta/estágio inválido reprovam", ()
   assert.throws(() => validarSubmissao(inv), /invalido/);
 });
 
-test("paraPublico não vaza pontos/estágios/pesos/regras/respostas; traz rótulos", () => {
+test("paraPublico: traz 0–100 agregado e rótulos; sem bp/estágio/pesos/regras/respostas", () => {
   const r = calcular({ respostas: preencher("E3"), assessment_unit: { id: "u", name: "Comercial" } });
   const pub = paraPublico(r);
   assert.equal(pub.contract_version, "PublicResultV1");
   const blob = JSON.stringify(pub);
-  for (const proibido of ["score_bp", "display_score", "provisional_cut_bp", "input_checksum",
-    "evidence_item_codes", "weight", "peso", "\"E1\"", "\"E2\"", "\"E3\"", "\"E4\"", "stage"]) {
+  // proibidos: basis points, corte, checksum de entrada, evidências, pesos, estágio escolhido
+  for (const proibido of ["score_bp", "provisional_cut_bp", "input_checksum",
+    "evidence_item_codes", "weight", "peso", "\"E1\"", "\"E2\"", "\"E3\"", "\"E4\"", "stage_code"]) {
     assert.ok(!blob.includes(proibido), `PublicResultV1 vazou "${proibido}"`);
   }
   for (const it of instrumento.items) assert.ok(!blob.includes(it.code), `vazou item ${it.code}`);
-  // traz rótulos legíveis
-  assert.ok(pub.organization.band_label && !/^E[1-4]$/.test(pub.organization.band_label));
+  // RESULTADOS AGREGADOS presentes (0–100)
+  assert.equal(pub.individual.overall, null); // indivíduo sem nota geral
+  assert.equal(pub.individual.dimensions.length, 5);
+  for (const d of pub.individual.dimensions) { assert.equal(typeof d.display_score, "number"); assert.ok(d.display_score >= 0 && d.display_score <= 100); assert.ok(d.band_label); }
+  assert.equal(typeof pub.organization.index_display, "number");
+  assert.equal(typeof pub.ai.index_display, "number");
+  for (const d of pub.ai.dimensions) assert.equal(typeof d.display_score, "number");
   assert.equal(pub.respondent_scope.organization_label, "individual_perception");
-  assert.ok(Array.isArray(pub.priorities) && pub.priorities.every((p) => p.dimension_name && p.action && !("score_bp" in p)));
+  assert.ok(pub.priorities.every((p) => p.dimension_name && p.action && !("score_bp" in p)));
+  assert.ok(pub.alignment.every((a) => a.dimension_name && a.direction && a.magnitude && !("gap_bp" in a)));
+});
+
+test("avaliarCredencialPrevia: hash confere, expira e revoga por vínculo", async () => {
+  const key = "segredo-previa";
+  const hash = await sha256Hex(key);
+  const now = new Date("2026-09-10T12:00:00Z");
+  assert.equal(await avaliarCredencialPrevia(key, { preview_credential_sha256: hash }, null, now), true);
+  assert.equal(await avaliarCredencialPrevia("errada", { preview_credential_sha256: hash }, null, now), false);
+  assert.equal(await avaliarCredencialPrevia(undefined, { preview_credential_sha256: hash }, null, now), false);
+  // revogada no vínculo
+  assert.equal(await avaliarCredencialPrevia(key, { preview_credential_sha256: hash, preview_revoked_at: "2026-09-01" }, null, now), false);
+  // expirada
+  assert.equal(await avaliarCredencialPrevia(key, { preview_credential_sha256: hash, preview_expires_at: "2026-09-05" }, null, now), false);
+  // fallback por env
+  assert.equal(await avaliarCredencialPrevia(key, {}, hash, now), true);
 });
 
 test("sha256Hex confere com valor conhecido", async () => {

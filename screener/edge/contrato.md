@@ -30,10 +30,12 @@ da projeção da sessão. IDs de outro instrumento/sessão são rejeitados.
 repetir devolve o **mesmo** snapshot (via `unique(session_id, instrument_checksum,
 input_checksum, scoring_version, report_version)`), sem duplicar nem recalcular.
 
-## `PublicResultV1` (sanitizado — o que a API pública devolve)
-Derivado do `ScoreResultV1` interno; **sem** `score_bp`, sem código de estágio
-(E1–E4), sem pesos, sem regras, sem respostas individuais, sem `provisional_cut_bp`.
-Só rótulos e qualitativos.
+## `PublicResultV1` (o que a API pública devolve)
+Derivado do `ScoreResultV1` interno. **Mantém os resultados agregados** da
+devolutiva (pontuação de EXIBIÇÃO 0–100 por dimensão/eixo/índice, cobertura,
+gaps, quadrante, gate, prioridades, narrativas). **Remove** basis points, código
+de estágio (E1–E4), pesos, `provisional_cut_bp`, regra de conversão e respostas
+individuais.
 
 ```
 PublicResultV1 = {
@@ -41,10 +43,12 @@ PublicResultV1 = {
   assessment_unit: { name },
   respondent_scope: { organization_label },            // ex.: "individual_perception"
   coverage: { individual, organization, ai },          // "alta" | "media" | "insuficiente"
-  individual:   { dimensions: [{ name, band_label|null }] },   // sem overall
-  organization: { band_label|null, dimensions: [{ name, band_label|null }] },
-  ai:           { band_label|null, dimensions: [{ name, band_label|null }],
-                  governance },                          // "blocked|conditioned|eligible|insufficient"
+  individual:   { overall: null,                        // indivíduo sem nota geral
+                  dimensions: [{ name, display_score:0..100|null, band_label|null }] },
+  organization: { index_display:0..100|null, band_label|null,
+                  dimensions: [{ name, display_score, band_label|null }] },
+  ai:           { index_display:0..100|null, band_label|null,
+                  dimensions: [{ name, display_score, band_label|null }], governance },
   alignment:    [{ dimension_name, direction, magnitude }],     // sem bp
   matrix:       { available, quadrant|null, quadrant_label|null,
                   quadrant_message|null, governance_overlay, provisional_note },
@@ -52,9 +56,22 @@ PublicResultV1 = {
   notes: [ "escopo/uso", ... ]
 }
 ```
-`band_label` vem dos rótulos do instrumento (Reativo ausente / Informal parcial /
-Definido repetível / Gerenciado sustentado). Cobertura qualitativa: ≥80% alta,
-≥50% media, senão insuficiente. Nenhum número de ponto é exposto.
+`display_score` = 0–100 de EXIBIÇÃO (round bp/100); nunca expõe o bp cru.
+`band_label` vem dos rótulos do instrumento. Cobertura: ≥80% alta, ≥50% media,
+senão insuficiente. O indivíduo não tem nota geral, mas cada uma das cinco
+dimensões tem resultado mensurável.
+
+## Atomicidade (funções transacionais)
+A escrita não depende do adaptador. Duas funções SQL (migration
+`20260903120000_screener_funcoes_transacionais.sql`, `search_path` fixo, `EXECUTE`
+revogado de public/anon/authenticated e concedido só a `service_role`):
+- **`screener_save_response`**: trava a sessão (`for update`), confirma `open`,
+  revalida vínculo/vigência e faz o upsert — atômico.
+- **`screener_finalize_submission`**: trava a sessão; idempotente (se já submetida,
+  devolve `ja_submetida`); confere que a serialização canônica atual das respostas
+  bate com a esperada (senão `respostas_mudaram` → a edge relê e recalcula, nunca
+  grava resultado obsoleto); insere o snapshot idempotente e fecha a sessão.
+O cálculo (motor `.mjs`) roda na edge; a persistência é atômica nessas funções.
 
 ## Matriz de estados (vínculo × vigência × credencial)
 `dentro_vigencia` = (`starts_at` nulo ou `now≥starts_at`) e (`ends_at` nulo ou `now≤ends_at`).

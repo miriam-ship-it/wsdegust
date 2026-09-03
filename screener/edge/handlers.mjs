@@ -4,19 +4,21 @@
 
 import { instrumento, checksum, projecaoPublica } from "../motor/definicao.mjs";
 import { calcular } from "../motor/motor.mjs";
-import { gerarToken, hashToken, sha256Hex, capacidades, resolverOpcao, validarSubmissao, paraPublico } from "./logica.mjs";
+import { gerarToken, hashToken, sha256Hex, capacidades, resolverOpcao, validarSubmissao, paraPublico, avaliarCredencialPrevia } from "./logica.mjs";
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+const NOTICE_VIGENTE = "v1";            // versão vigente do aviso de privacidade
 const resp = (status, body) => ({ status, body });
 
 function unidadeNome(binding) {
   return (binding.branding && binding.branding.assessment_unit_name) || "sua empresa";
 }
-async function temCredencialPrevia(previewKey, binding, ctx) {
-  if (!previewKey) return false;
-  const esperado = (binding.branding && binding.branding.preview_credential_sha256) || ctx.previewKeyHash || null;
-  if (!esperado) return false;
-  return (await sha256Hex(previewKey)) === esperado;
+/** Versão vigente do aviso de privacidade — do vínculo ou o padrão. */
+function noticeVigente(binding) {
+  return (binding.branding && binding.branding.privacy_notice_version) || NOTICE_VIGENTE;
+}
+function temCredencialPrevia(previewKey, binding, ctx) {
+  return avaliarCredencialPrevia(previewKey, binding.branding, ctx.previewKeyHash, ctx.now());
 }
 async function carregarPorToken(ctx, token) {
   const th = await hashToken(token);
@@ -42,6 +44,15 @@ function instrumentoConfere(binding) {
   return binding.instrument_code === instrumento.instrument.code &&
          binding.instrument_version === instrumento.instrument.version;
 }
+/** Traduz o raise das funções transacionais em status HTTP. */
+function mapErroSql(e) {
+  const m = String((e && e.message) || e);
+  if (m.includes("sessao_nao_aberta")) return resp(409, { error: "sessao_nao_aberta" });
+  if (m.includes("sessao_invalida")) return resp(410, { error: "sessao_invalida" });
+  if (m.includes("indisponivel") || m.includes("fora_de_vigencia")) return resp(403, { error: "indisponivel" });
+  if (m.includes("respostas_mudaram")) return resp(409, { error: "respostas_mudaram" });
+  return resp(409, { error: "conflito", detalhe: m });
+}
 
 // ---------- GET /start ----------
 export async function getStart(ctx, { event_slug, previewKey }) {
@@ -66,7 +77,7 @@ export async function getStart(ctx, { event_slug, previewKey }) {
 }
 
 // ---------- POST /start ----------
-export async function postStart(ctx, { event_slug, previewKey, privacy_ack }) {
+export async function postStart(ctx, { event_slug, previewKey, privacy_ack, privacy_notice_version }) {
   const { rows } = await ctx.q(
     `select id, event_slug, status, starts_at, ends_at, branding, instrument_code, instrument_version
        from public.screener_event_bindings where event_slug=$1 and is_current`, [event_slug]);
@@ -76,18 +87,20 @@ export async function postStart(ctx, { event_slug, previewKey, privacy_ack }) {
   if (!cap.autorizado) return resp(404, { error: "nao_encontrado" });
   if (!cap.podeIniciar) return resp(403, { error: "indisponivel", motivo: cap.motivo });
   if (!instrumentoConfere(binding)) return resp(409, { error: "instrumento_indisponivel" });
+  // consentimento: exige ciência E o aviso VIGENTE (cliente não fabrica versão/horário)
   if (privacy_ack !== true) return resp(400, { error: "aviso_de_privacidade_obrigatorio" });
+  const vigente = noticeVigente(binding);
+  if (privacy_notice_version !== vigente) return resp(409, { error: "aviso_desatualizado", vigente });
 
   const token = gerarToken();                    // servidor
   const token_hash = await hashToken(token);     // só o hash vai ao banco
-  const notice = (binding.branding && binding.branding.privacy_notice_version) || "v1";
-  const now = ctx.now();
+  const now = ctx.now();                          // horário do servidor (ignora o do cliente)
   const expires = new Date(now.getTime() + TTL_MS).toISOString();
   const { rows: ins } = await ctx.q(
     `insert into public.screener_sessions
        (binding_id, token_hash, status, privacy_notice_version, privacy_acknowledged_at, expires_at)
        values ($1,$2,'open',$3,$4,$5) returning id`,
-    [binding.id, token_hash, notice, now.toISOString(), expires]);
+    [binding.id, token_hash, vigente, now.toISOString(), expires]);
 
   const pub = projecaoPublica(instrumento, { sessionSeed: token, assessmentUnitName: unidadeNome(binding) });
   return resp(201, {
@@ -145,11 +158,9 @@ export async function putResponse(ctx, { token, item_id, option_id, previewKey }
   try { alvo = resolverOpcao(pub.mapping, item_id, option_id); } // só ids opacos; stage vem do mapping
   catch { return resp(400, { error: "opcao_invalida" }); }
 
-  await ctx.q(
-    `insert into public.screener_responses (session_id, item_code, stage_code, answered_at)
-       values ($1,$2,$3, now())
-     on conflict (session_id, item_code) do update set stage_code=excluded.stage_code, revised_at=now()`,
-    [row.sid, alvo.item_code, alvo.stage_code]);
+  try {
+    await ctx.q(`select public.screener_save_response($1,$2,$3)`, [row.sid, alvo.item_code, alvo.stage_code]);
+  } catch (e) { return mapErroSql(e); } // função trava a sessão e revalida atomicamente
   const { rows: cnt } = await ctx.q(`select count(*)::int n from public.screener_responses where session_id=$1`, [row.sid]);
   return resp(200, { ok: true, progress: { answered: cnt[0].n, total: instrumento.items.length } });
 }
@@ -172,26 +183,32 @@ export async function postSubmit(ctx, { token, previewKey }) {
   if (!cap.podeEscrever) return resp(403, { error: "escrita_indisponivel", motivo: cap.motivo });
   if (!sessaoValida(row, ctx.now())) return resp(410, { error: "sessao_expirada" });
 
-  const { rows: rs } = await ctx.q(`select item_code, stage_code from public.screener_responses where session_id=$1`, [row.sid]);
-  const respostas = {};
-  for (const r of rs) respostas[r.item_code] = r.stage_code;
-  try { validarSubmissao(respostas); } catch (e) { return resp(400, { error: "submissao_incompleta", detalhe: String(e.message) }); }
-
-  const resultado = calcular({ respostas, assessment_unit: { id: binding.event_slug, name: unidadeNome(binding) }, assessment_id: row.sid });
-  const canonRespostas = Object.keys(respostas).sort().map((k) => k + ":" + respostas[k]).join("|");
-  const input_checksum = await sha256Hex(canonRespostas);
+  // ler → calcular (motor) → finalizar (função atômica). Se as respostas mudarem
+  // entre a leitura e a finalização, a função rejeita e a edge relê/recalcula.
   const instrument_checksum = checksum();
+  let ultimoErro = null;
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    const { rows: rs } = await ctx.q(`select item_code, stage_code from public.screener_responses where session_id=$1`, [row.sid]);
+    const respostas = {};
+    for (const r of rs) respostas[r.item_code] = r.stage_code;
+    try { validarSubmissao(respostas); } catch (e) { return resp(400, { error: "submissao_incompleta", detalhe: String(e.message) }); }
 
-  await ctx.tx(async (q) => {
-    await q(
-      `insert into public.screener_result_snapshots
-         (session_id, event_slug, instrument_code, instrument_version, scoring_version, report_version, instrument_checksum, input_checksum, result)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       on conflict (session_id, instrument_checksum, input_checksum, scoring_version, report_version) do nothing`,
-      [row.sid, binding.event_slug, instrumento.instrument.code, instrumento.instrument.version,
-       resultado.scoring_version, resultado.report_version, instrument_checksum, input_checksum, resultado]);
-    await q(`update public.screener_sessions set status='submitted', submitted_at=now() where id=$1 and status='open'`, [row.sid]);
-  });
+    const resultado = calcular({ respostas, assessment_unit: { id: binding.event_slug, name: unidadeNome(binding) }, assessment_id: row.sid });
+    const canon = Object.keys(respostas).sort().map((k) => k + ":" + respostas[k]).join("|");
+    const input_checksum = await sha256Hex(canon);
+    try {
+      await ctx.q(
+        `select public.screener_finalize_submission($1,$2,$3::jsonb,$4,$5,$6,$7)`,
+        [row.sid, canon, JSON.stringify(resultado), instrument_checksum, input_checksum, resultado.scoring_version, resultado.report_version]);
+      ultimoErro = null;
+      break;
+    } catch (e) {
+      ultimoErro = e;
+      if (String(e.message).includes("respostas_mudaram")) continue; // relê
+      return mapErroSql(e);
+    }
+  }
+  if (ultimoErro) return resp(409, { error: "respostas_instaveis" });
 
   const { rows: snap } = await ctx.q(
     `select result from public.screener_result_snapshots where session_id=$1 order by created_at desc limit 1`, [row.sid]);

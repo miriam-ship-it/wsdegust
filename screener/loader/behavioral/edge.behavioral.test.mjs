@@ -1,5 +1,6 @@
 // Fluxo da edge do screener contra Postgres efêmero (pglite). Sem deploy.
-// Cobre os testes obrigatórios do corte 3.
+// Cobre os obrigatórios do corte 3 + o endurecimento (funções transacionais,
+// ciclo de vida de token/credencial, consentimento versionado, PublicResultV1).
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -11,21 +12,24 @@ import { sha256Hex } from "../../edge/logica.mjs";
 import * as H from "../../edge/handlers.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
-const SCHEMA = fs.readFileSync(path.resolve(AQUI, "..", "..", "..", "supabase", "migrations", "20260902143339_screener_tabelas_isoladas.sql"), "utf8");
+const MIGR = path.resolve(AQUI, "..", "..", "..", "supabase", "migrations");
+const SCHEMA = fs.readFileSync(path.join(MIGR, "20260902143339_screener_tabelas_isoladas.sql"), "utf8");
+const FUNCS = fs.readFileSync(path.join(MIGR, "20260903120000_screener_funcoes_transacionais.sql"), "utf8");
 const HEX64 = "a".repeat(64);
 const PREVIEW = "previa-secreta";
+const IC = instrumento.instrument.code, IV = instrumento.instrument.version;
 
 async function ambiente(bindingSql) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
   await db.exec(SCHEMA);
+  await db.exec(FUNCS);
   await db.query(
     `insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
-     values ($1,$2,'{}'::jsonb,$3,'inactive')`,
-    [instrumento.instrument.code, instrumento.instrument.version, HEX64]);
+     values ($1,$2,'{}'::jsonb,$3,'inactive')`, [IC, IV, HEX64]);
   await db.exec(bindingSql);
   let now = new Date("2026-09-10T12:00:00Z");
-  const ctx = {
+  return {
     q: (sql, params = []) => db.query(sql, params),
     tx: (fn) => db.transaction((tx) => fn((s, p = []) => tx.query(s, p))),
     now: () => now,
@@ -33,148 +37,171 @@ async function ambiente(bindingSql) {
     _setNow: (d) => (now = d),
     _db: db,
   };
-  return ctx;
 }
-const bindingPublic = `insert into public.screener_event_bindings
+const bPublic = `insert into public.screener_event_bindings
   (event_slug, instrument_code, instrument_version, is_current, status, session_retention_days, lead_retention_days)
-  values ('rh-negocios-ia', '${instrumento.instrument.code}', '${instrumento.instrument.version}', true, 'public_pilot', 180, 365)`;
-const bindingPreview = `insert into public.screener_event_bindings
+  values ('rh-negocios-ia','${IC}','${IV}', true, 'public_pilot', 180, 365)`;
+const bPreview = `insert into public.screener_event_bindings
   (event_slug, instrument_code, instrument_version, is_current, status)
-  values ('preview-interno-ia-v1', '${instrumento.instrument.code}', '${instrumento.instrument.version}', true, 'internal_preview')`;
+  values ('preview-interno-ia-v1','${IC}','${IV}', true, 'internal_preview')`;
+
+const start = (ctx, opts = {}) =>
+  H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true, privacy_notice_version: "v1", ...opts });
 
 async function responderTudo(ctx, token, { naItem } = {}) {
   const pub = projecaoPublica(instrumento, { sessionSeed: token });
   const porItemStage = new Map();
   for (const [optId, alvo] of Object.entries(pub.mapping.options)) porItemStage.set(alvo.item + "|" + alvo.stage, optId);
-  for (const b of pub.blocks) {
-    for (const it of b.items) {
-      const code = pub.mapping.items[it.id];
-      const stage = (naItem && code === naItem) ? "NA" : "E3";
-      const optId = porItemStage.get(code + "|" + stage);
-      const r = await H.putResponse(ctx, { token, item_id: it.id, option_id: optId });
-      assert.equal(r.status, 200, `putResponse ${code}: ${JSON.stringify(r.body)}`);
-    }
+  for (const b of pub.blocks) for (const it of b.items) {
+    const code = pub.mapping.items[it.id];
+    const stage = (naItem && code === naItem) ? "NA" : "E3";
+    const r = await H.putResponse(ctx, { token, item_id: it.id, option_id: porItemStage.get(code + "|" + stage) });
+    assert.equal(r.status, 200, `putResponse ${code}: ${JSON.stringify(r.body)}`);
   }
 }
 
-test("token gerado no servidor; banco guarda só o hash; sessão presa ao binding", async () => {
-  const ctx = await ambiente(bindingPublic);
-  const r = await H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true });
+test("token no servidor; banco só o hash; sessão presa ao binding", async () => {
+  const ctx = await ambiente(bPublic);
+  const r = await start(ctx);
   assert.equal(r.status, 201);
   assert.match(r.body.token, /^[0-9a-f]{64}$/);
-  const { rows } = await ctx.q(`select token_hash, binding_id, status from public.screener_sessions where id=$1`, [r.body.session_id]);
-  assert.equal(rows[0].token_hash, await sha256Hex(r.body.token)); // só o hash
-  assert.notEqual(rows[0].token_hash, r.body.token);               // nunca o token cru
+  const { rows } = await ctx.q(`select token_hash, binding_id from public.screener_sessions where id=$1`, [r.body.session_id]);
+  assert.equal(rows[0].token_hash, await sha256Hex(r.body.token));
+  assert.notEqual(rows[0].token_hash, r.body.token);
   const { rows: b } = await ctx.q(`select id from public.screener_event_bindings where event_slug='rh-negocios-ia'`);
-  assert.equal(rows[0].binding_id, b[0].id);                       // escopada ao binding
+  assert.equal(rows[0].binding_id, b[0].id);
 });
 
-test("privacidade obrigatória no POST /start", async () => {
-  const ctx = await ambiente(bindingPublic);
-  const r = await H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: false });
-  assert.equal(r.status, 400);
+test("consentimento: sem ciência 400; versão errada 409; servidor grava vigente + horário", async () => {
+  const ctx = await ambiente(bPublic);
+  assert.equal((await start(ctx, { privacy_ack: false })).status, 400);
+  assert.equal((await start(ctx, { privacy_notice_version: "v0" })).status, 409);
+  const r = await start(ctx, { privacy_notice_version: "v1" });
+  assert.equal(r.status, 201);
+  const { rows } = await ctx.q(`select privacy_notice_version, privacy_acknowledged_at from public.screener_sessions where id=$1`, [r.body.session_id]);
+  assert.equal(rows[0].privacy_notice_version, "v1");
+  assert.ok(rows[0].privacy_acknowledged_at); // horário do servidor
 });
 
-test("internal_preview: sem credencial nega TODAS as rotas; slug não concede acesso", async () => {
-  const ctx = await ambiente(bindingPreview);
+test("internal_preview: sem credencial nega TODAS as rotas (slug não concede acesso)", async () => {
+  const ctx = await ambiente(bPreview);
+  const alvo = "x".repeat(64);
   for (const call of [
     H.getStart(ctx, { event_slug: "preview-interno-ia-v1" }),
-    H.postStart(ctx, { event_slug: "preview-interno-ia-v1", privacy_ack: true }),
-    H.getSession(ctx, { token: "x".repeat(64) }),
-    H.putResponse(ctx, { token: "x".repeat(64), item_id: "a", option_id: "b" }),
-    H.postSubmit(ctx, { token: "x".repeat(64) }),
-    H.getResult(ctx, { token: "x".repeat(64) }),
-  ]) {
-    const r = await call;
-    assert.equal(r.status, 404, `esperado 404 sem credencial: ${JSON.stringify(r.body)}`);
-  }
+    H.postStart(ctx, { event_slug: "preview-interno-ia-v1", privacy_ack: true, privacy_notice_version: "v1" }),
+    H.getSession(ctx, { token: alvo }), H.putResponse(ctx, { token: alvo, item_id: "a", option_id: "b" }),
+    H.postSubmit(ctx, { token: alvo }), H.getResult(ctx, { token: alvo }),
+  ]) assert.equal((await call).status, 404);
 });
 
-test("internal_preview: com credencial correta, inicia", async () => {
-  const ctx = await ambiente(bindingPreview);
+test("credencial de prévia: correta inicia; expirada e revogada negam", async () => {
+  const ctx = await ambiente(bPreview);
   ctx.previewKeyHash = await sha256Hex(PREVIEW);
-  const semCred = await H.getStart(ctx, { event_slug: "preview-interno-ia-v1" });
-  assert.equal(semCred.status, 404);
-  const comCred = await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW });
-  assert.equal(comCred.status, 200);
-  const start = await H.postStart(ctx, { event_slug: "preview-interno-ia-v1", privacy_ack: true, previewKey: PREVIEW });
-  assert.equal(start.status, 201);
+  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 200);
+  // revogada no vínculo
+  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_revoked_at','2026-09-01') where event_slug='preview-interno-ia-v1'`);
+  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
+  // expirada (hash no vínculo, expira antes de now)
+  const h = await sha256Hex(PREVIEW);
+  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text,'preview_expires_at','2026-09-05') where event_slug='preview-interno-ia-v1'`, [h]);
+  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
 });
 
 test("PUT rejeita option de outra sessão/instrumento", async () => {
-  const ctx = await ambiente(bindingPublic);
-  const s = await H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true });
-  const outra = projecaoPublica(instrumento, { sessionSeed: "sessao-alheia" });
-  const itemAlheio = outra.blocks[0].items[0].id;
-  const opAlheia = outra.blocks[0].items[0].options[0].id;
-  const r = await H.putResponse(ctx, { token: s.body.token, item_id: itemAlheio, option_id: opAlheia });
+  const ctx = await ambiente(bPublic);
+  const s = await start(ctx);
+  const outra = projecaoPublica(instrumento, { sessionSeed: "alheia" });
+  const r = await H.putResponse(ctx, { token: s.body.token, item_id: outra.blocks[0].items[0].id, option_id: outra.blocks[0].items[0].options[0].id });
   assert.equal(r.status, 400);
 });
 
-test("happy path: responde, submete, lê PublicResultV1 sem vazamento; N/A preservado", async () => {
-  const ctx = await ambiente(bindingPublic);
-  const s = await H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true });
+test("ciclo de vida do token: ausente/malformado/inexistente 404; expirado/revogado 410", async () => {
+  const ctx = await ambiente(bPublic);
+  const s = await start(ctx);
+  assert.equal((await H.getSession(ctx, { token: undefined })).status, 404); // ausente
+  assert.equal((await H.getSession(ctx, { token: "nao-hex" })).status, 404); // malformado
+  assert.equal((await H.getSession(ctx, { token: "b".repeat(64) })).status, 404); // inexistente/de outra sessão
+  // expirado: avança o relógio além do expires_at (não viola o check de criação)
+  ctx._setNow(new Date("2026-11-01T00:00:00Z"));
+  assert.equal((await H.getSession(ctx, { token: s.body.token })).status, 410);
+  ctx._setNow(new Date("2026-09-10T12:00:00Z"));
+  // revogado
+  await ctx.q(`update public.screener_sessions set revoked_at=now() where id=$1`, [s.body.session_id]);
+  assert.equal((await H.getSession(ctx, { token: s.body.token })).status, 410);
+});
+
+test("happy path: responde, submete, PublicResultV1 com 0–100 e sem bp/estágio/item; N/A preservado", async () => {
+  const ctx = await ambiente(bPublic);
+  const s = await start(ctx);
   const naItem = instrumento.items.find((i) => i.block === "ai").code;
   await responderTudo(ctx, s.body.token, { naItem });
-  // N/A preservado no banco
-  const { rows: na } = await ctx.q(`select stage_code from public.screener_responses r join public.screener_sessions se on se.id=r.session_id where se.id=$1 and r.item_code=$2`, [s.body.session_id, naItem]);
+  const { rows: na } = await ctx.q(`select stage_code from public.screener_responses where session_id=$1 and item_code=$2`, [s.body.session_id, naItem]);
   assert.equal(na[0].stage_code, "NA");
 
   const sub = await H.postSubmit(ctx, { token: s.body.token });
-  assert.equal(sub.status, 200);
+  assert.equal(sub.status, 200, JSON.stringify(sub.body));
   assert.equal(sub.body.contract_version, "PublicResultV1");
+  assert.equal(typeof sub.body.organization.index_display, "number"); // 0–100 presente
+  assert.equal(sub.body.individual.dimensions.length, 5);
   const blob = JSON.stringify(sub.body);
-  for (const p of ["score_bp", "display_score", "provisional_cut_bp", "input_checksum", "\"E1\"", "\"E4\"", "stage_code", "weight"]) {
-    assert.ok(!blob.includes(p), `PublicResultV1 vazou ${p}`);
-  }
+  for (const p of ["score_bp", "provisional_cut_bp", "input_checksum", "\"E1\"", "\"E4\"", "stage_code", "weight"])
+    assert.ok(!blob.includes(p), `vazou ${p}`);
   for (const it of instrumento.items) assert.ok(!blob.includes(it.code));
-  // /result devolve o mesmo público
-  const res = await H.getResult(ctx, { token: s.body.token });
-  assert.equal(res.status, 200);
-  assert.deepEqual(res.body, sub.body);
+  assert.deepEqual((await H.getResult(ctx, { token: s.body.token })).body, sub.body);
 });
 
-test("submissão idempotente: repetir devolve o mesmo snapshot (1 linha); resposta após submit é 409", async () => {
-  const ctx = await ambiente(bindingPublic);
-  const s = await H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true });
+test("submissão idempotente: mesmo snapshot (1 linha); resposta após submit é 409", async () => {
+  const ctx = await ambiente(bPublic);
+  const s = await start(ctx);
   await responderTudo(ctx, s.body.token);
   const a = await H.postSubmit(ctx, { token: s.body.token });
   const b = await H.postSubmit(ctx, { token: s.body.token });
   assert.deepEqual(a.body, b.body);
   const { rows } = await ctx.q(`select count(*)::int n from public.screener_result_snapshots where session_id=$1`, [s.body.session_id]);
-  assert.equal(rows[0].n, 1); // não duplicou
-  const put = await H.putResponse(ctx, { token: s.body.token, item_id: "x", option_id: "y" });
-  assert.equal(put.status, 409); // resposta impossível após submissão
+  assert.equal(rows[0].n, 1);
+  assert.equal((await H.putResponse(ctx, { token: s.body.token, item_id: "x", option_id: "y" })).status, 409);
 });
 
-test("status/vigência revalidados: closed bloqueia escrita mas permite leitura do já submetido", async () => {
-  const ctx = await ambiente(bindingPublic);
-  const s = await H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true });
+test("closed bloqueia escrita mas permite leitura do já submetido", async () => {
+  const ctx = await ambiente(bPublic);
+  const s = await start(ctx);
   await responderTudo(ctx, s.body.token);
   await H.postSubmit(ctx, { token: s.body.token });
   await ctx.q(`update public.screener_event_bindings set status='closed' where event_slug='rh-negocios-ia'`);
-  const res = await H.getResult(ctx, { token: s.body.token });
-  assert.equal(res.status, 200); // leitura permitida
-  // nova sessão não pode iniciar
-  const novo = await H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true });
-  assert.equal(novo.status, 403);
+  assert.equal((await H.getResult(ctx, { token: s.body.token })).status, 200);
+  assert.equal((await start(ctx)).status, 403);
 });
 
-test("nenhuma tabela legada é tocada pelos handlers (checagem estática)", () => {
+test("finalize: respostas mudam entre cálculo e finalização → função rejeita (não grava obsoleto)", async () => {
+  const ctx = await ambiente(bPublic);
+  const s = await start(ctx);
+  await responderTudo(ctx, s.body.token);
+  // canônico esperado STALE (uma resposta a menos)
+  const { rows: rs } = await ctx.q(`select item_code, stage_code from public.screener_responses where session_id=$1`, [s.body.session_id]);
+  const parcial = rs.slice(1).sort((a, b) => a.item_code < b.item_code ? -1 : 1).map((r) => r.item_code + ":" + r.stage_code).join("|");
+  await assert.rejects(
+    ctx.q(`select public.screener_finalize_submission($1,$2,'{"contract_version":"ScoreResultV1"}'::jsonb,$3,$3,'1.0.0','1.0.0')`,
+      [s.body.session_id, parcial, HEX64]),
+    (e) => String(e.message).includes("respostas_mudaram"));
+  // nada gravado
+  const { rows: snap } = await ctx.q(`select count(*)::int n from public.screener_result_snapshots where session_id=$1`, [s.body.session_id]);
+  assert.equal(snap[0].n, 0);
+});
+
+test("nenhuma tabela legada é tocada pelos handlers (estático)", () => {
   const src = fs.readFileSync(path.resolve(AQUI, "..", "..", "edge", "handlers.mjs"), "utf8");
-  for (const legado of ["public.respondentes", "public.eventos", "public.respostas", "public.relatorios"]) {
-    assert.ok(!src.includes(legado), `handlers referenciam legado: ${legado}`);
-  }
+  for (const legado of ["public.respondentes", "public.eventos", "public.respostas", "public.relatorios"])
+    assert.ok(!src.includes(legado), `handlers tocam legado: ${legado}`);
 });
 
-test("service_role ausente dos payloads públicos e do código-fonte da lógica pública", async () => {
-  const ctx = await ambiente(bindingPublic);
-  const start = await H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true });
-  await responderTudo(ctx, start.body.token);
-  const res = await H.getResult(ctx, { token: start.body.token });
-  for (const body of [start.body, res.body]) {
-    assert.ok(!JSON.stringify(body).toLowerCase().includes("service_role"));
+test("service_role fora dos payloads públicos e sem chave hardcoded na lógica/cola", async () => {
+  const ctx = await ambiente(bPublic);
+  const s = await start(ctx);
+  await responderTudo(ctx, s.body.token);
+  const res = await H.getResult(ctx, { token: s.body.token });
+  for (const body of [s.body, res.body]) assert.ok(!JSON.stringify(body).toLowerCase().includes("service_role"));
+  for (const f of ["../../edge/logica.mjs", "../../edge/handlers.mjs", "../../../supabase/functions/screener/index.ts"]) {
+    const src = fs.readFileSync(path.resolve(AQUI, f), "utf8");
+    assert.ok(!/eyJ[A-Za-z0-9_-]{20,}/.test(src), `chave hardcoded em ${f}`);
   }
-  const logica = fs.readFileSync(path.resolve(AQUI, "..", "..", "edge", "logica.mjs"), "utf8");
-  assert.ok(!/eyJ[A-Za-z0-9_-]{20,}/.test(logica), "chave hardcoded na lógica");
 });

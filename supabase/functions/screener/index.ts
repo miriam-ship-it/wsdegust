@@ -4,8 +4,18 @@
 // traduzimos HTTP → handlers e ligamos o `ctx` a um Postgres com service_role.
 // O service_role vem do AMBIENTE, nunca do bundle público entregue ao navegador.
 //
-// Conexão: usa a connection string do projeto (env), com pooler de sessão para
-// suportar a transação do /submit. Sem deploy, estes envs ainda não existem.
+// Conexão: connection string do projeto (env). A ATOMICIDADE vive nas funções
+// SQL (screener_save_response / screener_finalize_submission), então a cola só
+// precisa de `q` (uma chamada por vez). Sem deploy, estes envs ainda não existem.
+//
+// ⚠️ GATE DE DEPLOY (corte proprio): antes de expor, provar (precisa de deno +
+//    edge-runtime do Supabase, ausentes neste ambiente):
+//    1) `deno check` deste wrapper e de TODOS os imports;
+//    2) que os imports fora da pasta da função (../../../screener/*) entram no
+//       bundle — senão, vendorizar sob supabase/functions/_shared ou usar import map;
+//    3) inicialização local pelo runtime do Supabase;
+//    4) teste HTTP das seis operações contra o wrapper real;
+//    5) ausência de credencial literal no bundle e nos logs.
 import postgres from "npm:postgres@3";
 import * as H from "../../../screener/edge/handlers.mjs";
 
@@ -13,8 +23,6 @@ const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { prepare: false });
 
 const ctx = {
   q: async (text: string, params: unknown[] = []) => ({ rows: await sql.unsafe(text, params as never[]) }),
-  tx: async (fn: (q: (t: string, p?: unknown[]) => Promise<{ rows: unknown[] }>) => Promise<void>) =>
-    sql.begin((tx) => fn(async (t, p = []) => ({ rows: await tx.unsafe(t, p as never[]) }))),
   now: () => new Date(),
   previewKeyHash: Deno.env.get("SCREENER_PREVIEW_KEY_SHA256") ?? null,
 };
