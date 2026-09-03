@@ -16,7 +16,7 @@ const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, "..", "..", "..");
 const MIGR = path.join(RAIZ, "supabase", "migrations");
 const SCHEMA_SQL = fs.readFileSync(path.join(MIGR, "20260902143339_screener_tabelas_isoladas.sql"), "utf8");
-const CARGA_SQL = fs.readFileSync(path.join(MIGR, "20260902130000_screener_carga_inativa_v1.sql"), "utf8");
+const CARGA_SQL = fs.readFileSync(path.join(MIGR, "20260902150000_screener_carga_inativa_v1.sql"), "utf8");
 
 const HEX64_A = "a".repeat(64);
 

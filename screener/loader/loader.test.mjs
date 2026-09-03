@@ -14,7 +14,7 @@ import { gerarCargaSQL } from "./gerar-carga.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, "..", "..");
-const SQL_GERADO = path.join(RAIZ, "supabase/migrations/20260902130000_screener_carga_inativa_v1.sql");
+const SQL_GERADO = path.join(RAIZ, "supabase/migrations/20260902150000_screener_carga_inativa_v1.sql");
 
 test("[estático] sem drift: o SQL commitado é idêntico ao regenerado do JSON", () => {
   const atual = fs.readFileSync(SQL_GERADO, "utf8").replace(/\r\n/g, "\n");

@@ -13,6 +13,8 @@
 // parte, sob aprovação.
 //
 // Uso:  node screener/loader/gerar-carga.mjs   # imprime o SQL em stdout
+// Destino canônico (posterior ao schema 20260902143339):
+//   supabase/migrations/20260902150000_screener_carga_inativa_v1.sql
 // =============================================================
 
 import { instrumento, canonicalize, checksum } from "../motor/definicao.mjs";
