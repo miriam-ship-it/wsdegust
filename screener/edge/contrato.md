@@ -8,6 +8,10 @@ Escrita + testes, **sem deploy**. A rota não é exposta ainda.
   **`PublicResultV1`**.
 - O token de sessão é **gerado no servidor** (aleatoriedade criptográfica) e
   devolvido uma única vez; o banco guarda **apenas o hash** (SHA-256 hex 64).
+- O token trafega **sempre no header `x-session-token`** (ou no corpo, em POST),
+  **nunca na query string**: o gateway registra a URL inteira nos logs de acesso,
+  e o token na query vazaria (comprovado no branch). A credencial de prévia vai
+  no header `x-preview-key`.
 - Toda operação revalida **estado do vínculo, vigência e sessão**, e é escopada por
   `binding_id` (a sessão aponta para o vínculo, não para um slug solto).
 - Cálculo e snapshot acontecem **na edge** (motor determinístico), nunca no cliente.
@@ -96,6 +100,36 @@ O cálculo (motor `.mjs`) roda na edge; a persistência é atômica nessas funç
 com um hash esperado (env `SCREENER_PREVIEW_KEY_SHA256` ou
 `binding.branding.preview_credential_sha256`). Revogável por rotação do env / update
 do vínculo. Ausente ou divergente → 403 em todas as rotas.
+
+## Provado em branch efêmero do Supabase (03/09/2026)
+Branch descartável (sem dados de produção, apagado ao fim; ~US$ 0,04). A edge foi
+deployada **só no branch**; produção não foi tocada (sem função `screener`, sem
+funções transacionais, zero dados). Verificado contra Postgres/Deno reais:
+- `deno check` do wrapper + grafo de bundle (imports de fora da pasta entram); sem
+  credencial literal no bundle.
+- As **6 operações** por HTTP (start→session→response→submit→result), com
+  `PublicResultV1` 0–100 e sem bp/estágio/checksum.
+- **Concorrência**: 8 `submit` simultâneos → **1 snapshot**; `PUT` concorrente com
+  `submit` **não altera** o conjunto pontuado; repetição idempotente.
+- **Consentimento**: sem ciência → 400; versão de aviso fabricada → 409; servidor
+  grava versão vigente + horário.
+- **Credenciais**: sessão expirada/revogada → 410; token ausente/malformado/de
+  outra sessão → 404; prévia expirada/revogada **por vínculo** → 404; token bruto
+  **nunca** persistido (só o hash); token **não** vaza em log (vai no header).
+- Funções `screener_save_response`/`finalize_submission`: `security invoker`,
+  `search_path` fixo, `EXECUTE` revogado de anon/authenticated, concedido só a
+  `service_role`.
+
+Três defeitos que **só o banco real revelou** (o pglite mascarava) — corrigidos e
+guardados por `regressao-adaptador.test.mjs`:
+1. snapshot precisa do **objeto** do resultado (postgres.js codifica string JSON
+   duas vezes → viola `screener_snap_result_obj`);
+2. conectar pelo **transaction pooler** (Supavisor 6543, `max:1`), não pela direta
+   (esgota slots sob concorrência de instâncias);
+3. token de sessão **no header** `x-session-token`, nunca na query (vazava no log).
+
+Ainda pendente para o deploy em produção: injetar `SUPABASE_DB_POOLER_URL` como
+secret; `verify_jwt` conforme a política; e a construção do `screener.html`.
 
 ## Fora de escopo do corte 3
 Deploy, exposição da rota, ativação (`public_pilot`), `screener.html`, painel,

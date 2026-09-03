@@ -56,6 +56,7 @@ function mapErroSql(e) {
 
 // ---------- GET /start ----------
 export async function getStart(ctx, { event_slug, previewKey }) {
+  if (!event_slug) return resp(400, { error: "event_slug_obrigatorio" });
   const { rows } = await ctx.q(
     `select id, event_slug, status, starts_at, ends_at, branding, instrument_code, instrument_version
        from public.screener_event_bindings where event_slug=$1 and is_current`, [event_slug]);
@@ -78,6 +79,7 @@ export async function getStart(ctx, { event_slug, previewKey }) {
 
 // ---------- POST /start ----------
 export async function postStart(ctx, { event_slug, previewKey, privacy_ack, privacy_notice_version }) {
+  if (!event_slug) return resp(400, { error: "event_slug_obrigatorio" });
   const { rows } = await ctx.q(
     `select id, event_slug, status, starts_at, ends_at, branding, instrument_code, instrument_version
        from public.screener_event_bindings where event_slug=$1 and is_current`, [event_slug]);
@@ -198,8 +200,11 @@ export async function postSubmit(ctx, { token, previewKey }) {
     const input_checksum = await sha256Hex(canon);
     try {
       await ctx.q(
+        // objeto (não JSON.stringify): o adaptador serializa objeto→json e `::jsonb`
+        // resolve para um jsonb OBJETO. Passar a string já-serializada faz o postgres.js
+        // codificar duas vezes (vira jsonb string escalar) e viola screener_snap_result_obj.
         `select public.screener_finalize_submission($1,$2,$3::jsonb,$4,$5,$6,$7)`,
-        [row.sid, canon, JSON.stringify(resultado), instrument_checksum, input_checksum, resultado.scoring_version, resultado.report_version]);
+        [row.sid, canon, resultado, instrument_checksum, input_checksum, resultado.scoring_version, resultado.report_version]);
       ultimoErro = null;
       break;
     } catch (e) {

@@ -1,25 +1,33 @@
-// Edge roteadora do screener (Deno) — COLA FINA. NÃO DEPLOYADA no corte 3.
+// Edge roteadora do screener (Deno) — COLA FINA.
 //
 // Toda a lógica está em screener/edge/*.mjs (runtime-agnóstico, testado). Aqui só
 // traduzimos HTTP → handlers e ligamos o `ctx` a um Postgres com service_role.
 // O service_role vem do AMBIENTE, nunca do bundle público entregue ao navegador.
 //
-// Conexão: connection string do projeto (env). A ATOMICIDADE vive nas funções
-// SQL (screener_save_response / screener_finalize_submission), então a cola só
-// precisa de `q` (uma chamada por vez). Sem deploy, estes envs ainda não existem.
+// PROVADO em branch efêmero do Supabase (03/09/2026): `deno check` + grafo de
+// bundle, deploy real, as 6 operações por HTTP, concorrência (8 submits
+// simultâneos → 1 snapshot; PUT concorrente não altera o pontuado), ciclo de
+// credenciais e ausência de segredo no bundle. Dois defeitos que SÓ o Postgres
+// real revelou (o pglite mascarava) foram corrigidos:
+//   (a) o snapshot precisa receber o OBJETO do resultado — passar a string
+//       JSON.stringify faz o postgres.js codificar duas vezes (jsonb string
+//       escalar) e viola o check screener_snap_result_obj. Corrigido em handlers.
+//   (b) conectar pelo TRANSACTION POOLER (Supavisor, porta 6543), não pela
+//       conexão direta: sob concorrência de instâncias a direta esgota os slots
+//       ("remaining connection slots are reserved for SUPERUSER").
 //
-// ⚠️ GATE DE DEPLOY (corte proprio): antes de expor, provar (precisa de deno +
-//    edge-runtime do Supabase, ausentes neste ambiente):
-//    1) `deno check` deste wrapper e de TODOS os imports;
-//    2) que os imports fora da pasta da função (../../../screener/*) entram no
-//       bundle — senão, vendorizar sob supabase/functions/_shared ou usar import map;
-//    3) inicialização local pelo runtime do Supabase;
-//    4) teste HTTP das seis operações contra o wrapper real;
-//    5) ausência de credencial literal no bundle e nos logs.
+// Conexão: injete SUPABASE_DB_POOLER_URL (string do transaction pooler, com
+// senha, como SECRET da função). Sem ela, cai na conexão direta (apenas dev /
+// baixa carga). prepare:false e max:1 por instância — exigidos pelo pooler em
+// transaction mode e pela regra "uma conexão por instância".
+//
+// Token de sessão: SEMPRE via header x-session-token (nunca query string — o
+// gateway registra a URL inteira, e o token na query vazaria nos logs de acesso).
 import postgres from "npm:postgres@3";
 import * as H from "../../../screener/edge/handlers.mjs";
 
-const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { prepare: false });
+const dbUrl = Deno.env.get("SUPABASE_DB_POOLER_URL") ?? Deno.env.get("SUPABASE_DB_URL")!;
+const sql = postgres(dbUrl, { prepare: false, max: 1 });
 
 const ctx = {
   q: async (text: string, params: unknown[] = []) => ({ rows: await sql.unsafe(text, params as never[]) }),
@@ -34,9 +42,11 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const rota = url.pathname.replace(/.*\/screener/, "") || "/";
   const previewKey = req.headers.get("x-preview-key") ?? undefined;
+  const sessionToken = req.headers.get("x-session-token") ?? undefined;
   const q = Object.fromEntries(url.searchParams);
   const body = req.method === "GET" ? {} : await req.json().catch(() => ({}));
-  const a = { ...q, ...body, previewKey };
+  // token só do header (ou do corpo em POST) — nunca da query, p/ não vazar em log
+  const a = { ...q, ...body, previewKey, token: sessionToken ?? (body as { token?: string }).token };
 
   try {
     if (req.method === "GET" && rota === "/start") return json(await H.getStart(ctx, a));
