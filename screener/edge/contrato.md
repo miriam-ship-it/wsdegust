@@ -65,17 +65,30 @@ PublicResultV1 = {
 senão insuficiente. O indivíduo não tem nota geral, mas cada uma das cinco
 dimensões tem resultado mensurável.
 
-## Atomicidade (funções transacionais)
-A escrita não depende do adaptador. Duas funções SQL (migration
-`20260903120000_screener_funcoes_transacionais.sql`, `search_path` fixo, `EXECUTE`
-revogado de public/anon/authenticated e concedido só a `service_role`):
-- **`screener_save_response`**: trava a sessão (`for update`), confirma `open`,
-  revalida vínculo/vigência e faz o upsert — atômico.
-- **`screener_finalize_submission`**: trava a sessão; idempotente (se já submetida,
-  devolve `ja_submetida`); confere que a serialização canônica atual das respostas
-  bate com a esperada (senão `respostas_mudaram` → a edge relê e recalcula, nunca
-  grava resultado obsoleto); insere o snapshot idempotente e fecha a sessão.
-O cálculo (motor `.mjs`) roda na edge; a persistência é atômica nessas funções.
+## Fronteira de segurança: papéis + RPC `SECURITY DEFINER`
+Migration `20260903120000_screener_rpc_e_papeis.sql`. A edge pública **não conecta
+como `postgres` amplo** e **não faz SQL direto** — toda leitura/escrita passa por
+funções.
+
+- **`screener_owner`** (`NOLOGIN`): dono só dos objetos `screener_*`. É o contexto
+  em que as funções `SECURITY DEFINER` rodam — privilégio mínimo, não vê o legado.
+- **`screener_runtime`** (`LOGIN`, `NOINHERIT`, sem `BYPASSRLS`): papel embutido na
+  `SUPABASE_DB_POOLER_URL`. Recebe só `USAGE` no schema e `EXECUTE` nas 6 funções —
+  **nenhuma permissão de tabela**. Senha criada fora da migration (secret).
+- **6 funções** (`SECURITY DEFINER`, `search_path=''`, objetos qualificados, sem SQL
+  dinâmica; `EXECUTE` revogado de public/anon/authenticated/service_role, concedido
+  só a `screener_runtime`), uma por operação:
+  `screener_op_get_binding` (apresentação), `screener_op_start` (iniciar),
+  `screener_op_resume` (retomar), `screener_op_save_response` (salvar, trava+revalida),
+  `screener_op_finalize` (finalizar: idempotente, confere canônico `collate "C"` →
+  `respostas_mudaram` senão, snapshot idempotente, fecha), `screener_op_get_result`.
+
+O cálculo (motor `.mjs`), a projeção, a checagem de credencial/consentimento e o
+mapeamento de ids opacos seguem na edge; a persistência e a atomicidade vivem nas
+funções. Provado em pglite (testes comportamentais) que `screener_runtime`: executa
+as 6 operações **só** via funções; **não** faz SELECT/INSERT/UPDATE/DELETE direto em
+tabela; **não** acessa o legado (`eventos`/`respondentes`/`respostas`/`relatorios`);
+**não** chama função administrativa; **não** atravessa sessão/vínculo alheios.
 
 ## Matriz de estados (vínculo × vigência × credencial)
 `dentro_vigencia` = (`starts_at` nulo ou `now≥starts_at`) e (`ends_at` nulo ou `now≤ends_at`).
@@ -128,8 +141,11 @@ guardados por `regressao-adaptador.test.mjs`:
    (esgota slots sob concorrência de instâncias);
 3. token de sessão **no header** `x-session-token`, nunca na query (vazava no log).
 
-Ainda pendente para o deploy em produção: injetar `SUPABASE_DB_POOLER_URL` como
-secret; `verify_jwt` conforme a política; e a construção do `screener.html`.
+Ainda pendente (nesta ordem, sob autorização): (1) validar o modelo de papéis+RPC
+num **segundo branch efêmero** — que hoje só está provado em pglite; (2) aplicar a
+migration à produção; (3) criar a senha do `screener_runtime` fora da migration e
+injetar `SUPABASE_DB_POOLER_URL` (papel `screener_runtime`) como secret;
+(4) `verify_jwt` conforme a política; (5) `screener.html`.
 
 ## Fora de escopo do corte 3
 Deploy, exposição da rota, ativação (`public_pilot`), `screener.html`, painel,

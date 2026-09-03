@@ -1,6 +1,6 @@
 // Fluxo da edge do screener contra Postgres efêmero (pglite). Sem deploy.
-// Cobre os obrigatórios do corte 3 + o endurecimento (funções transacionais,
-// ciclo de vida de token/credencial, consentimento versionado, PublicResultV1).
+// Cobre os obrigatórios do corte 3 + o endurecimento + a FRONTEIRA DE PRIVILÉGIO:
+// papéis screener_owner/screener_runtime e as 6 funções SECURITY DEFINER.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -14,7 +14,7 @@ import * as H from "../../edge/handlers.mjs";
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const MIGR = path.resolve(AQUI, "..", "..", "..", "supabase", "migrations");
 const SCHEMA = fs.readFileSync(path.join(MIGR, "20260902143339_screener_tabelas_isoladas.sql"), "utf8");
-const FUNCS = fs.readFileSync(path.join(MIGR, "20260903120000_screener_funcoes_transacionais.sql"), "utf8");
+const RPC = fs.readFileSync(path.join(MIGR, "20260903120000_screener_rpc_e_papeis.sql"), "utf8");
 const HEX64 = "a".repeat(64);
 const PREVIEW = "previa-secreta";
 const IC = instrumento.instrument.code, IV = instrumento.instrument.version;
@@ -23,7 +23,7 @@ async function ambiente(bindingSql) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
   await db.exec(SCHEMA);
-  await db.exec(FUNCS);
+  await db.exec(RPC); // papéis + propriedade + 6 funções SECURITY DEFINER + grants
   await db.query(
     `insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
      values ($1,$2,'{}'::jsonb,$3,'inactive')`, [IC, IV, HEX64]);
@@ -31,11 +31,12 @@ async function ambiente(bindingSql) {
   let now = new Date("2026-09-10T12:00:00Z");
   return {
     q: (sql, params = []) => db.query(sql, params),
-    tx: (fn) => db.transaction((tx) => fn((s, p = []) => tx.query(s, p))),
     now: () => now,
     previewKeyHash: null,
     _setNow: (d) => (now = d),
     _db: db,
+    _comoRuntime: () => db.exec("set role screener_runtime"),
+    _comoDono: () => db.exec("reset role"),
   };
 }
 const bPublic = `insert into public.screener_event_bindings
@@ -98,10 +99,8 @@ test("credencial de prévia: correta inicia; expirada e revogada negam", async (
   const ctx = await ambiente(bPreview);
   ctx.previewKeyHash = await sha256Hex(PREVIEW);
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 200);
-  // revogada no vínculo
   await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_revoked_at','2026-09-01') where event_slug='preview-interno-ia-v1'`);
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
-  // expirada (hash no vínculo, expira antes de now)
   const h = await sha256Hex(PREVIEW);
   await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text,'preview_expires_at','2026-09-05') where event_slug='preview-interno-ia-v1'`, [h]);
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
@@ -118,14 +117,12 @@ test("PUT rejeita option de outra sessão/instrumento", async () => {
 test("ciclo de vida do token: ausente/malformado/inexistente 404; expirado/revogado 410", async () => {
   const ctx = await ambiente(bPublic);
   const s = await start(ctx);
-  assert.equal((await H.getSession(ctx, { token: undefined })).status, 404); // ausente
-  assert.equal((await H.getSession(ctx, { token: "nao-hex" })).status, 404); // malformado
-  assert.equal((await H.getSession(ctx, { token: "b".repeat(64) })).status, 404); // inexistente/de outra sessão
-  // expirado: avança o relógio além do expires_at (não viola o check de criação)
+  assert.equal((await H.getSession(ctx, { token: undefined })).status, 404);
+  assert.equal((await H.getSession(ctx, { token: "nao-hex" })).status, 404);
+  assert.equal((await H.getSession(ctx, { token: "b".repeat(64) })).status, 404);
   ctx._setNow(new Date("2026-11-01T00:00:00Z"));
   assert.equal((await H.getSession(ctx, { token: s.body.token })).status, 410);
   ctx._setNow(new Date("2026-09-10T12:00:00Z"));
-  // revogado
   await ctx.q(`update public.screener_sessions set revoked_at=now() where id=$1`, [s.body.session_id]);
   assert.equal((await H.getSession(ctx, { token: s.body.token })).status, 410);
 });
@@ -141,7 +138,7 @@ test("happy path: responde, submete, PublicResultV1 com 0–100 e sem bp/estági
   const sub = await H.postSubmit(ctx, { token: s.body.token });
   assert.equal(sub.status, 200, JSON.stringify(sub.body));
   assert.equal(sub.body.contract_version, "PublicResultV1");
-  assert.equal(typeof sub.body.organization.index_display, "number"); // 0–100 presente
+  assert.equal(typeof sub.body.organization.index_display, "number");
   assert.equal(sub.body.individual.dimensions.length, 5);
   const blob = JSON.stringify(sub.body);
   for (const p of ["score_bp", "provisional_cut_bp", "input_checksum", "\"E1\"", "\"E4\"", "stage_code", "weight"])
@@ -176,22 +173,95 @@ test("finalize: respostas mudam entre cálculo e finalização → função reje
   const ctx = await ambiente(bPublic);
   const s = await start(ctx);
   await responderTudo(ctx, s.body.token);
-  // canônico esperado STALE (uma resposta a menos)
+  const th = await sha256Hex(s.body.token);
   const { rows: rs } = await ctx.q(`select item_code, stage_code from public.screener_responses where session_id=$1`, [s.body.session_id]);
   const parcial = rs.slice(1).sort((a, b) => a.item_code < b.item_code ? -1 : 1).map((r) => r.item_code + ":" + r.stage_code).join("|");
   await assert.rejects(
-    ctx.q(`select public.screener_finalize_submission($1,$2,'{"contract_version":"ScoreResultV1"}'::jsonb,$3,$3,'1.0.0','1.0.0')`,
-      [s.body.session_id, parcial, HEX64]),
+    ctx.q(`select public.screener_op_finalize($1,$2,'{"contract_version":"ScoreResultV1"}'::jsonb,$3,$3,'1.0.0','1.0.0')`,
+      [th, parcial, HEX64]),
     (e) => String(e.message).includes("respostas_mudaram"));
-  // nada gravado
   const { rows: snap } = await ctx.q(`select count(*)::int n from public.screener_result_snapshots where session_id=$1`, [s.body.session_id]);
   assert.equal(snap[0].n, 0);
 });
 
-test("nenhuma tabela legada é tocada pelos handlers (estático)", () => {
+// ---------------- FRONTEIRA DE PRIVILÉGIO (screener_runtime) ----------------
+
+test("papel restrito: screener_runtime executa AS 6 OPERAÇÕES só via funções", async () => {
+  const ctx = await ambiente(bPublic);
+  await ctx._comoRuntime();
+  try {
+    const s = await start(ctx);                                   // iniciar
+    assert.equal(s.status, 201, JSON.stringify(s.body));
+    assert.equal((await H.getStart(ctx, { event_slug: "rh-negocios-ia" })).status, 200); // apresentação
+    assert.equal((await H.getSession(ctx, { token: s.body.token })).status, 200);        // retomar
+    await responderTudo(ctx, s.body.token);                                              // salvar
+    assert.equal((await H.postSubmit(ctx, { token: s.body.token })).status, 200);        // finalizar
+    assert.equal((await H.getResult(ctx, { token: s.body.token })).status, 200);         // resultado
+  } finally { await ctx._comoDono(); }
+});
+
+test("papel restrito: NENHUM privilégio direto em tabelas screener_* (SELECT/INSERT/UPDATE/DELETE)", async () => {
+  const ctx = await ambiente(bPublic);
+  for (const t of ["screener_sessions", "screener_responses", "screener_result_snapshots",
+                   "screener_event_bindings", "screener_instrument_versions", "screener_leads"]) {
+    for (const priv of ["select", "insert", "update", "delete"]) {
+      const { rows } = await ctx.q(`select has_table_privilege('screener_runtime', $1, $2) as ok`, [`public.${t}`, priv]);
+      assert.equal(rows[0].ok, false, `screener_runtime tem ${priv} direto em ${t}`);
+    }
+  }
+  // enforcement real: leitura direta como runtime é negada
+  await ctx._comoRuntime();
+  try { await assert.rejects(ctx.q(`select * from public.screener_sessions limit 1`), /permission denied/i); }
+  finally { await ctx._comoDono(); }
+});
+
+test("papel restrito: NÃO acessa tabelas legadas (eventos/respondentes/respostas/relatorios)", async () => {
+  const ctx = await ambiente(bPublic);
+  await ctx._db.exec(`create table public.eventos(id int); create table public.respondentes(id int);
+                      create table public.respostas(id int); create table public.relatorios(id int);`);
+  await ctx._comoRuntime();
+  try {
+    for (const t of ["eventos", "respondentes", "respostas", "relatorios"])
+      await assert.rejects(ctx.q(`select * from public.${t}`), /permission denied/i, `legado ${t}`);
+  } finally { await ctx._comoDono(); }
+});
+
+test("papel restrito: executa AS funções concedidas mas NÃO uma função administrativa", async () => {
+  const ctx = await ambiente(bPublic);
+  await ctx._db.exec(`create function public.admin_fn() returns int language sql as 'select 1';
+                      revoke all on function public.admin_fn() from public;`);
+  await ctx._comoRuntime();
+  try {
+    await assert.rejects(ctx.q(`select public.admin_fn()`), /permission denied/i, "não pode chamar admin_fn");
+    const r = await ctx.q(`select public.screener_op_get_binding('rh-negocios-ia') as r`); // concedida
+    assert.ok(r.rows[0].r && r.rows[0].r.event_slug === "rh-negocios-ia");
+  } finally { await ctx._comoDono(); }
+});
+
+test("papel restrito: não atravessa sessão/vínculo alheios por leitura direta", async () => {
+  const ctx = await ambiente(bPublic);
+  const s = await start(ctx); // sessão criada como dono
+  await ctx._comoRuntime();
+  try {
+    // não consegue ler a tabela de sessões para descobrir token_hash de terceiros
+    await assert.rejects(ctx.q(`select token_hash from public.screener_sessions`), /permission denied/i);
+    // e um token que não conhece devolve vazio pela função (sem vazamento)
+    const r = await ctx.q(`select public.screener_op_resume($1) as r`, ["c".repeat(64)]);
+    assert.equal(r.rows[0].r, null);
+  } finally { await ctx._comoDono(); }
+  // sanidade: a sessão real existe (vista pelo dono)
+  const { rows } = await ctx.q(`select 1 from public.screener_sessions where id=$1`, [s.body.session_id]);
+  assert.equal(rows.length, 1);
+});
+
+test("nenhuma tabela legada nem SQL direto nos handlers (estático)", () => {
   const src = fs.readFileSync(path.resolve(AQUI, "..", "..", "edge", "handlers.mjs"), "utf8");
   for (const legado of ["public.respondentes", "public.eventos", "public.respostas", "public.relatorios"])
     assert.ok(!src.includes(legado), `handlers tocam legado: ${legado}`);
+  // todo acesso é via funções screener_op_*; sem SELECT/INSERT/UPDATE direto em tabela
+  assert.ok(!/from\s+public\.screener_/i.test(src), "handler faz SELECT direto em tabela screener_");
+  assert.ok(!/insert\s+into\s+public\.screener_/i.test(src), "handler faz INSERT direto");
+  assert.ok(!/update\s+public\.screener_(?!op)/i.test(src), "handler faz UPDATE direto");
 });
 
 test("service_role fora dos payloads públicos e sem chave hardcoded na lógica/cola", async () => {

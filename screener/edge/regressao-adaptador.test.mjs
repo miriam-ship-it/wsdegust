@@ -11,9 +11,9 @@ const handlers = readFileSync(join(aqui, "handlers.mjs"), "utf8");
 const wrapper = readFileSync(join(aqui, "..", "..", "supabase", "functions", "screener", "index.ts"), "utf8");
 
 test("finalize recebe o OBJETO do resultado, não JSON.stringify (postgres.js codifica 2x → viola screener_snap_result_obj)", () => {
-  // a chamada a screener_finalize_submission deve passar `resultado,` (objeto),
+  // a chamada a screener_op_finalize deve passar `resultado,` (objeto),
   // nunca `JSON.stringify(resultado)` — senão o snapshot vira jsonb string escalar.
-  assert.ok(/screener_finalize_submission/.test(handlers), "chamada de finalize presente");
+  assert.ok(/screener_op_finalize/.test(handlers), "chamada de finalize presente");
   assert.ok(!/JSON\.stringify\(resultado\)/.test(handlers), "não pode passar JSON.stringify(resultado) ao finalize");
   assert.ok(/\bresultado,\s*instrument_checksum\b/.test(handlers), "deve passar o objeto `resultado` ao finalize");
 });

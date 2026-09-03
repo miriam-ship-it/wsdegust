@@ -16,10 +16,12 @@
 //       conexão direta: sob concorrência de instâncias a direta esgota os slots
 //       ("remaining connection slots are reserved for SUPERUSER").
 //
-// Conexão: injete SUPABASE_DB_POOLER_URL (string do transaction pooler, com
-// senha, como SECRET da função). Sem ela, cai na conexão direta (apenas dev /
-// baixa carga). prepare:false e max:1 por instância — exigidos pelo pooler em
-// transaction mode e pela regra "uma conexão por instância".
+// Conexão: injete SUPABASE_DB_POOLER_URL (transaction pooler, com senha, como
+// SECRET da função). O papel embutido nessa URL DEVE ser `screener_runtime`
+// (LOGIN, NOINHERIT, sem BYPASSRLS, sem privilégio de tabela — só EXECUTE nas 6
+// funções screener_op_*), NUNCA `postgres` amplo. A senha é criada fora da
+// migration e vive só no secret. O fallback SUPABASE_DB_URL (papel postgres,
+// direto) é apenas para dev/baixa carga. prepare:false e max:1 por instância.
 //
 // Token de sessão: SEMPRE via header x-session-token (nunca query string — o
 // gateway registra a URL inteira, e o token na query vazaria nos logs de acesso).
