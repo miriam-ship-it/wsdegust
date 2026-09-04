@@ -213,6 +213,26 @@ identifica a aplicação, não o usuário — não substitui o token de sessão.
 aplicado como `[functions.screener] verify_jwt = false` no `config.toml` no passo
 do deploy da edge (não nesta etapa).
 
+## Deploy em produção (04/09/2026) — estado e precisões
+Edge `screener` **ACTIVE em `internal_preview`**, `verify_jwt=false`, conectando como
+`screener_runtime` pelo transaction pooler (secret `SCREENER_DB_POOLER_URL`). Smoke de
+prod verde (só `GET /start`).
+
+Precisões de registro:
+- **`internal_preview` NÃO torna a edge privada.** Com `verify_jwt=false`, a **URL é
+  acessível na rede**; o que fica bloqueado é o **acesso funcional**, pelas regras do
+  screener (credencial de prévia, token, estado/vigência, RPCs restritas).
+- O smoke de prod validou `GET /start` e seus metadados. A **projeção dos itens não
+  foi reexecutada em prod** (exigiria `POST /start`, proibido) — segue coberta pela
+  prova integral do branch. Cobertura deliberadamente limitada, não falha.
+
+Incidente controlado de teste (logs): a credencial temporária de prévia apareceu numa
+**query** de um teste que provava que a query é ignorada (404). Já **revogada e
+apagada**, sem reutilização e sem risco residual conhecido; **padrão proibido** em
+testes futuros. O `UPDATE` administrativo de seed registrou o **hash** (SHA-256) no
+log — não é a chave pública do usuário, mas participa da autorização interna: a
+**próxima carga de credencial deve ser parametrizada**, sem imprimir hash/statement.
+
 ## Fora de escopo do corte 3
 Deploy, exposição da rota, ativação (`public_pilot`), `screener.html`, painel,
 edição do legado. Nada disso é tocado.
