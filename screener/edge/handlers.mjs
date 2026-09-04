@@ -54,7 +54,7 @@ function mapErroSql(e) {
 // ---------- GET /start (obter apresentação) ----------
 export async function getStart(ctx, { event_slug, previewKey }) {
   if (!event_slug) return resp(400, { error: "event_slug_obrigatorio" });
-  const binding = await rpc(ctx, "screener_op_get_binding", [event_slug]);
+  const binding = await rpc(ctx, "screener_op_get_binding", [event_slug, previewKey ?? null]);
   if (!binding) return resp(404, { error: "nao_encontrado" });
   const cap = capacidades(binding, ctx.now(), await temCredencialPrevia(previewKey, binding, ctx));
   if (!cap.autorizado) return resp(404, { error: "nao_encontrado" }); // slug não concede acesso
@@ -74,7 +74,7 @@ export async function getStart(ctx, { event_slug, previewKey }) {
 // ---------- POST /start (iniciar sessão) ----------
 export async function postStart(ctx, { event_slug, previewKey, privacy_ack, privacy_notice_version }) {
   if (!event_slug) return resp(400, { error: "event_slug_obrigatorio" });
-  const binding = await rpc(ctx, "screener_op_get_binding", [event_slug]);
+  const binding = await rpc(ctx, "screener_op_get_binding", [event_slug, previewKey ?? null]);
   if (!binding) return resp(404, { error: "nao_encontrado" });
   const cap = capacidades(binding, ctx.now(), await temCredencialPrevia(previewKey, binding, ctx));
   if (!cap.autorizado) return resp(404, { error: "nao_encontrado" });
@@ -91,7 +91,7 @@ export async function postStart(ctx, { event_slug, previewKey, privacy_ack, priv
   const expires = new Date(now.getTime() + TTL_MS).toISOString();
   let criada;
   try {
-    criada = await rpc(ctx, "screener_op_start", [event_slug, token_hash, vigente, now.toISOString(), expires]);
+    criada = await rpc(ctx, "screener_op_start", [event_slug, token_hash, vigente, now.toISOString(), expires, previewKey ?? null]);
   } catch (e) { return mapErroSql(e); }
 
   const pub = projecaoPublica(instrumento, { sessionSeed: token, assessmentUnitName: unidadeNome(binding) });
@@ -106,7 +106,7 @@ export async function postStart(ctx, { event_slug, previewKey, privacy_ack, priv
 // ---------- GET /session (retomar sessão) ----------
 export async function getSession(ctx, { token, previewKey }) {
   const th = await hashToken(token || "");
-  const data = await rpc(ctx, "screener_op_resume", [th]);
+  const data = await rpc(ctx, "screener_op_resume", [th, previewKey ?? null]);
   if (!data) return resp(404, { error: "sessao_nao_encontrada" });
   const binding = data.binding, sess = data.session;
   const cap = capacidades(binding, ctx.now(), await temCredencialPrevia(previewKey, binding, ctx));
@@ -136,7 +136,7 @@ export async function getSession(ctx, { token, previewKey }) {
 // ---------- PUT /response (salvar resposta) ----------
 export async function putResponse(ctx, { token, item_id, option_id, previewKey }) {
   const th = await hashToken(token || "");
-  const data = await rpc(ctx, "screener_op_resume", [th]);
+  const data = await rpc(ctx, "screener_op_resume", [th, previewKey ?? null]);
   if (!data) return resp(404, { error: "sessao_nao_encontrada" });
   const binding = data.binding, sess = data.session;
   const cap = capacidades(binding, ctx.now(), await temCredencialPrevia(previewKey, binding, ctx));
@@ -152,7 +152,7 @@ export async function putResponse(ctx, { token, item_id, option_id, previewKey }
 
   let saved;
   try {
-    saved = await rpc(ctx, "screener_op_save_response", [th, alvo.item_code, alvo.stage_code]);
+    saved = await rpc(ctx, "screener_op_save_response", [th, alvo.item_code, alvo.stage_code, previewKey ?? null]);
   } catch (e) { return mapErroSql(e); } // função trava a sessão e revalida atomicamente
   return resp(200, { ok: true, progress: { answered: saved.answered, total: instrumento.items.length } });
 }
@@ -160,7 +160,7 @@ export async function putResponse(ctx, { token, item_id, option_id, previewKey }
 // ---------- POST /submit (finalizar submissão) ----------
 export async function postSubmit(ctx, { token, previewKey }) {
   const th = await hashToken(token || "");
-  const data = await rpc(ctx, "screener_op_resume", [th]);
+  const data = await rpc(ctx, "screener_op_resume", [th, previewKey ?? null]);
   if (!data) return resp(404, { error: "sessao_nao_encontrada" });
   const binding = data.binding, sess = data.session;
   const cap = capacidades(binding, ctx.now(), await temCredencialPrevia(previewKey, binding, ctx));
@@ -168,7 +168,7 @@ export async function postSubmit(ctx, { token, previewKey }) {
 
   // já submetida → idempotente: devolve o MESMO snapshot
   if (sess.status === "submitted") {
-    const got = await rpc(ctx, "screener_op_get_result", [th]);
+    const got = await rpc(ctx, "screener_op_get_result", [th, previewKey ?? null]);
     if (!got || !got.result) return resp(409, { error: "submetida_sem_snapshot" });
     return resp(200, paraPublico(got.result));
   }
@@ -180,7 +180,7 @@ export async function postSubmit(ctx, { token, previewKey }) {
   const instrument_checksum = checksum();
   let ultimoErro = null;
   for (let tentativa = 0; tentativa < 3; tentativa++) {
-    const atual = tentativa === 0 ? data : await rpc(ctx, "screener_op_resume", [th]);
+    const atual = tentativa === 0 ? data : await rpc(ctx, "screener_op_resume", [th, previewKey ?? null]);
     if (!atual) return resp(404, { error: "sessao_nao_encontrada" });
     const respostas = {};
     for (const r of atual.responses) respostas[r.item_code] = r.stage_code;
@@ -192,7 +192,7 @@ export async function postSubmit(ctx, { token, previewKey }) {
     const input_checksum = await sha256Hex(canon);
     try {
       const fin = await rpc(ctx, "screener_op_finalize",
-        [th, canon, resultado, instrument_checksum, input_checksum, resultado.scoring_version, resultado.report_version]);
+        [th, canon, resultado, instrument_checksum, input_checksum, resultado.scoring_version, resultado.report_version, previewKey ?? null]);
       return resp(200, paraPublico(fin.result));
     } catch (e) {
       ultimoErro = e;
@@ -208,7 +208,7 @@ export async function postSubmit(ctx, { token, previewKey }) {
 // ---------- GET /result (obter resultado) ----------
 export async function getResult(ctx, { token, previewKey }) {
   const th = await hashToken(token || "");
-  const data = await rpc(ctx, "screener_op_get_result", [th]);
+  const data = await rpc(ctx, "screener_op_get_result", [th, previewKey ?? null]);
   if (!data) return resp(404, { error: "sessao_nao_encontrada" });
   const binding = data.binding, sess = data.session;
   const cap = capacidades(binding, ctx.now(), await temCredencialPrevia(previewKey, binding, ctx));

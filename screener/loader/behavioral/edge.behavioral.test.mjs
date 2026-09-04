@@ -26,7 +26,7 @@ async function ambiente(bindingSql) {
   await db.exec(RPC); // papéis + propriedade + 6 funções SECURITY DEFINER + grants
   await db.query(
     `insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
-     values ($1,$2,'{}'::jsonb,$3,'inactive')`, [IC, IV, HEX64]);
+     values ($1,$2,$3,$4,'inactive')`, [IC, IV, instrumento, HEX64]); // definição real p/ pertencimento
   await db.exec(bindingSql);
   let now = new Date("2026-09-10T12:00:00Z");
   return {
@@ -95,14 +95,18 @@ test("internal_preview: sem credencial nega TODAS as rotas (slug não concede ac
   ]) assert.equal((await call).status, 404);
 });
 
-test("credencial de prévia: correta inicia; expirada e revogada negam", async () => {
+test("credencial de prévia (hash no vínculo): correta inicia; errada/expirada/revogada negam", async () => {
   const ctx = await ambiente(bPreview);
-  ctx.previewKeyHash = await sha256Hex(PREVIEW);
-  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 200);
-  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_revoked_at','2026-09-01') where event_slug='preview-interno-ia-v1'`);
-  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
   const h = await sha256Hex(PREVIEW);
-  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text,'preview_expires_at','2026-09-05') where event_slug='preview-interno-ia-v1'`, [h]);
+  ctx.previewKeyHash = h; // checagem redundante da edge (a função usa o hash do vínculo)
+  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text) where event_slug='preview-interno-ia-v1'`, [h]);
+  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 200);
+  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: "errada" })).status, 404);
+  // revogada no vínculo (data no passado p/ ser determinístico contra now() real)
+  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text,'preview_revoked_at','2020-01-01T00:00:00Z') where event_slug='preview-interno-ia-v1'`, [h]);
+  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
+  // expirada
+  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text,'preview_expires_at','2020-01-01T00:00:00Z') where event_slug='preview-interno-ia-v1'`, [h]);
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
 });
 
@@ -252,6 +256,51 @@ test("papel restrito: não atravessa sessão/vínculo alheios por leitura direta
   // sanidade: a sessão real existe (vista pelo dono)
   const { rows } = await ctx.q(`select 1 from public.screener_sessions where id=$1`, [s.body.session_id]);
   assert.equal(rows.length, 1);
+});
+
+test("contornar a edge (runtime direto): sessão inexistente, item fora, estágio inválido, após submit", async () => {
+  const ctx = await ambiente(bPublic);
+  const aberta = await start(ctx);                  // aberta, sem respostas
+  const thAberta = await sha256Hex(aberta.body.token);
+  const submetida = await start(ctx);
+  await responderTudo(ctx, submetida.body.token);
+  await H.postSubmit(ctx, { token: submetida.body.token });
+  const thSub = await sha256Hex(submetida.body.token);
+  const itemReal = instrumento.items[0].code;
+
+  await ctx._comoRuntime();
+  try {
+    // sessão inexistente/alheia: resume vazio; save levanta
+    assert.equal((await ctx.q(`select public.screener_op_resume($1,null) as r`, ["d".repeat(64)])).rows[0].r, null);
+    await assert.rejects(ctx.q(`select public.screener_op_save_response($1,$2,'E3',null) as r`, ["d".repeat(64), itemReal]), /sessao_inexistente/);
+    // estágio inválido e item fora do instrumento
+    await assert.rejects(ctx.q(`select public.screener_op_save_response($1,$2,'E9',null) as r`, [thAberta, itemReal]), /estagio_invalido/);
+    await assert.rejects(ctx.q(`select public.screener_op_save_response($1,'ITEM_FALSO','E3',null) as r`, [thAberta]), /item_fora_do_instrumento/);
+    // resposta após submissão
+    await assert.rejects(ctx.q(`select public.screener_op_save_response($1,$2,'E3',null) as r`, [thSub, itemReal]), /sessao_nao_aberta/);
+  } finally { await ctx._comoDono(); }
+});
+
+test("contornar a edge (runtime direto): prévia sem autorização e vínculo fechado", async () => {
+  const ctx = await ambiente(bPreview);
+  const h = await sha256Hex(PREVIEW);
+  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text) where event_slug='preview-interno-ia-v1'`, [h]);
+  await ctx._comoRuntime();
+  try {
+    // start sem credencial / errada → previa_nao_autorizada; get_binding sem credencial → null
+    await assert.rejects(ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',null) as r`, ["e".repeat(64)]), /previa_nao_autorizada/);
+    await assert.rejects(ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day','errada') as r`, ["e".repeat(64)]), /previa_nao_autorizada/);
+    assert.equal((await ctx.q(`select public.screener_op_get_binding('preview-interno-ia-v1',null) as r`)).rows[0].r, null);
+    // com a credencial certa → cria
+    const ok = await ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',$2) as r`, ["f".repeat(64), PREVIEW]);
+    assert.ok(ok.rows[0].r.session_id);
+  } finally { await ctx._comoDono(); }
+  // vínculo fechado bloqueia início (mesmo com credencial)
+  await ctx.q(`update public.screener_event_bindings set status='closed' where event_slug='preview-interno-ia-v1'`);
+  await ctx._comoRuntime();
+  try {
+    await assert.rejects(ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',$2) as r`, ["a".repeat(64), PREVIEW]), /indisponivel/);
+  } finally { await ctx._comoDono(); }
 });
 
 test("nenhuma tabela legada nem SQL direto nos handlers (estático)", () => {

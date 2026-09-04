@@ -67,28 +67,47 @@ dimensões tem resultado mensurável.
 
 ## Fronteira de segurança: papéis + RPC `SECURITY DEFINER`
 Migration `20260903120000_screener_rpc_e_papeis.sql`. A edge pública **não conecta
-como `postgres` amplo** e **não faz SQL direto** — toda leitura/escrita passa por
-funções.
+como `postgres` amplo** e **não faz SQL direto** — toda leitura/escrita passa por 6
+funções. **As funções são a fronteira**: elas mesmas verificam tudo; a edge repete a
+checagem de credencial como defesa em profundidade.
 
-- **`screener_owner`** (`NOLOGIN`): dono só dos objetos `screener_*`. É o contexto
-  em que as funções `SECURITY DEFINER` rodam — privilégio mínimo, não vê o legado.
-- **`screener_runtime`** (`LOGIN`, `NOINHERIT`, sem `BYPASSRLS`): papel embutido na
-  `SUPABASE_DB_POOLER_URL`. Recebe só `USAGE` no schema e `EXECUTE` nas 6 funções —
-  **nenhuma permissão de tabela**. Senha criada fora da migration (secret).
-- **6 funções** (`SECURITY DEFINER`, `search_path=''`, objetos qualificados, sem SQL
-  dinâmica; `EXECUTE` revogado de public/anon/authenticated/service_role, concedido
-  só a `screener_runtime`), uma por operação:
-  `screener_op_get_binding` (apresentação), `screener_op_start` (iniciar),
-  `screener_op_resume` (retomar), `screener_op_save_response` (salvar, trava+revalida),
-  `screener_op_finalize` (finalizar: idempotente, confere canônico `collate "C"` →
-  `respostas_mudaram` senão, snapshot idempotente, fecha), `screener_op_get_result`.
+- **`screener_owner`** — `NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+  NOREPLICATION NOBYPASSRLS`. Dono de **todos** os objetos `screener_*` (tabelas,
+  sequences, funções e a trigger de imutabilidade). Contexto (mínimo) dos DEFINER —
+  não é `postgres`, não vê o legado.
+- **`screener_runtime`** — iguais bloqueios, mas `LOGIN`. Papel embutido na
+  `SUPABASE_DB_POOLER_URL`. Só `USAGE` no schema + `EXECUTE` nas 6 funções.
+  **Nenhum privilégio direto** de tabela, sequence ou objeto legado. Senha só fora
+  da migration (secret).
+- **6 funções** `screener_op_*` (`SECURITY DEFINER`, `search_path=''`, objetos
+  `public.*` qualificados, **sem SQL dinâmica**; `EXECUTE` revogado de
+  `public/anon/authenticated/service_role`, concedido só a `screener_runtime`). Um
+  helper privado `screener_priv_previa_ok` (não concedido a ninguém) confere a
+  credencial de prévia hasheando a chave crua (`sha256`) contra o hash do vínculo +
+  revogação + expiração.
 
-O cálculo (motor `.mjs`), a projeção, a checagem de credencial/consentimento e o
-mapeamento de ids opacos seguem na edge; a persistência e a atomicidade vivem nas
-funções. Provado em pglite (testes comportamentais) que `screener_runtime`: executa
-as 6 operações **só** via funções; **não** faz SELECT/INSERT/UPDATE/DELETE direto em
-tabela; **não** acessa o legado (`eventos`/`respondentes`/`respostas`/`relatorios`);
-**não** chama função administrativa; **não** atravessa sessão/vínculo alheios.
+Cada função verifica: vínculo/status/vigência · token/expiração/revogação · sessão
+aberta antes da escrita · **credencial de prévia** (internal_preview) · pertencimento
+ao instrumento (item ∈ definição; estágio válido) · checksum canônico na finalização
+(`collate "C"`) · idempotência e trava `for update`.
+
+### Matriz de privilégios (provada em pglite)
+| Objeto / ação | `screener_runtime` | `anon`/`authenticated`/`service_role` | `public` |
+|---|---|---|---|
+| `USAGE` no schema `public` | ✅ | — | — |
+| `EXECUTE` nas 6 `screener_op_*` | ✅ | ❌ (revogado) | ❌ (revogado) |
+| `EXECUTE` em `screener_priv_previa_ok` | ❌ | ❌ | ❌ |
+| SELECT/INSERT/UPDATE/DELETE em tabelas `screener_*` | ❌ | (grants do schema) | ❌ |
+| Sequences `screener_*` | ❌ | — | — |
+| Tabelas legadas (`eventos`…) | ❌ | (grants próprios) | — |
+| Função administrativa não concedida | ❌ | — | ❌ |
+
+Testes chamando as funções **direto como `screener_runtime`, contornando a edge**,
+falham para: sessão inexistente/alheia, token inválido, item fora do instrumento,
+estágio inválido, resposta após submissão, prévia sem autorização (ausente/errada/
+expirada/revogada) e vínculo fechado. `SET ROLE` prova privilégio, **não** prova
+autenticação pelo pooler — isso é obrigatório no 2º branch (conectar de fato como
+`screener_runtime` com senha temporária e confirmar `current_user`).
 
 ## Matriz de estados (vínculo × vigência × credencial)
 `dentro_vigencia` = (`starts_at` nulo ou `now≥starts_at`) e (`ends_at` nulo ou `now≤ends_at`).
