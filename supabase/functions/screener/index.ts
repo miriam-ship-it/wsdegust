@@ -16,8 +16,9 @@
 //       conexão direta: sob concorrência de instâncias a direta esgota os slots
 //       ("remaining connection slots are reserved for SUPERUSER").
 //
-// Conexão: injete SUPABASE_DB_POOLER_URL (transaction pooler, com senha, como
-// SECRET da função). O papel embutido nessa URL DEVE ser `screener_runtime`
+// Conexão: injete SCREENER_DB_POOLER_URL (transaction pooler, com senha, como
+// SECRET da função; o prefixo SUPABASE_ é reservado). O papel dessa URL DEVE ser
+// `screener_runtime`
 // (LOGIN, NOINHERIT, sem BYPASSRLS, sem privilégio de tabela — só EXECUTE nas 6
 // funções screener_op_*), NUNCA `postgres` amplo. A senha é criada fora da
 // migration e vive só no secret. O fallback SUPABASE_DB_URL (papel postgres,
@@ -28,7 +29,8 @@
 import postgres from "npm:postgres@3";
 import * as H from "../../../screener/edge/handlers.mjs";
 
-const dbUrl = Deno.env.get("SUPABASE_DB_POOLER_URL") ?? Deno.env.get("SUPABASE_DB_URL")!;
+// nome do secret NÃO pode começar com SUPABASE_ (prefixo reservado pelo Supabase)
+const dbUrl = Deno.env.get("SCREENER_DB_POOLER_URL") ?? Deno.env.get("SUPABASE_DB_URL")!;
 const sql = postgres(dbUrl, { prepare: false, max: 1 });
 
 const ctx = {

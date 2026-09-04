@@ -49,13 +49,19 @@ begin
   end if;
 end $$;
 
--- 2) PAPÉIS (atributos explícitos; senha nunca aqui) --------------------------
+-- 2) PAPÉIS -------------------------------------------------------------------
+-- SUPERUSER/REPLICATION/BYPASSRLS não podem ser setados sem ser superuser (o
+-- admin do Supabase não é) — MAS são NO por padrão em papel recém-criado, que é
+-- exatamente o estado desejado. CREATEDB/CREATEROLE também são NO por padrão.
+-- Só firmamos explicitamente LOGIN/NOLOGIN e NOINHERIT (permitidos ao admin).
+-- Resultado (verificado em teste): ambos NOSUPERUSER NOCREATEDB NOCREATEROLE
+-- NOREPLICATION NOBYPASSRLS NOINHERIT; owner NOLOGIN, runtime LOGIN.
 do $$
 begin
-  if not exists (select 1 from pg_roles where rolname = 'screener_owner')   then create role screener_owner   nologin; end if;
-  if not exists (select 1 from pg_roles where rolname = 'screener_runtime') then create role screener_runtime  login; end if;
-  alter role screener_owner   nologin noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls;
-  alter role screener_runtime  login  noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls;
+  if not exists (select 1 from pg_roles where rolname = 'screener_owner')   then create role screener_owner   nologin noinherit; end if;
+  if not exists (select 1 from pg_roles where rolname = 'screener_runtime') then create role screener_runtime  login  noinherit; end if;
+  alter role screener_owner   nologin noinherit;   -- idempotente, sem tocar atributos de superuser
+  alter role screener_runtime  login  noinherit;
 end $$;
 -- membership temporária só para reatribuir propriedade (revogada no fim)
 grant screener_owner to current_user;
@@ -219,6 +225,19 @@ begin
 end $$;
 
 -- 5) PROPRIEDADE -> screener_owner (LISTA FECHADA, assinaturas completas) --------
+-- Para SER dono de objetos em `public`, screener_owner precisa de CREATE no schema
+-- (regra do ALTER ... OWNER). `public` é de pg_database_owner; postgres é membro do
+-- banco/owner e concede AGINDO como pg_database_owner. CREATE é TRANSITÓRIO: revogado
+-- ao fim (o dono mantém acesso total aos objetos que possui, sem CREATE de schema).
+do $$
+begin
+  grant create on schema public to screener_owner;            -- superuser (pglite) resolve direto
+exception when insufficient_privilege then
+  set local role pg_database_owner;                            -- Supabase: postgres é membro do dono do schema
+  grant create on schema public to screener_owner;
+  reset role;
+end $$;
+
 alter table    public.screener_instrument_versions owner to screener_owner;
 alter table    public.screener_event_bindings      owner to screener_owner;
 alter table    public.screener_sessions            owner to screener_owner;
@@ -236,7 +255,9 @@ alter function public.screener_op_finalize(text, text, jsonb, text, text, text, 
 alter function public.screener_op_get_result(text, text) owner to screener_owner;
 
 -- 6) PRIVILÉGIOS (assinaturas completas; service_role declarado explicitamente) --
-grant usage on schema public to screener_runtime;
+-- USAGE em `public` já vem do grant padrão a PUBLIC (o schema é de pg_database_owner;
+-- postgres não pode reconceder). screener_runtime herda USAGE por PUBLIC — o que
+-- basta para EXECUTE; nenhum privilégio de objeto vem daí (todos revogados abaixo).
 
 -- zero privilégio direto de tabela/sequence para screener_runtime E service_role
 revoke all on table public.screener_instrument_versions, public.screener_event_bindings,
@@ -262,5 +283,13 @@ grant execute on function public.screener_op_save_response(text, text, text, tex
 grant execute on function public.screener_op_finalize(text, text, jsonb, text, text, text, text, text) to screener_runtime;
 grant execute on function public.screener_op_get_result(text, text)                                    to screener_runtime;
 
--- 7) sem membership entre screener_* e papéis amplos: revoga a temporária --------
+-- 7) fecha a fronteira: revoga o CREATE transitório do owner e a membership temporária
+do $$
+begin
+  revoke create on schema public from screener_owner;
+exception when insufficient_privilege then
+  set local role pg_database_owner;
+  revoke create on schema public from screener_owner;
+  reset role;
+end $$;
 revoke screener_owner from current_user;

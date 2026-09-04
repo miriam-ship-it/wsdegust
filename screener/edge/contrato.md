@@ -116,9 +116,30 @@ não por prefixo; grants/revokes por **assinatura completa**.)
 Testes chamando as funções **direto como `screener_runtime`, contornando a edge**,
 falham para: sessão inexistente/alheia, token inválido, item fora do instrumento,
 estágio inválido, resposta após submissão, prévia sem autorização (ausente/errada/
-expirada/revogada) e vínculo fechado. `SET ROLE` prova privilégio, **não** prova
-autenticação pelo pooler — obrigatório no 2º branch: conectar de fato como
-`screener_runtime` com senha temporária e confirmar `current_user`.
+expirada/revogada) e vínculo fechado.
+
+### Validado em 2º branch efêmero do Supabase (04/09/2026)
+Branch descartável (sem dados de prod, apagado ao fim; ~US$ 0,01). Provado contra o
+Postgres/pooler reais, **conectando de fato como `screener_runtime`** (senha
+temporária via verifier SCRAM, `prepare:false`, `max:1`): `select current_user` =
+`screener_runtime`. As 6 operações por HTTP pela edge (que conecta como
+`screener_runtime`); prévia bloqueada sem credencial; credencial expirada/revogada e
+sessão expirada/revogada negadas; vínculo fechado e fora da vigência negados; 8
+submits simultâneos → 1 snapshot; PUT concorrente não altera o pontuado; token bruto
+não persistido; `PublicResultV1` 0–100 sem pontuação por alternativa. Conectado como
+`screener_runtime`, negado SELECT/INSERT nas 6 tabelas, na sequence, no legado e no
+helper; `service_role`/`anon`/`authenticated` sem EXECUTE e sem acesso. **Logs
+limpos**: o Postgres redige a senha (`password '{REDACTED}'`); sem token bruto, chave
+de prévia ou URL de banco.
+
+Adaptações que o Supabase real exigiu (aplicadas na migration): atributos
+superuser/replication/bypassrls **não** são setados explicitamente (exigem superuser;
+já são o default seguro); `screener_owner` recebe `CREATE` **transitório** em `public`
+(via `pg_database_owner`) para poder ser dono, revogado ao fim; o secret **não** pode
+começar com `SUPABASE_` → **`SCREENER_DB_POOLER_URL`**. Achado do PG16: `CREATE ROLE`
+deixa o criador (`postgres`) como **membro admin** dos papéis novos, que um `revoke`
+simples não remove — mas isso é só administrativo: verificado que `postgres` **não**
+herda nem consegue `SET ROLE` `screener_owner` (sem acesso a dados).
 
 ## Matriz de estados (vínculo × vigência × credencial)
 `dentro_vigencia` = (`starts_at` nulo ou `now≥starts_at`) e (`ends_at` nulo ou `now≤ends_at`).
