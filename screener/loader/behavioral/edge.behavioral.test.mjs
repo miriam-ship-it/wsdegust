@@ -49,14 +49,14 @@ const bPreview = `insert into public.screener_event_bindings
 const start = (ctx, opts = {}) =>
   H.postStart(ctx, { event_slug: "rh-negocios-ia", privacy_ack: true, privacy_notice_version: "v1", ...opts });
 
-async function responderTudo(ctx, token, { naItem } = {}) {
+async function responderTudo(ctx, token, { naItem, previewKey } = {}) {
   const pub = projecaoPublica(instrumento, { sessionSeed: token });
   const porItemStage = new Map();
   for (const [optId, alvo] of Object.entries(pub.mapping.options)) porItemStage.set(alvo.item + "|" + alvo.stage, optId);
   for (const b of pub.blocks) for (const it of b.items) {
     const code = pub.mapping.items[it.id];
     const stage = (naItem && code === naItem) ? "NA" : "E3";
-    const r = await H.putResponse(ctx, { token, item_id: it.id, option_id: porItemStage.get(code + "|" + stage) });
+    const r = await H.putResponse(ctx, { token, item_id: it.id, option_id: porItemStage.get(code + "|" + stage), previewKey });
     assert.equal(r.status, 200, `putResponse ${code}: ${JSON.stringify(r.body)}`);
   }
 }
@@ -95,18 +95,18 @@ test("internal_preview: sem credencial nega TODAS as rotas (slug não concede ac
   ]) assert.equal((await call).status, 404);
 });
 
-test("credencial de prévia (hash no vínculo): correta inicia; errada/expirada/revogada negam", async () => {
+test("credencial de prévia (colunas dedicadas; edge manda só o hash): correta/errada/ausente/revogada/expirada", async () => {
   const ctx = await ambiente(bPreview);
   const h = await sha256Hex(PREVIEW);
-  ctx.previewKeyHash = h; // checagem redundante da edge (a função usa o hash do vínculo)
-  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text) where event_slug='preview-interno-ia-v1'`, [h]);
+  await ctx.q(`update public.screener_event_bindings set preview_credential_hash=$1 where event_slug='preview-interno-ia-v1'`, [h]);
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 200);
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: "errada" })).status, 404);
-  // revogada no vínculo (data no passado p/ ser determinístico contra now() real)
-  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text,'preview_revoked_at','2020-01-01T00:00:00Z') where event_slug='preview-interno-ia-v1'`, [h]);
+  assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1" })).status, 404); // sem chave
+  // revogada (data no passado p/ ser determinístico contra now() real)
+  await ctx.q(`update public.screener_event_bindings set preview_revoked_at='2020-01-01T00:00:00Z' where event_slug='preview-interno-ia-v1'`);
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
   // expirada
-  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text,'preview_expires_at','2020-01-01T00:00:00Z') where event_slug='preview-interno-ia-v1'`, [h]);
+  await ctx.q(`update public.screener_event_bindings set preview_revoked_at=null, preview_expires_at='2020-01-01T00:00:00Z' where event_slug='preview-interno-ia-v1'`);
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
 });
 
@@ -283,24 +283,116 @@ test("contornar a edge (runtime direto): sessão inexistente, item fora, estági
 
 test("contornar a edge (runtime direto): prévia sem autorização e vínculo fechado", async () => {
   const ctx = await ambiente(bPreview);
-  const h = await sha256Hex(PREVIEW);
-  await ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object('preview_credential_sha256',$1::text) where event_slug='preview-interno-ia-v1'`, [h]);
+  const h = await sha256Hex(PREVIEW); // a função recebe o HASH, nunca a chave crua
+  await ctx.q(`update public.screener_event_bindings set preview_credential_hash=$1 where event_slug='preview-interno-ia-v1'`, [h]);
   await ctx._comoRuntime();
   try {
-    // start sem credencial / errada → previa_nao_autorizada; get_binding sem credencial → null
+    // start sem hash / hash errado → previa_nao_autorizada; get_binding sem hash → null
     await assert.rejects(ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',null) as r`, ["e".repeat(64)]), /previa_nao_autorizada/);
-    await assert.rejects(ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day','errada') as r`, ["e".repeat(64)]), /previa_nao_autorizada/);
+    await assert.rejects(ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',$2) as r`, ["e".repeat(64), "b".repeat(64)]), /previa_nao_autorizada/);
     assert.equal((await ctx.q(`select public.screener_op_get_binding('preview-interno-ia-v1',null) as r`)).rows[0].r, null);
-    // com a credencial certa → cria
-    const ok = await ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',$2) as r`, ["f".repeat(64), PREVIEW]);
+    // com o HASH certo → cria
+    const ok = await ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',$2) as r`, ["f".repeat(64), h]);
     assert.ok(ok.rows[0].r.session_id);
   } finally { await ctx._comoDono(); }
   // vínculo fechado bloqueia início (mesmo com credencial)
   await ctx.q(`update public.screener_event_bindings set status='closed' where event_slug='preview-interno-ia-v1'`);
   await ctx._comoRuntime();
   try {
-    await assert.rejects(ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',$2) as r`, ["a".repeat(64), PREVIEW]), /indisponivel/);
+    await assert.rejects(ctx.q(`select public.screener_op_start('preview-interno-ia-v1',$1,'v1',now(),now()+interval '1 day',$2) as r`, ["a".repeat(64), h]), /indisponivel/);
   } finally { await ctx._comoDono(); }
+});
+
+test("branding REJEITA campos de credencial (CHECK); colunas dedicadas aceitam", async () => {
+  const ctx = await ambiente(bPreview);
+  for (const chave of ["preview_credential_sha256", "preview_credential_hash", "preview_expires_at", "preview_revoked_at"]) {
+    await assert.rejects(
+      ctx.q(`update public.screener_event_bindings set branding=jsonb_build_object($1::text,'x') where event_slug='preview-interno-ia-v1'`, [chave]),
+      /screener_bind_branding_sem_credencial|violates check/i, `branding aceitou ${chave}`);
+  }
+  // hash inválido (não-hex) rejeitado; hash válido aceito
+  await assert.rejects(ctx.q(`update public.screener_event_bindings set preview_credential_hash='xyz' where event_slug='preview-interno-ia-v1'`), /screener_bind_previa_hash_hex|violates check/i);
+  await ctx.q(`update public.screener_event_bindings set preview_credential_hash=$1 where event_slug='preview-interno-ia-v1'`, ["a".repeat(64)]); // ok
+});
+
+test("não vazamento: nenhuma resposta pública contém hash/expiração/revogação da prévia", async () => {
+  const ctx = await ambiente(bPreview);
+  const h = await sha256Hex(PREVIEW);
+  await ctx.q(`update public.screener_event_bindings set preview_credential_hash=$1, preview_expires_at='2099-01-01' where event_slug='preview-interno-ia-v1'`, [h]);
+  const pk = { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW };
+  const gs = await H.getStart(ctx, pk);
+  const st = await H.postStart(ctx, { ...pk, privacy_ack: true, privacy_notice_version: "v1" });
+  await responderTudo(ctx, st.body.token, { previewKey: PREVIEW }); // preview exige credencial na escrita
+  const sub = await H.postSubmit(ctx, { token: st.body.token, previewKey: PREVIEW });
+  const rr = await H.getResult(ctx, { token: st.body.token, previewKey: PREVIEW });
+  const alvos = [h, "preview_credential", "preview_expires_at", "preview_revoked_at"];
+  for (const r of [gs.body, st.body, sub.body, rr.body]) {
+    const blob = JSON.stringify(r);
+    for (const a of alvos) assert.ok(!blob.includes(a), `vazou "${a}" em ${JSON.stringify(r).slice(0,60)}`);
+  }
+});
+
+test("não vazamento: a CHAVE CRUA não chega ao adaptador SQL (só o hash)", async () => {
+  const ctx = await ambiente(bPreview);
+  const h = await sha256Hex(PREVIEW);
+  await ctx.q(`update public.screener_event_bindings set preview_credential_hash=$1 where event_slug='preview-interno-ia-v1'`, [h]);
+  const capturados = [];
+  const qOrig = ctx.q;
+  ctx.q = (sql, params = []) => { capturados.push(...params.map((p) => String(p))); return qOrig(sql, params); };
+  const st = await H.postStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW, privacy_ack: true, privacy_notice_version: "v1" });
+  await H.getSession(ctx, { token: st.body.token, previewKey: PREVIEW });
+  ctx.q = qOrig;
+  assert.ok(!capturados.includes(PREVIEW), "a chave crua apareceu como parâmetro SQL");
+  assert.ok(capturados.includes(h), "o hash da prévia deveria ter sido enviado");
+});
+
+test("service_role: não executa as 6 operações nem acessa tabelas do screener", async () => {
+  const ctx = await ambiente(bPublic);
+  // sem privilégio direto
+  for (const p of ["select", "insert", "update", "delete"]) {
+    const { rows } = await ctx.q(`select has_table_privilege('service_role','public.screener_sessions',$1) as ok`, [p]);
+    assert.equal(rows[0].ok, false, `service_role tem ${p} em screener_sessions`);
+  }
+  // sem EXECUTE nas operações
+  const { rows: ex } = await ctx.q(`select has_function_privilege('service_role','public.screener_op_get_binding(text,text)','execute') as ok`);
+  assert.equal(ex[0].ok, false, "service_role executa screener_op_get_binding");
+  // enforcement real
+  await ctx._db.exec("set role service_role");
+  try {
+    await assert.rejects(ctx.q(`select * from public.screener_sessions limit 1`), /permission denied/i);
+    await assert.rejects(ctx.q(`select public.screener_op_get_binding('rh-negocios-ia',null)`), /permission denied/i);
+  } finally { await ctx._db.exec("reset role"); }
+});
+
+test("papéis: atributos exatos e sem memberships inesperadas", async () => {
+  const ctx = await ambiente(bPublic);
+  const { rows } = await ctx.q(`select rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls, rolinherit
+    from pg_roles where rolname in ('screener_owner','screener_runtime') order by rolname`);
+  const byName = Object.fromEntries(rows.map((r) => [r.rolname, r]));
+  const owner = byName.screener_owner, runtime = byName.screener_runtime;
+  assert.deepEqual([owner.rolcanlogin, owner.rolsuper, owner.rolcreatedb, owner.rolcreaterole, owner.rolreplication, owner.rolbypassrls, owner.rolinherit],
+    [false, false, false, false, false, false, false], "atributos de screener_owner");
+  assert.deepEqual([runtime.rolcanlogin, runtime.rolsuper, runtime.rolcreatedb, runtime.rolcreaterole, runtime.rolreplication, runtime.rolbypassrls, runtime.rolinherit],
+    [true, false, false, false, false, false, false], "atributos de screener_runtime");
+  const { rows: mem } = await ctx.q(`select r.rolname as member, g.rolname as granted
+    from pg_auth_members m join pg_roles r on r.oid=m.member join pg_roles g on g.oid=m.roleid
+    where r.rolname in ('screener_owner','screener_runtime') or g.rolname in ('screener_owner','screener_runtime')`);
+  assert.equal(mem.length, 0, `membership inesperada: ${JSON.stringify(mem)}`);
+});
+
+test("inventário de ownership: tabelas, sequence, trigger e funções são de screener_owner", async () => {
+  const ctx = await ambiente(bPublic);
+  const { rows: rel } = await ctx.q(`select c.relname obj, o.rolname owner, c.relkind
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace join pg_roles o on o.oid=c.relowner
+    where n.nspname='public' and c.relname like 'screener\\_%' and c.relkind in ('r','S') order by 1`);
+  assert.ok(rel.length >= 7, `esperado >=7 tabelas/sequences, veio ${rel.length}`);
+  for (const r of rel) assert.equal(r.owner, "screener_owner", `${r.obj} (${r.relkind})`);
+  const { rows: fns } = await ctx.q(`select p.proname obj, o.rolname owner
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace join pg_roles o on o.oid=p.proowner
+    where n.nspname='public' and p.proname like 'screener\\_%' order by 1`);
+  assert.ok(fns.some((f) => f.obj === "screener_snapshot_impede_update"), "trigger fn presente");
+  assert.equal(fns.filter((f) => f.obj.startsWith("screener_op_")).length, 6, "6 funções op");
+  for (const f of fns) assert.equal(f.owner, "screener_owner", f.obj);
 });
 
 test("nenhuma tabela legada nem SQL direto nos handlers (estático)", () => {

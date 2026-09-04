@@ -65,49 +65,60 @@ PublicResultV1 = {
 senão insuficiente. O indivíduo não tem nota geral, mas cada uma das cinco
 dimensões tem resultado mensurável.
 
-## Fronteira de segurança: papéis + RPC `SECURITY DEFINER`
+## Fronteira de segurança: colunas de credencial + papéis + RPC `SECURITY DEFINER`
 Migration `20260903120000_screener_rpc_e_papeis.sql`. A edge pública **não conecta
 como `postgres` amplo** e **não faz SQL direto** — toda leitura/escrita passa por 6
-funções. **As funções são a fronteira**: elas mesmas verificam tudo; a edge repete a
-checagem de credencial como defesa em profundidade.
+funções, **a fronteira**, que verificam tudo.
+
+**Credencial é dado de segurança, fora de `branding`.** Colunas dedicadas no vínculo:
+`preview_credential_hash`, `preview_expires_at`, `preview_revoked_at`. CHECKs: hash
+`^[0-9a-f]{64}$`; coerência (expiração/revogação exigem hash); **`branding` não pode
+conter** nenhuma dessas chaves. A projeção pública (get_binding/resume/get_result)
+**nunca** retorna essas colunas — só devolve `branding` (livre de credencial). A
+**chave crua não chega ao Postgres**: a edge calcula `sha256` e envia só o hash.
 
 - **`screener_owner`** — `NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
-  NOREPLICATION NOBYPASSRLS`. Dono de **todos** os objetos `screener_*` (tabelas,
-  sequences, funções e a trigger de imutabilidade). Contexto (mínimo) dos DEFINER —
-  não é `postgres`, não vê o legado.
+  NOREPLICATION NOBYPASSRLS`. Dono de **todos** os objetos `screener_*` (6 tabelas,
+  a sequence, a trigger de imutabilidade, o helper e as 6 funções). Contexto mínimo
+  dos DEFINER — não é `postgres`, não vê o legado. Sem membership com papéis amplos.
 - **`screener_runtime`** — iguais bloqueios, mas `LOGIN`. Papel embutido na
   `SUPABASE_DB_POOLER_URL`. Só `USAGE` no schema + `EXECUTE` nas 6 funções.
-  **Nenhum privilégio direto** de tabela, sequence ou objeto legado. Senha só fora
-  da migration (secret).
+  **Nenhum privilégio direto** de tabela, sequence ou legado. Senha só fora da
+  migration (secret).
 - **6 funções** `screener_op_*` (`SECURITY DEFINER`, `search_path=''`, objetos
-  `public.*` qualificados, **sem SQL dinâmica**; `EXECUTE` revogado de
-  `public/anon/authenticated/service_role`, concedido só a `screener_runtime`). Um
-  helper privado `screener_priv_previa_ok` (não concedido a ninguém) confere a
-  credencial de prévia hasheando a chave crua (`sha256`) contra o hash do vínculo +
-  revogação + expiração.
+  `public.*` qualificados, **sem SQL dinâmica**). Helper privado
+  `screener_priv_previa_ok` (recebe o hash; não concedido a ninguém) confere hash ×
+  revogação × expiração.
 
 Cada função verifica: vínculo/status/vigência · token/expiração/revogação · sessão
 aberta antes da escrita · **credencial de prévia** (internal_preview) · pertencimento
 ao instrumento (item ∈ definição; estágio válido) · checksum canônico na finalização
 (`collate "C"`) · idempotência e trava `for update`.
 
-### Matriz de privilégios (provada em pglite)
-| Objeto / ação | `screener_runtime` | `anon`/`authenticated`/`service_role` | `public` |
-|---|---|---|---|
-| `USAGE` no schema `public` | ✅ | — | — |
-| `EXECUTE` nas 6 `screener_op_*` | ✅ | ❌ (revogado) | ❌ (revogado) |
-| `EXECUTE` em `screener_priv_previa_ok` | ❌ | ❌ | ❌ |
-| SELECT/INSERT/UPDATE/DELETE em tabelas `screener_*` | ❌ | (grants do schema) | ❌ |
-| Sequences `screener_*` | ❌ | — | — |
-| Tabelas legadas (`eventos`…) | ❌ | (grants próprios) | — |
-| Função administrativa não concedida | ❌ | — | ❌ |
+### Matriz de privilégios sobre objetos `screener_*` (provada em pglite)
+| Objeto / ação | `screener_owner` | `screener_runtime` | `service_role` | `anon`/`authenticated` | `PUBLIC` |
+|---|---|---|---|---|---|
+| `USAGE` no schema `public` | ✅ (dono) | ✅ | herdado do schema¹ | herdado¹ | herdado¹ |
+| `EXECUTE` nas 6 `screener_op_*` | ✅ (dono) | ✅ | ❌ | ❌ | ❌ |
+| `EXECUTE` em `screener_priv_previa_ok` | ✅ (dono) | ❌ | ❌ | ❌ | ❌ |
+| SELECT/INSERT/UPDATE/DELETE nas 6 tabelas `screener_*` | ✅ (dono) | ❌ | ❌ | ❌ | ❌ |
+| Sequence `screener_responses_id_seq` | ✅ (dono) | ❌ | ❌ | ❌ | ❌ |
+
+¹ `USAGE` em `public` é do schema (padrão do Postgres), não confere acesso a objeto algum — todo objeto `screener_*` está revogado acima. Tabelas legadas: `screener_runtime` não recebe grant algum (sem acesso). Nenhuma célula ambígua: só `screener_owner` (via DEFINER) e `screener_runtime` (só EXECUTE das 6) tocam o domínio; `service_role` tem **zero**.
+
+### Inventário de ownership (tudo → `screener_owner`)
+Tabelas: `screener_instrument_versions`, `screener_event_bindings`, `screener_sessions`,
+`screener_responses`, `screener_result_snapshots`, `screener_leads`. Sequence:
+`screener_responses_id_seq`. Trigger fn: `screener_snapshot_impede_update`. Funções:
+`screener_priv_previa_ok` + as 6 `screener_op_*`. (Transferência por **lista fechada**,
+não por prefixo; grants/revokes por **assinatura completa**.)
 
 Testes chamando as funções **direto como `screener_runtime`, contornando a edge**,
 falham para: sessão inexistente/alheia, token inválido, item fora do instrumento,
 estágio inválido, resposta após submissão, prévia sem autorização (ausente/errada/
 expirada/revogada) e vínculo fechado. `SET ROLE` prova privilégio, **não** prova
-autenticação pelo pooler — isso é obrigatório no 2º branch (conectar de fato como
-`screener_runtime` com senha temporária e confirmar `current_user`).
+autenticação pelo pooler — obrigatório no 2º branch: conectar de fato como
+`screener_runtime` com senha temporária e confirmar `current_user`.
 
 ## Matriz de estados (vínculo × vigência × credencial)
 `dentro_vigencia` = (`starts_at` nulo ou `now≥starts_at`) e (`ends_at` nulo ou `now≤ends_at`).

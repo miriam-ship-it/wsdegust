@@ -19,47 +19,34 @@ export async function sha256Hex(str) {
 /** Hash do token para persistência (só o hash vai ao banco). */
 export const hashToken = sha256Hex;
 
-/**
- * Avalia a credencial de prévia — revogável POR VÍNCULO, não só por env.
- * Fonte do hash esperado, expiração e revogação: `binding.branding`:
- *   { preview_credential_sha256, preview_expires_at?, preview_revoked_at? }
- * Fallback: `envHash` (env global). Revogar = setar `preview_revoked_at` no
- * vínculo (sem mexer no ambiente) ou passar da expiração.
- * @returns {Promise<boolean>}
- */
-export async function avaliarCredencialPrevia(previewKey, branding, envHash, now) {
-  if (!previewKey) return false;
-  const b = branding || {};
-  const esperado = b.preview_credential_sha256 || envHash || null;
-  if (!esperado) return false;
-  if ((await sha256Hex(previewKey)) !== esperado) return false;
-  if (b.preview_revoked_at) return false;                               // revogada no vínculo
-  if (b.preview_expires_at && new Date(b.preview_expires_at) <= now) return false; // expirada
-  return true;
-}
+// A credencial de prévia é verificada DENTRO das funções SQL (a edge manda só o
+// hash e nunca vê o hash guardado). Um vínculo internal_preview sem credencial
+// válida faz a função devolver null / levantar erro — então, se a edge chegou a
+// ter um binding em mãos, a credencial já foi aprovada. Por isso `capacidades`
+// não conhece mais credencial.
 
 // ---------- matriz de estados ----------
 /**
  * @typedef {object} Capacidades
- * @property {boolean} autorizado      base: passou pelo gate de estado/credencial
+ * @property {boolean} autorizado      base: passou pelo gate de estado
  * @property {boolean} podeIniciar     GET/POST /start
  * @property {boolean} podeEscrever    PUT /response, POST /submit
  * @property {boolean} podeLerResultado GET /session, GET /result
  * @property {string}  motivo
  */
 /**
- * Decide o que o vínculo permite, dado estado, vigência e credencial de prévia.
+ * Decide o que o vínculo permite, dado estado e vigência. A credencial de prévia
+ * NÃO entra aqui (é enforçada nas funções SQL).
  * @param {{status:string, starts_at?:string|null, ends_at?:string|null}} binding
  * @param {Date} now
- * @param {boolean} temCredencial
  * @returns {Capacidades}
  */
-export function capacidades(binding, now, temCredencial) {
+export function capacidades(binding, now) {
   const nada = (motivo) => ({ autorizado: false, podeIniciar: false, podeEscrever: false, podeLerResultado: false, motivo });
   if (!binding) return nada("vinculo_inexistente");
   const st = binding.status;
   if (st === "inactive") return nada("inactive");
-  if (st === "internal_preview" && !temCredencial) return nada("preview_sem_credencial");
+  // internal_preview só chega aqui se a função aprovou a credencial (senão: null → 404)
 
   const inicio = binding.starts_at ? new Date(binding.starts_at) : null;
   const fim = binding.ends_at ? new Date(binding.ends_at) : null;

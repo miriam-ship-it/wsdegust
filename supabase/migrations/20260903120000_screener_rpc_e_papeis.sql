@@ -1,83 +1,102 @@
 -- =============================================================
--- SCREENER — fronteira de segurança: papéis + RPC SECURITY DEFINER
+-- SCREENER — fronteira de segurança: colunas de credencial + papéis + RPC
 --
--- ⚠️ NÃO APLICADA À PRODUÇÃO. Escrita e testada localmente (pglite) para revisão;
---    a validação do modelo final de privilégios é num segundo branch efêmero,
---    onde a edge conecta EFETIVAMENTE como screener_runtime (senha temporária).
+-- ⚠️ NÃO APLICADA À PRODUÇÃO. Escrita e testada localmente (pglite) para revisão.
 --
--- MODELO (retorno de 03-04/09/2026): a edge pública NÃO conecta como `postgres`
--- amplo e NÃO faz SQL direto. As FUNÇÕES são a fronteira e verificam elas mesmas
--- vínculo/status/vigência, token/expiração/revogação, sessão aberta, credencial
--- de prévia, pertencimento ao instrumento, checksum na finalização, idempotência
--- e trava concorrente. A edge mantém geração/hash do token, projeção, cálculo,
--- mapeamento de ids opacos e uma checagem de credencial redundante (defesa em
--- profundidade).
---
---   - screener_owner   : NOLOGIN + todos os bloqueios; dono só dos objetos
---                        screener_*; contexto (mínimo) dos SECURITY DEFINER.
---   - screener_runtime : LOGIN + todos os bloqueios; papel da
---                        SUPABASE_DB_POOLER_URL; só USAGE no schema + EXECUTE nas
---                        6 funções screener_op_*; NENHUM privilégio de tabela,
---                        sequence ou objeto legado. Senha SÓ fora da migration.
+-- MODELO (retorno de 04/09/2026):
+--  - Credencial de prévia é DADO DE SEGURANÇA → colunas próprias no vínculo,
+--    NUNCA em `branding` (que é apresentação e pode ir ao frontend). CHECKs
+--    garantem hash hexadecimal de 64, coerência e ausência dessas chaves em
+--    `branding`. A projeção pública nunca retorna essas colunas.
+--  - A CHAVE CRUA não chega ao Postgres: a edge calcula sha256 e envia só o hash.
+--  - A edge NÃO conecta como `postgres` amplo e NÃO faz SQL direto. As FUNÇÕES
+--    são a fronteira e verificam tudo. `screener_runtime` só executa as 6.
 -- =============================================================
 
--- 1) PAPÉIS (atributos explícitos; senha nunca aqui) --------------------------
+-- 1) COLUNAS DE CREDENCIAL (fora de branding) + migração do que existir ---------
+alter table public.screener_event_bindings
+  add column if not exists preview_credential_hash text,
+  add column if not exists preview_expires_at       timestamptz,
+  add column if not exists preview_revoked_at        timestamptz;
+
+-- migra qualquer configuração antiga que estivesse em branding e a remove de lá
+update public.screener_event_bindings set
+  preview_credential_hash = coalesce(preview_credential_hash, branding ->> 'preview_credential_sha256', branding ->> 'preview_credential_hash'),
+  preview_expires_at       = coalesce(preview_expires_at, (branding ->> 'preview_expires_at')::timestamptz),
+  preview_revoked_at       = coalesce(preview_revoked_at, (branding ->> 'preview_revoked_at')::timestamptz)
+where branding ?| array['preview_credential_sha256','preview_credential_hash','preview_expires_at','preview_revoked_at'];
+
+update public.screener_event_bindings
+  set branding = branding - 'preview_credential_sha256' - 'preview_credential_hash' - 'preview_expires_at' - 'preview_revoked_at'
+where branding ?| array['preview_credential_sha256','preview_credential_hash','preview_expires_at','preview_revoked_at'];
+
+-- CHECKs (idempotentes)
 do $$
 begin
-  if not exists (select 1 from pg_roles where rolname = 'screener_owner') then
-    create role screener_owner nologin;
+  if not exists (select 1 from pg_constraint where conname = 'screener_bind_previa_hash_hex') then
+    alter table public.screener_event_bindings add constraint screener_bind_previa_hash_hex
+      check (preview_credential_hash is null or preview_credential_hash ~ '^[0-9a-f]{64}$');
   end if;
-  if not exists (select 1 from pg_roles where rolname = 'screener_runtime') then
-    create role screener_runtime login;
+  -- coerência: expiração/revogação só fazem sentido com credencial presente
+  if not exists (select 1 from pg_constraint where conname = 'screener_bind_previa_coerente') then
+    alter table public.screener_event_bindings add constraint screener_bind_previa_coerente
+      check (preview_credential_hash is not null or (preview_expires_at is null and preview_revoked_at is null));
   end if;
-  -- enforce (idempotente) — sem SUPERUSER/CREATEDB/CREATEROLE/REPLICATION/BYPASSRLS/INHERIT
-  alter role screener_owner   nologin noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls;
-  alter role screener_runtime  login  noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls;
-  -- current_user precisa ser membro de screener_owner para reatribuir propriedade
-  execute format('grant screener_owner to %I', current_user);
+  -- branding NUNCA carrega chaves de credencial
+  if not exists (select 1 from pg_constraint where conname = 'screener_bind_branding_sem_credencial') then
+    alter table public.screener_event_bindings add constraint screener_bind_branding_sem_credencial
+      check (branding is null or not (branding ?| array['preview_credential_sha256','preview_credential_hash','preview_expires_at','preview_revoked_at']));
+  end if;
 end $$;
 
--- 2) HELPER de credencial de prévia (privado; não concedido ao runtime) --------
--- Confere sha256(chave crua) == hash no vínculo + não revogada + não expirada.
-create or replace function public.screener_priv_previa_ok(p_branding jsonb, p_preview_key text)
-returns boolean language sql
+-- 2) PAPÉIS (atributos explícitos; senha nunca aqui) --------------------------
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'screener_owner')   then create role screener_owner   nologin; end if;
+  if not exists (select 1 from pg_roles where rolname = 'screener_runtime') then create role screener_runtime  login; end if;
+  alter role screener_owner   nologin noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls;
+  alter role screener_runtime  login  noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls;
+end $$;
+-- membership temporária só para reatribuir propriedade (revogada no fim)
+grant screener_owner to current_user;
+
+-- 3) HELPER de credencial (privado; recebe o HASH, nunca a chave crua) ----------
+create or replace function public.screener_priv_previa_ok(
+  p_hash text, p_expires timestamptz, p_revoked timestamptz, p_preview_hash text
+) returns boolean language sql
 security definer set search_path = '' as $$
-  select p_preview_key is not null
-     and (p_branding ? 'preview_credential_sha256')
-     and encode(sha256(convert_to(p_preview_key, 'UTF8')), 'hex') = (p_branding ->> 'preview_credential_sha256')
-     and (p_branding ->> 'preview_revoked_at') is null
-     and (p_branding ->> 'preview_expires_at' is null
-          or (p_branding ->> 'preview_expires_at')::timestamptz > now());
+  select p_preview_hash is not null and p_hash is not null
+     and p_preview_hash = p_hash
+     and p_revoked is null
+     and (p_expires is null or p_expires > now());
 $$;
 
--- 3) AS 6 OPERAÇÕES (SECURITY DEFINER, search_path vazio, sem SQL dinâmica) -----
+-- 4) AS 6 OPERAÇÕES (SECURITY DEFINER, search_path vazio, sem SQL dinâmica) -----
 
--- (a) obter apresentação. internal_preview sem credencial → null (não existe).
-create or replace function public.screener_op_get_binding(p_event_slug text, p_preview_key text default null)
+create or replace function public.screener_op_get_binding(p_event_slug text, p_preview_hash text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v public.screener_event_bindings%rowtype;
 begin
   select * into v from public.screener_event_bindings where event_slug = p_event_slug and is_current;
   if not found then return null; end if;
-  if v.status = 'internal_preview' and not public.screener_priv_previa_ok(v.branding, p_preview_key) then
+  if v.status = 'internal_preview' and not public.screener_priv_previa_ok(v.preview_credential_hash, v.preview_expires_at, v.preview_revoked_at, p_preview_hash) then
     return null;
   end if;
   return jsonb_build_object('id', v.id, 'event_slug', v.event_slug, 'status', v.status,
-    'starts_at', v.starts_at, 'ends_at', v.ends_at, 'branding', v.branding,
+    'starts_at', v.starts_at, 'ends_at', v.ends_at, 'branding', v.branding,   -- branding livre de credencial (CHECK)
     'instrument_code', v.instrument_code, 'instrument_version', v.instrument_version);
 end $$;
 
--- (b) iniciar sessão. Revalida vínculo, vigência e credencial de prévia.
 create or replace function public.screener_op_start(
   p_event_slug text, p_token_hash text, p_notice_version text,
-  p_acknowledged_at timestamptz, p_expires_at timestamptz, p_preview_key text default null
+  p_acknowledged_at timestamptz, p_expires_at timestamptz, p_preview_hash text default null
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_bind public.screener_event_bindings%rowtype; v_id uuid;
 begin
   select * into v_bind from public.screener_event_bindings where event_slug = p_event_slug and is_current;
   if not found then raise exception 'vinculo_inexistente'; end if;
   if v_bind.status in ('inactive','closed') then raise exception 'indisponivel'; end if;
-  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.branding, p_preview_key) then
+  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.preview_credential_hash, v_bind.preview_expires_at, v_bind.preview_revoked_at, p_preview_hash) then
     raise exception 'previa_nao_autorizada';
   end if;
   if (v_bind.starts_at is not null and now() < v_bind.starts_at)
@@ -89,15 +108,14 @@ begin
   return jsonb_build_object('session_id', v_id);
 end $$;
 
--- (c) retomar sessão. internal_preview sem credencial → null.
-create or replace function public.screener_op_resume(p_token_hash text, p_preview_key text default null)
+create or replace function public.screener_op_resume(p_token_hash text, p_preview_hash text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_sess public.screener_sessions%rowtype; v_bind public.screener_event_bindings%rowtype;
 begin
   select * into v_sess from public.screener_sessions where token_hash = p_token_hash;
   if not found then return null; end if;
   select * into v_bind from public.screener_event_bindings where id = v_sess.binding_id;
-  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.branding, p_preview_key) then
+  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.preview_credential_hash, v_bind.preview_expires_at, v_bind.preview_revoked_at, p_preview_hash) then
     return null;
   end if;
   return jsonb_build_object(
@@ -111,10 +129,8 @@ begin
       from public.screener_responses r where r.session_id = v_sess.id), '[]'::jsonb));
 end $$;
 
--- (d) salvar resposta. Trava, revalida (vínculo/vigência/credencial/sessão aberta),
---     confere PERTENCIMENTO AO INSTRUMENTO e faz o upsert.
 create or replace function public.screener_op_save_response(
-  p_token_hash text, p_item_code text, p_stage_code text, p_preview_key text default null
+  p_token_hash text, p_item_code text, p_stage_code text, p_preview_hash text default null
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_sess public.screener_sessions%rowtype; v_bind public.screener_event_bindings%rowtype; v_n integer;
 begin
@@ -124,7 +140,7 @@ begin
   if v_sess.revoked_at is not null or v_sess.expires_at <= now() then raise exception 'sessao_invalida'; end if;
   select * into v_bind from public.screener_event_bindings where id = v_sess.binding_id;
   if v_bind.status in ('inactive','closed') then raise exception 'indisponivel'; end if;
-  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.branding, p_preview_key) then
+  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.preview_credential_hash, v_bind.preview_expires_at, v_bind.preview_revoked_at, p_preview_hash) then
     raise exception 'previa_nao_autorizada';
   end if;
   if (v_bind.starts_at is not null and now() < v_bind.starts_at)
@@ -144,11 +160,10 @@ begin
   return jsonb_build_object('answered', v_n);
 end $$;
 
--- (e) finalizar. Trava, idempotente, confere canônico (collate "C"), snapshot, fecha.
 create or replace function public.screener_op_finalize(
   p_token_hash text, p_expected_canonical text, p_result jsonb,
   p_instrument_checksum text, p_input_checksum text, p_scoring_version text, p_report_version text,
-  p_preview_key text default null
+  p_preview_hash text default null
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_sess public.screener_sessions%rowtype; v_bind public.screener_event_bindings%rowtype;
         v_canonical text; v_result jsonb;
@@ -156,7 +171,7 @@ begin
   select * into v_sess from public.screener_sessions where token_hash = p_token_hash for update;
   if not found then raise exception 'sessao_inexistente'; end if;
   select * into v_bind from public.screener_event_bindings where id = v_sess.binding_id;
-  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.branding, p_preview_key) then
+  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.preview_credential_hash, v_bind.preview_expires_at, v_bind.preview_revoked_at, p_preview_hash) then
     raise exception 'previa_nao_autorizada';
   end if;
   if v_sess.status = 'submitted' then
@@ -185,15 +200,14 @@ begin
   return jsonb_build_object('status','finalizada','result', v_result);
 end $$;
 
--- (f) obter resultado. internal_preview sem credencial → null.
-create or replace function public.screener_op_get_result(p_token_hash text, p_preview_key text default null)
+create or replace function public.screener_op_get_result(p_token_hash text, p_preview_hash text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_sess public.screener_sessions%rowtype; v_bind public.screener_event_bindings%rowtype;
 begin
   select * into v_sess from public.screener_sessions where token_hash = p_token_hash;
   if not found then return null; end if;
   select * into v_bind from public.screener_event_bindings where id = v_sess.binding_id;
-  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.branding, p_preview_key) then
+  if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.preview_credential_hash, v_bind.preview_expires_at, v_bind.preview_revoked_at, p_preview_hash) then
     return null;
   end if;
   return jsonb_build_object(
@@ -204,40 +218,49 @@ begin
                where r.session_id = v_sess.id order by r.created_at desc limit 1));
 end $$;
 
--- 4) PROPRIEDADE: tabelas + sequences + funções screener_* -> screener_owner ----
-do $$
-declare obj text;
-begin
-  for obj in
-    select format('table public.%I', c.relname) from pg_class c join pg_namespace n on n.oid=c.relnamespace
-      where n.nspname='public' and c.relkind in ('r','p') and c.relname like 'screener\_%'
-    union all
-    select format('sequence public.%I', c.relname) from pg_class c join pg_namespace n on n.oid=c.relnamespace
-      where n.nspname='public' and c.relkind='S' and c.relname like 'screener\_%'
-    union all
-    select format('function %s', p.oid::regprocedure) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-      where n.nspname='public' and p.proname like 'screener\_%'
-  loop
-    execute format('alter %s owner to screener_owner', obj);
-  end loop;
-end $$;
+-- 5) PROPRIEDADE -> screener_owner (LISTA FECHADA, assinaturas completas) --------
+alter table    public.screener_instrument_versions owner to screener_owner;
+alter table    public.screener_event_bindings      owner to screener_owner;
+alter table    public.screener_sessions            owner to screener_owner;
+alter table    public.screener_responses           owner to screener_owner;
+alter table    public.screener_result_snapshots    owner to screener_owner;
+alter table    public.screener_leads               owner to screener_owner;
+alter sequence public.screener_responses_id_seq    owner to screener_owner;
+alter function public.screener_snapshot_impede_update() owner to screener_owner;
+alter function public.screener_priv_previa_ok(text, timestamptz, timestamptz, text) owner to screener_owner;
+alter function public.screener_op_get_binding(text, text) owner to screener_owner;
+alter function public.screener_op_start(text, text, text, timestamptz, timestamptz, text) owner to screener_owner;
+alter function public.screener_op_resume(text, text) owner to screener_owner;
+alter function public.screener_op_save_response(text, text, text, text) owner to screener_owner;
+alter function public.screener_op_finalize(text, text, jsonb, text, text, text, text, text) owner to screener_owner;
+alter function public.screener_op_get_result(text, text) owner to screener_owner;
 
--- 5) PRIVILÉGIOS do screener_runtime -----------------------------------------
+-- 6) PRIVILÉGIOS (assinaturas completas; service_role declarado explicitamente) --
 grant usage on schema public to screener_runtime;
-revoke all on all tables    in schema public from screener_runtime;
-revoke all on all sequences in schema public from screener_runtime;
-revoke all on all functions in schema public from screener_runtime;
--- helper de credencial: ninguém além do owner (via DEFINER) executa
-revoke all on function public.screener_priv_previa_ok(jsonb, text) from public, anon, authenticated, service_role;
--- as 6 operações: EXECUTE só para screener_runtime; revogado dos demais
-do $$
-declare fn text;
-begin
-  for fn in
-    select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-    where n.nspname='public' and p.proname like 'screener\_op\_%'
-  loop
-    execute format('revoke all on function %s from public, anon, authenticated, service_role', fn);
-    execute format('grant execute on function %s to screener_runtime', fn);
-  end loop;
-end $$;
+
+-- zero privilégio direto de tabela/sequence para screener_runtime E service_role
+revoke all on table public.screener_instrument_versions, public.screener_event_bindings,
+  public.screener_sessions, public.screener_responses, public.screener_result_snapshots,
+  public.screener_leads from screener_runtime, service_role;
+revoke all on sequence public.screener_responses_id_seq from screener_runtime, service_role;
+
+-- helper privado: só o owner executa (via DEFINER); revogado de todos os demais
+revoke all on function public.screener_priv_previa_ok(text, timestamptz, timestamptz, text)
+  from public, anon, authenticated, service_role, screener_runtime;
+
+-- as 6 operações: EXECUTE só para screener_runtime
+revoke all on function public.screener_op_get_binding(text, text)                                   from public, anon, authenticated, service_role;
+revoke all on function public.screener_op_start(text, text, text, timestamptz, timestamptz, text)   from public, anon, authenticated, service_role;
+revoke all on function public.screener_op_resume(text, text)                                        from public, anon, authenticated, service_role;
+revoke all on function public.screener_op_save_response(text, text, text, text)                     from public, anon, authenticated, service_role;
+revoke all on function public.screener_op_finalize(text, text, jsonb, text, text, text, text, text) from public, anon, authenticated, service_role;
+revoke all on function public.screener_op_get_result(text, text)                                    from public, anon, authenticated, service_role;
+grant execute on function public.screener_op_get_binding(text, text)                                   to screener_runtime;
+grant execute on function public.screener_op_start(text, text, text, timestamptz, timestamptz, text)   to screener_runtime;
+grant execute on function public.screener_op_resume(text, text)                                        to screener_runtime;
+grant execute on function public.screener_op_save_response(text, text, text, text)                     to screener_runtime;
+grant execute on function public.screener_op_finalize(text, text, jsonb, text, text, text, text, text) to screener_runtime;
+grant execute on function public.screener_op_get_result(text, text)                                    to screener_runtime;
+
+-- 7) sem membership entre screener_* e papéis amplos: revoga a temporária --------
+revoke screener_owner from current_user;
