@@ -1,0 +1,8 @@
+project_id = "klnpnjumogojspubyabi"
+
+# Screener: função pública (pessoas sem identidade no Supabase Auth). verify_jwt
+# desligado de forma versionada e testável — a autorização é do próprio handler
+# (credencial de prévia, token de sessão, estado/vigência do vínculo e RPCs
+# restritas). Ver screener/edge/contrato.md.
+[functions.screener]
+verify_jwt = false

@@ -110,6 +110,18 @@ test("credencial de prévia (colunas dedicadas; edge manda só o hash): correta/
   assert.equal((await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: PREVIEW })).status, 404);
 });
 
+test("erro uniforme contra enumeração: inexistente vs prévia sem/errada credencial → resposta idêntica", async () => {
+  const ctx = await ambiente(bPreview);
+  const h = await sha256Hex(PREVIEW);
+  await ctx.q(`update public.screener_event_bindings set preview_credential_hash=$1 where event_slug='preview-interno-ia-v1'`, [h]);
+  const inexistente = await H.getStart(ctx, { event_slug: "nao-existe-slug" });
+  const semCred = await H.getStart(ctx, { event_slug: "preview-interno-ia-v1" });
+  const credErrada = await H.getStart(ctx, { event_slug: "preview-interno-ia-v1", previewKey: "errada" });
+  assert.equal(inexistente.status, 404);
+  assert.deepEqual(semCred, inexistente, "prévia sem credencial deve ser idêntica a inexistente");
+  assert.deepEqual(credErrada, inexistente, "prévia com credencial errada deve ser idêntica a inexistente");
+});
+
 test("PUT rejeita option de outra sessão/instrumento", async () => {
   const ctx = await ambiente(bPublic);
   const s = await start(ctx);
