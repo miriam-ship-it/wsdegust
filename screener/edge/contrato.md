@@ -159,11 +159,13 @@ herda nem consegue `SET ROLE` `screener_owner` (sem acesso a dados).
 - `closed`/fora da vigência: bloqueiam **início e escrita**; permitem **leitura** do
   resultado já submetido enquanto a **sessão** estiver válida (não expirada/revogada).
 
-## Credencial de prévia (revogável)
-`internal_preview` exige header `x-preview-key`. A edge compara `sha256(x-preview-key)`
-com um hash esperado (env `SCREENER_PREVIEW_KEY_SHA256` ou
-`binding.branding.preview_credential_sha256`). Revogável por rotação do env / update
-do vínculo. Ausente ou divergente → 403 em todas as rotas.
+## Credencial de prévia (revogável, em colunas dedicadas)
+`internal_preview` exige header `x-preview-key`. A edge calcula `sha256` e envia **só
+o hash** às funções; a **chave crua nunca vai ao Postgres**. As funções comparam com
+`screener_event_bindings.preview_credential_hash` (coluna dedicada, **fora de
+`branding`**) e checam `preview_expires_at`/`preview_revoked_at`. Revogável por update
+do vínculo. Ausente/divergente/expirada/revogada → a função devolve null (leitura) ou
+levanta (escrita) → **404** (o slug não concede acesso).
 
 ## Provado em branch efêmero do Supabase (03/09/2026)
 Branch descartável (sem dados de produção, apagado ao fim; ~US$ 0,04). A edge foi
@@ -192,11 +194,24 @@ guardados por `regressao-adaptador.test.mjs`:
    (esgota slots sob concorrência de instâncias);
 3. token de sessão **no header** `x-session-token`, nunca na query (vazava no log).
 
-Ainda pendente (nesta ordem, sob autorização): (1) validar o modelo de papéis+RPC
-num **segundo branch efêmero** — que hoje só está provado em pglite; (2) aplicar a
-migration à produção; (3) criar a senha do `screener_runtime` fora da migration e
-injetar `SUPABASE_DB_POOLER_URL` (papel `screener_runtime`) como secret;
-(4) `verify_jwt` conforme a política; (5) `screener.html`.
+Feito: (1) modelo validado em 2º branch efêmero (04/09); (2) migration
+`20260903120000` **aplicada à produção** via CLI em 04/09 (só ela; verificação
+pós-apply verde; produção sem dados alterados, sem edge `screener`).
+
+Ainda pendente (nesta ordem, sob autorização): (3) criar a senha SCRAM do
+`screener_runtime` fora da migration + secret único **`SCREENER_DB_POOLER_URL`**
+(o prefixo `SUPABASE_` é reservado) e deploy da edge ainda em `internal_preview`
+(com `max:1`, `prepare:false`); (4) antes de `public_pilot`: **rate limiting,
+limite de corpo, métodos permitidos e CORS restrito às origens do produto**;
+(5) `screener.html`.
+
+**`verify_jwt` — definido: `false`.** O screener é acessado por pessoas sem
+identidade no Supabase Auth; exigir JWT impediria o início público. Nesse modo o
+handler assume integralmente auth/autorização — já feito por credencial de prévia,
+token de sessão, estado/vigência do vínculo e RPCs restritas. Uma chave pública
+identifica a aplicação, não o usuário — não substitui o token de sessão. Será
+aplicado como `[functions.screener] verify_jwt = false` no `config.toml` no passo
+do deploy da edge (não nesta etapa).
 
 ## Fora de escopo do corte 3
 Deploy, exposição da rota, ativação (`public_pilot`), `screener.html`, painel,
