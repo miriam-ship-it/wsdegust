@@ -23,11 +23,15 @@ body { margin: 0; background: var(--bg-canvas); color: var(--text-primary); }
 
 /* --- Cabeçalho ------------------------------------------------------------ */
 .sc-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-6) 0 var(--space-4); }
-.sc-brand { display: flex; align-items: center; gap: var(--space-3); }
+.sc-brand { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .sc-brand__mark { width: 2rem; height: 2rem; flex: none; }
-.sc-brand__txt { display: flex; flex-direction: column; line-height: 1.1; }
-.sc-brand__name { font-size: var(--text-sm); font-weight: var(--weight-medium); letter-spacing: var(--tracking-display); text-transform: uppercase; }
-.sc-brand__sub { font-size: var(--text-xs); color: var(--text-tertiary); }
+/* Wordmark institucional real (logo-boomit.png é a versão CLARA/creme, para fundo
+   escuro). No claro, brightness(0) a torna preta; no escuro, fica creme. */
+.sc-logo { height: 1.375rem; width: auto; display: block; flex: none; filter: brightness(0); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sc-logo { filter: none; } }
+:root[data-theme="dark"] .sc-logo { filter: none; }
+.sc-brand__divisor { width: 1px; height: 1.1rem; background: var(--border-default); flex: none; }
+.sc-brand__sub { font-size: var(--text-xs); color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sc-theme { border: 1px solid var(--border-default); background: var(--bg-surface); color: var(--text-secondary); border-radius: var(--radius-full); width: 2.25rem; height: 2.25rem; display: grid; place-items: center; cursor: pointer; transition: background var(--duration-fast) var(--ease-out); }
 .sc-theme:hover { background: var(--action-ghost-hover); }
 .sc-theme svg { width: 1.125rem; height: 1.125rem; }
@@ -49,8 +53,9 @@ body { margin: 0; background: var(--bg-canvas); color: var(--text-primary); }
 
 /* --- Abertura institucional ----------------------------------------------- */
 .sc-hero { text-align: center; padding: var(--space-12) var(--space-2) var(--space-16); }
-.sc-hero__mark { width: 3.5rem; height: 3.5rem; margin: 0 auto var(--space-6); }
-.sc-hero__mark .sc-brand__mark { width: 100%; height: 100%; }
+.sc-hero__logo { display: flex; justify-content: center; margin: 0 auto var(--space-8); }
+.sc-hero__logo .sc-logo { height: 2.5rem; max-width: 70vw; }
+@media (max-width: 30rem) { .sc-hero__logo .sc-logo { height: 2rem; } }
 .sc-hero__title { font-size: var(--text-4xl); line-height: var(--leading-4xl); font-weight: var(--weight-semibold); text-wrap: balance; margin: var(--space-2) 0 0; }
 .sc-hero__lead { max-width: 34rem; margin: var(--space-4) auto 0; color: var(--text-secondary); font-size: var(--text-lg); line-height: var(--leading-lg); }
 .sc-hero .sc-actions { justify-content: center; margin-top: var(--space-8); }
@@ -105,6 +110,9 @@ body { margin: 0; background: var(--bg-canvas); color: var(--text-primary); }
 /* --- Item (uma questão por tela) ------------------------------------------ */
 .sc-item { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-8); margin-top: var(--space-5); }
 @media (max-width: 30rem) { .sc-item { padding: var(--space-5); } }
+/* Contêiner da questão recebe foco por programa (leitor de tela/teclado); não é
+   controle, então não mostra anel — as alternativas mantêm o seu. */
+#sc-questao:focus { outline: none; }
 .sc-item__prompt { font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: var(--weight-medium); margin: 0 0 var(--space-6); text-wrap: balance; }
 .sc-opts { display: grid; gap: var(--space-3); }
 .sc-opt { display: flex; gap: var(--space-3); align-items: flex-start; border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: var(--space-4); cursor: pointer; transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
@@ -246,4 +254,19 @@ body { margin: 0; background: var(--bg-canvas); color: var(--text-primary); }
 .sc-loading { display: flex; gap: var(--space-3); align-items: center; justify-content: center; padding: var(--space-16) 0; color: var(--text-tertiary); font-size: var(--text-sm); }
 .sc-spin { width: 1.25rem; height: 1.25rem; border: 2px solid var(--border-default); border-top-color: var(--text-brand); border-radius: var(--radius-full); animation: sc-rot 0.7s linear infinite; }
 @keyframes sc-rot { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .sc-spin { animation: none; } .sc-track__fill, .sc-opt, .sc-btn, .sc-theme { transition: none; } }
+/* Transição suave ao trocar de questão / bloco. */
+@keyframes sc-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.sc-item, .sc-transicao, .sc-hero { animation: sc-fade var(--duration-base) var(--ease-out); }
+/* Atalho de teclado da alternativa (1–5) — dica discreta no canto da opção. */
+.sc-opt__num { flex: none; margin-left: auto; align-self: center; font-size: var(--text-xs); color: var(--text-tertiary); font-variant-numeric: tabular-nums; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); min-width: 1.25rem; height: 1.25rem; display: grid; place-items: center; }
+@media (max-width: 26rem) { .sc-opt__num { display: none; } }
+.sc-opt:has(input:checked) .sc-opt__num { border-color: var(--text-brand); color: var(--text-brand); }
+.sc-kbd { text-align: center; margin-top: var(--space-3); font-size: var(--text-xs); color: var(--text-tertiary); }
+.sc-kbd kbd { font-family: var(--font-mono); border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: 0 0.3rem; font-size: 0.7rem; }
+@media (max-width: 30rem) { .sc-kbd { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-spin { animation: none; }
+  .sc-item, .sc-transicao, .sc-hero { animation: none; }
+  .sc-track__fill, .sc-opt, .sc-btn, .sc-theme { transition: none; }
+}

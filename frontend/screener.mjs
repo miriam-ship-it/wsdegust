@@ -249,8 +249,9 @@ const ICONE = {
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
 };
 
-// marca Boomit (grafismo)
-const MARCA = `<svg class="sc-brand__mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--bg-brand)"/><circle cx="32" cy="17" r="5" fill="#EDE9E4"/><rect x="27" y="27" width="10" height="22" rx="5" fill="#EDE9E4"/></svg>`;
+// Wordmark institucional Boomit (imagem real; o tema é tratado em .sc-logo).
+// width/height reservam a proporção (evita salto de layout); o CSS define a altura.
+const LOGO = `<img class="sc-logo" src="logo-boomit.png" alt="Boomit" width="1464" height="236">`;
 
 // =============================================================
 // Arranque no navegador
@@ -403,8 +404,9 @@ export function iniciarApp(cfg) {
   const tarja = `<div class="sc-homolog"><div class="sc-homolog__in"><span class="sc-homolog__ic">${ICONE.aviso}</span><span><b>Ambiente de homologação.</b> As respostas destinam-se à revisão do instrumento e da experiência. Não constituem resultado comercial nem avaliação oficial.</span></div></div>`;
   function cabecalho(compacto) {
     const ic = temaAtual() === "dark" ? ICONE.sol : ICONE.lua;
+    const sub = compacto ? "" : `<span class="sc-brand__divisor"></span><span class="sc-brand__sub">Screener de maturidade em IA</span>`;
     return `<header class="sc-head">
-      <div class="sc-brand">${MARCA}<span class="sc-brand__txt"><span class="sc-brand__name">Boomit</span>${compacto ? "" : `<span class="sc-brand__sub">Screener de maturidade em IA</span>`}</span></div>
+      <div class="sc-brand">${LOGO}${sub}</div>
       <button class="sc-theme" type="button" data-acao="tema" aria-label="Alternar tema claro e escuro">${ic}</button>
     </header>`;
   }
@@ -413,8 +415,8 @@ export function iniciarApp(cfg) {
   // ---------- render: abertura institucional ----------
   function telaAbertura() {
     return `<div class="sc-hero">
-      <div class="sc-hero__mark">${MARCA}</div>
-      <p class="sc-eyebrow">Boomit · Diagnóstico</p>
+      <div class="sc-hero__logo">${LOGO}</div>
+      <p class="sc-eyebrow">Engenharia da Nova Inteligência Humana</p>
       <h1 class="sc-hero__title">Screener de maturidade em IA</h1>
       <p class="sc-hero__lead">Uma leitura estruturada de como você atua, como percebe a organização e o estágio de uso de IA. São 30 itens em três blocos — Pessoa, Empresa e IA — em cerca de 10 minutos.</p>
       <div class="sc-actions"><button class="sc-btn sc-btn--primary" type="button" data-acao="entrar">Iniciar ${ICONE.seta}</button></div>
@@ -498,6 +500,7 @@ export function iniciarApp(cfg) {
         <input type="radio" name="it_${escapeHtml(it.id)}" value="${escapeHtml(op.id)}" ${checked} data-acao="resposta" data-item="${escapeHtml(it.id)}" data-opcao="${escapeHtml(op.id)}">
         <span class="sc-opt__dot" aria-hidden="true"></span>
         <span class="sc-opt__txt">${escapeHtml(op.text)}</span>
+        <span class="sc-opt__num" aria-hidden="true">${i + 1}</span>
       </label>`;
     }).join("");
     const ultimo = st.pos === st.flat.length - 1;
@@ -506,10 +509,11 @@ export function iniciarApp(cfg) {
         <div class="sc-track"><div class="sc-track__fill" style="width:${prog.pct}%"></div></div>
       </div>
       ${noteTopo()}
-      <article class="sc-item">
+      <article class="sc-item" id="sc-questao" tabindex="-1" aria-label="Pergunta ${st.pos + 1} de ${st.flat.length}">
         <p class="sc-item__prompt">${escapeHtml(it.prompt)}</p>
         <div class="sc-opts" role="radiogroup" aria-label="Alternativas">${opts}</div>
       </article>
+      <p class="sc-kbd">Use <kbd>1</kbd>–<kbd>${it.options.length}</kbd> para escolher · <kbd>Enter</kbd> avança · <kbd>←</kbd> volta</p>
       <div class="sc-nav">
         <button class="sc-btn sc-btn--ghost" type="button" data-acao="voltar-nav">${ICONE.volta} Voltar</button>
         ${autosaveHtml()}
@@ -721,6 +725,14 @@ export function iniciarApp(cfg) {
     const compacto = st.tela === "questionario" || st.tela === "transicao";
     const topo = st.modo === "homologacao" ? tarja : "";
     raiz.innerHTML = topo + `<div class="sc-shell">` + cabecalho(compacto) + corpo() + `</div>`;
+    // Mantém o foco na questão enquanto o questionário está aberto — o re-render do
+    // autosave destrói o nó, então o foco iria para o body e o teclado (1–9/Enter/
+    // setas) dependeria de clicar de volta. Reanunciar a cada render é aceitável:
+    // o leitor de tela confirma a questão atual. O anel do contêiner é suprimido.
+    if (st.tela === "questionario") {
+      const q = raiz.querySelector("#sc-questao");
+      if (q) { try { q.focus({ preventScroll: true }); } catch { /* ok */ } }
+    }
   }
 
   // --- eventos ---
@@ -753,6 +765,24 @@ export function iniciarApp(cfg) {
       ev.preventDefault();
       const nome = form.querySelector("#sc-lead-nome"); const email = form.querySelector("#sc-lead-email"); const opt = form.querySelector("#sc-lead-opt");
       enviarLead(nome && nome.value, email && email.value, opt && opt.checked);
+    }
+  });
+
+  // Teclado no questionário: 1–9 escolhe a alternativa; Enter/→ avança (se
+  // respondida); ← volta. Não sequestra digitação em campos de texto.
+  doc.addEventListener("keydown", (ev) => {
+    if (st.tela !== "questionario") return;
+    const t = ev.target;
+    if (t && t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const it = st.flat[st.pos]; if (!it) return;
+    if (ev.key >= "1" && ev.key <= "9") {
+      const idx = Number(ev.key) - 1;
+      if (idx < it.options.length) { ev.preventDefault(); salvarResposta(it.id, it.options[idx].id); }
+    } else if (ev.key === "Enter" || ev.key === "ArrowRight") {
+      if (st.respostas[it.id]) { ev.preventDefault(); avancar(); }
+    } else if (ev.key === "ArrowLeft") {
+      ev.preventDefault(); voltar();
     }
   });
 
