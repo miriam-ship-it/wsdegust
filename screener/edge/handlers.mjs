@@ -13,6 +13,7 @@
 import { instrumento, checksum, projecaoPublica } from "../motor/definicao.mjs";
 import { calcular } from "../motor/motor.mjs";
 import { gerarToken, hashToken, sha256Hex, capacidades, resolverOpcao, validarSubmissao, paraPublico } from "./logica.mjs";
+import { chaveRate } from "./ratelimit.mjs";
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
 const NOTICE_VIGENTE = "v1";            // versão vigente do aviso de privacidade
@@ -25,6 +26,49 @@ async function rpc(ctx, fn, params) {
 }
 /** Hash sha256 da chave de prévia (só o hash vai ao banco), ou null. */
 const previaHash = (previewKey) => (previewKey ? sha256Hex(previewKey) : Promise.resolve(null));
+
+// ---------- rate limiting (ativado quando ctx.rate.ativo; fail-closed) ----------
+// O flag é a PRESENÇA de SCREENER_RATE_KEY_SECRET (definido no index.ts). Sem
+// secret → caminho legado (get_binding, sem rate). Com secret → preview_authorize
+// + rate_check. Assim a edge pode ser implantada antes da migration e ativada
+// depois de aplicá-la (setando o secret). A edge só envia HMAC opaco, nunca IP/token.
+
+/** rate_check por chave já pronta (hex64). null=ok; senão resp 429/503. */
+async function checarRate(ctx, operation, keyHmac) {
+  if (!ctx.rate || !ctx.rate.ativo || !keyHmac) return null;
+  let rc;
+  try { rc = await rpc(ctx, "screener_op_rate_check", [keyHmac, operation]); }
+  catch { return resp(503, { error: "indisponivel_temporario" }); }
+  if (!rc || rc.status === "allowed") return null;
+  if (rc.status === "limited") return resp(429, { error: "muitas_requisicoes", retry_after_seconds: rc.retry_after_seconds });
+  return resp(503, { error: "indisponivel_temporario" }); // bad_key/unknown_operation/policy_error
+}
+/** rate_check escopado por token (autosave/submit/consulta). */
+async function checarRateToken(ctx, operation, token) {
+  if (!ctx.rate || !ctx.rate.ativo) return null;
+  const key = await chaveRate(ctx.rate.secret, operation, "", token || "");
+  return checarRate(ctx, operation, key);
+}
+/**
+ * Resolve o vínculo. Com rate ativo: screener_op_preview_authorize (protege a
+ * prévia por IP e devolve o contrato). Sem: screener_op_get_binding (legado).
+ * @returns {{binding?:object, erro?:{status:number,body:object}}}
+ */
+async function resolverBinding(ctx, event_slug, previewHash, ipHmac) {
+  if (ctx.rate && ctx.rate.ativo) {
+    let r;
+    try { r = await rpc(ctx, "screener_op_preview_authorize", [ipHmac, event_slug, previewHash]); }
+    catch { return { erro: resp(503, { error: "indisponivel_temporario" }) }; }
+    if (!r) return { erro: resp(503, { error: "indisponivel_temporario" }) };
+    if (r.status === "authorized") return { binding: r.binding };
+    if (r.status === "limited") return { erro: resp(429, { error: "muitas_requisicoes", retry_after_seconds: r.retry_after_seconds }) };
+    if (r.status === "invalid") return { erro: resp(404, { error: "nao_encontrado" }) };
+    return { erro: resp(503, { error: "indisponivel_temporario" }) }; // bad_key
+  }
+  const b = await rpc(ctx, "screener_op_get_binding", [event_slug, previewHash]);
+  if (!b) return { erro: resp(404, { error: "nao_encontrado" }) };
+  return { binding: b };
+}
 
 function unidadeNome(binding) {
   return (binding.branding && binding.branding.assessment_unit_name) || "sua empresa";
@@ -58,10 +102,10 @@ function mapErroSql(e) {
 }
 
 // ---------- GET /start (obter apresentação) ----------
-export async function getStart(ctx, { event_slug, previewKey }) {
+export async function getStart(ctx, { event_slug, previewKey, ipHmac }) {
   if (!event_slug) return resp(400, { error: "event_slug_obrigatorio" });
-  const binding = await rpc(ctx, "screener_op_get_binding", [event_slug, await previaHash(previewKey)]);
-  if (!binding) return resp(404, { error: "nao_encontrado" }); // inexistente ou prévia sem credencial
+  const { binding, erro } = await resolverBinding(ctx, event_slug, await previaHash(previewKey), ipHmac);
+  if (erro) return erro; // inexistente/prévia sem credencial → 404; excesso → 429
   const cap = capacidades(binding, ctx.now());
   if (!cap.autorizado) return resp(404, { error: "nao_encontrado" });
   if (!cap.podeIniciar) return resp(403, { error: "indisponivel", motivo: cap.motivo });
@@ -78,11 +122,11 @@ export async function getStart(ctx, { event_slug, previewKey }) {
 }
 
 // ---------- POST /start (iniciar sessão) ----------
-export async function postStart(ctx, { event_slug, previewKey, privacy_ack, privacy_notice_version }) {
+export async function postStart(ctx, { event_slug, previewKey, privacy_ack, privacy_notice_version, ipHmac }) {
   if (!event_slug) return resp(400, { error: "event_slug_obrigatorio" });
   const previewHash = await previaHash(previewKey);
-  const binding = await rpc(ctx, "screener_op_get_binding", [event_slug, previewHash]);
-  if (!binding) return resp(404, { error: "nao_encontrado" });
+  const { binding, erro } = await resolverBinding(ctx, event_slug, previewHash, ipHmac);
+  if (erro) return erro;
   const cap = capacidades(binding, ctx.now());
   if (!cap.autorizado) return resp(404, { error: "nao_encontrado" });
   if (!cap.podeIniciar) return resp(403, { error: "indisponivel", motivo: cap.motivo });
@@ -91,6 +135,8 @@ export async function postStart(ctx, { event_slug, previewKey, privacy_ack, priv
   if (privacy_ack !== true) return resp(400, { error: "aviso_de_privacidade_obrigatorio" });
   const vigente = noticeVigente(binding);
   if (privacy_notice_version !== vigente) return resp(409, { error: "aviso_desatualizado", vigente });
+  const rl = await checarRate(ctx, "start_preview", ipHmac); // limita criação de sessão por IP
+  if (rl) return rl;
 
   const token = gerarToken();                    // servidor
   const token_hash = await hashToken(token);     // só o hash vai ao banco
@@ -112,6 +158,8 @@ export async function postStart(ctx, { event_slug, previewKey, privacy_ack, priv
 
 // ---------- GET /session (retomar sessão) ----------
 export async function getSession(ctx, { token, previewKey }) {
+  const rl = await checarRateToken(ctx, "consulta", token);
+  if (rl) return rl;
   const th = await hashToken(token || "");
   const data = await rpc(ctx, "screener_op_resume", [th, await previaHash(previewKey)]);
   if (!data) return resp(404, { error: "sessao_nao_encontrada" });
@@ -141,6 +189,8 @@ export async function getSession(ctx, { token, previewKey }) {
 
 // ---------- PUT /response (salvar resposta) ----------
 export async function putResponse(ctx, { token, item_id, option_id, previewKey }) {
+  const rl = await checarRateToken(ctx, "autosave", token);
+  if (rl) return rl;
   const th = await hashToken(token || "");
   const previewHash = await previaHash(previewKey);
   const data = await rpc(ctx, "screener_op_resume", [th, previewHash]);
@@ -166,6 +216,8 @@ export async function putResponse(ctx, { token, item_id, option_id, previewKey }
 
 // ---------- POST /submit (finalizar submissão) ----------
 export async function postSubmit(ctx, { token, previewKey }) {
+  const rl = await checarRateToken(ctx, "submit", token);
+  if (rl) return rl;
   const th = await hashToken(token || "");
   const previewHash = await previaHash(previewKey);
   const data = await rpc(ctx, "screener_op_resume", [th, previewHash]);
@@ -215,6 +267,8 @@ export async function postSubmit(ctx, { token, previewKey }) {
 
 // ---------- GET /result (obter resultado) ----------
 export async function getResult(ctx, { token, previewKey }) {
+  const rl = await checarRateToken(ctx, "consulta", token);
+  if (rl) return rl;
   const th = await hashToken(token || "");
   const data = await rpc(ctx, "screener_op_get_result", [th, await previaHash(previewKey)]);
   if (!data) return resp(404, { error: "sessao_nao_encontrada" });
@@ -231,6 +285,8 @@ export async function getResult(ctx, { token, previewKey }) {
 // Único caminho de escrita da PII: chama a função da fronteira, que valida
 // sessão/vínculo/credencial, exige sessão SUBMETIDA e respeita lead_capture_mode.
 export async function postLead(ctx, { token, previewKey, nome, email, marketing_opt_in }) {
+  const rl = await checarRateToken(ctx, "consulta", token);
+  if (rl) return rl;
   const th = await hashToken(token || "");
   const previewHash = await previaHash(previewKey);
   let r;

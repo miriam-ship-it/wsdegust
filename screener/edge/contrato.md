@@ -34,6 +34,23 @@ aplicada**), que exige sessão **submetida** e válida, credencial de prévia se
 normaliza o e-mail e faz upsert por `session_id` (1 lead por sessão). A edge nunca
 faz INSERT direto; `screener_runtime` não tem acesso à tabela `screener_leads`.
 
+## Rate limiting — wiring (flag pela presença do secret)
+A edge ativa o rate limiting **só quando `SCREENER_RATE_KEY_SECRET` existe** (implanta
+antes da migration `20260904120000`, ativa depois de aplicá-la + setar o secret). A
+edge envia **só HMAC opaco**, nunca IP/token em claro (autoridade de IP:
+`cf-connecting-ip`). Ativo:
+- `GET/POST /start` resolvem o vínculo por `screener_op_preview_authorize(ip_hmac,
+  slug, preview_hash)` (protege a prévia de `internal_preview` por IP; público não
+  toca o bucket) no lugar de `get_binding`. `authorized`→segue · `limited`→429 ·
+  `invalid`→404 · `bad_key`→503.
+- `POST /start` também aplica `rate_check('start_preview')` por IP (cria sessão, 10/h);
+  `PUT /response`→`autosave` (120/h, por token); `POST /submit`→`submit` (10/h, token);
+  `GET /session`,`GET /result`,`POST /lead`→`consulta` (60/h, token).
+- **Fail-closed**: erro/indisponibilidade das RPCs de rate → 503; `limited` → 429.
+Inativo (sem secret): caminho legado (`get_binding`, sem rate). Rollout: (1) aplicar
+migration + pg_cron; (2) setar secret (ativa); (3) migration posterior revoga
+`get_binding`. Testado em `screener/loader/behavioral/rate-wiring.behavioral.test.mjs`.
+
 `PUT /response`: a edge traduz `option_id`→(item, stage) pelo **mapping** (edge-only)
 da projeção da sessão. IDs de outro instrumento/sessão são rejeitados.
 
