@@ -25,6 +25,14 @@ Escrita + testes, **sem deploy**. A rota não é exposta ainda.
 | `PUT /response` | não | `token`, `item_id` opaco, `option_id` opaco | ok/estado; **nunca** aceita `stage_code`/pontos |
 | `POST /submit` | não (fecha) | `token` | `PublicResultV1` (atômico, idempotente) |
 | `GET /result` | não | `token` | `PublicResultV1` sanitizado |
+| `POST /lead` | não | `token`, `email` (+`nome`,`marketing_opt_in`) | `{ok}` — captura lead (degustação) |
+
+`POST /lead` (degustação pública): único caminho de escrita da PII. Chama a 7ª função
+`screener_op_capturar_lead` (`SECURITY DEFINER`, migration `20260905120000`, **não
+aplicada**), que exige sessão **submetida** e válida, credencial de prévia se
+`internal_preview`, respeita `lead_capture_mode` do vínculo (`none` recusa),
+normaliza o e-mail e faz upsert por `session_id` (1 lead por sessão). A edge nunca
+faz INSERT direto; `screener_runtime` não tem acesso à tabela `screener_leads`.
 
 `PUT /response`: a edge traduz `option_id`→(item, stage) pelo **mapping** (edge-only)
 da projeção da sessão. IDs de outro instrumento/sessão são rejeitados.

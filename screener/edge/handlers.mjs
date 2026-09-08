@@ -51,6 +51,9 @@ function mapErroSql(e) {
   if (m.includes("indisponivel") || m.includes("fora_de_vigencia")) return resp(403, { error: "indisponivel" });
   if (m.includes("respostas_mudaram")) return resp(409, { error: "respostas_mudaram" });
   if (m.includes("item_fora_do_instrumento") || m.includes("estagio_invalido")) return resp(400, { error: "opcao_invalida" });
+  if (m.includes("email_invalido")) return resp(400, { error: "email_invalido" });
+  if (m.includes("lead_desativado")) return resp(409, { error: "lead_desativado" });
+  if (m.includes("sessao_nao_submetida")) return resp(409, { error: "sessao_nao_submetida" });
   return resp(409, { error: "conflito", detalhe: m });
 }
 
@@ -224,4 +227,19 @@ export async function getResult(ctx, { token, previewKey }) {
   return resp(200, paraPublico(data.result));
 }
 
-export const rotas = { getStart, postStart, getSession, putResponse, postSubmit, getResult };
+// ---------- POST /lead (capturar lead — degustação pública) ----------
+// Único caminho de escrita da PII: chama a função da fronteira, que valida
+// sessão/vínculo/credencial, exige sessão SUBMETIDA e respeita lead_capture_mode.
+export async function postLead(ctx, { token, previewKey, nome, email, marketing_opt_in }) {
+  const th = await hashToken(token || "");
+  const previewHash = await previaHash(previewKey);
+  let r;
+  try {
+    r = await rpc(ctx, "screener_op_capturar_lead",
+      [th, previewHash, nome ?? null, email ?? null, marketing_opt_in === true]);
+  } catch (e) { return mapErroSql(e); }
+  if (!r) return resp(404, { error: "sessao_nao_encontrada" });
+  return resp(200, { ok: true });
+}
+
+export const rotas = { getStart, postStart, getSession, putResponse, postSubmit, getResult, postLead };

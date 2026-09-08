@@ -85,6 +85,7 @@ Deno.serve(async (req: Request) => {
     else if (req.method === "PUT" && rota === "/response") r = await H.putResponse(ctx, a);
     else if (req.method === "POST" && rota === "/submit") r = await H.postSubmit(ctx, a);
     else if (req.method === "GET" && rota === "/result") r = await H.getResult(ctx, a);
+    else if (req.method === "POST" && rota === "/lead") r = await H.postLead(ctx, a);
     else return json(404, { error: "rota_desconhecida" }, cors);
     return json(r.status, r.body, cors);
   } catch (e) {
