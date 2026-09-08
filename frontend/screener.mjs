@@ -161,6 +161,27 @@ export function planoDeAcao(priorities) {
   return out;
 }
 
+/**
+ * Modo da experiência a partir do STATUS do vínculo (que vem do servidor):
+ * `internal_preview` → homologação (tarja + credencial); qualquer outro
+ * (`public_pilot`/`published`) → degustação pública (sem tarja, com lead).
+ */
+export function modoDoStatus(status) {
+  return status === "internal_preview" ? "homologacao" : "degustacao";
+}
+
+/** Modo de captura de lead efetivo: usa o do vínculo; default por modo. */
+export function leadModoEfetivo(leadCaptureMode, modo) {
+  const validos = ["none", "optional_after_submit", "required_before_result"];
+  if (validos.includes(leadCaptureMode)) return leadCaptureMode;
+  return modo === "degustacao" ? "optional_after_submit" : "none";
+}
+
+/** Validação leve de e-mail (o servidor revalida e normaliza). */
+export function validarEmail(s) {
+  return typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+}
+
 /** Mensagem de usuário para uma falha da edge. */
 export function mensagemErro(status, body) {
   const e = body && body.error;
@@ -213,6 +234,7 @@ export function criarCliente({ edgeUrl, anonKey, transporte } = {}) {
     salvar: (previewKey, token, item_id, option_id) => chamar("PUT", "/response", { corpo: { item_id, option_id }, previewKey, token }),
     enviar: (previewKey, token) => chamar("POST", "/submit", { corpo: {}, previewKey, token }),
     resultado: (previewKey, token) => chamar("GET", "/result", { previewKey, token }),
+    lead: (previewKey, token, dados) => chamar("POST", "/lead", { corpo: dados, previewKey, token }),
   };
 }
 
@@ -242,11 +264,13 @@ export function iniciarApp(cfg) {
 
   const st = {
     tela: "carregando",
+    modo: "degustacao",        // homologacao | degustacao (vem do status do vínculo)
     previewKey: null, token: null, avisoVersao: "v1",
     branding: {}, consent: null, instrument: null,
     blocksMeta: [], blocks: [], flat: [],
     respostas: {}, pos: 0, transicaoBloco: 0,
     submitido: false, devolutiva: null,
+    leadMode: "none", leadEnviado: false, leadEnviando: false, leadErro: null,
     salvando: 0, salvoRecente: false, erroTopo: null, tentandoEnviar: false,
   };
 
@@ -264,16 +288,31 @@ export function iniciarApp(cfg) {
 
   function irPara(tela) { st.tela = tela; st.erroTopo = null; pintar(); scrollTopo(); }
   function scrollTopo() { try { globalThis.scrollTo(0, 0); } catch { /* ok */ } }
-  const persistir = () => guardarSessao(evento, { previewKey: st.previewKey, token: st.token, pos: st.pos });
+  const persistir = () => guardarSessao(evento, { previewKey: st.previewKey, token: st.token, pos: st.pos, modo: st.modo, leadMode: st.leadMode });
 
   // --- rede ---
+  function aplicarApresentacao(body) {
+    st.consent = body.consent; st.branding = body.branding || {};
+    st.avisoVersao = (st.branding && st.branding.privacy_notice_version) || "v1";
+    st.blocksMeta = body.blocks || []; st.instrument = body.instrument;
+    st.modo = modoDoStatus(body.status);
+    st.leadMode = leadModoEfetivo(body.lead_capture_mode, st.modo);
+  }
+
+  // Abertura → tenta entrar SEM credencial. Evento público responde 200 (modo
+  // degustação); internal_preview responde 404 → pede o código (modo homologação).
+  async function tentarEntrar() {
+    st.tela = "carregando"; pintar();
+    const r = await cliente.apresentacao(evento, undefined);
+    if (r.status === 200) { st.previewKey = null; aplicarApresentacao(r.body); return irPara("apresentacao"); }
+    irPara("codigo");
+  }
+
   async function abrirApresentacao(previewKey) {
     st.previewKey = previewKey; st.tela = "carregando"; pintar();
     const r = await cliente.apresentacao(evento, previewKey);
     if (r.status !== 200) { st.tela = "codigo"; st.erroTopo = mensagemErro(r.status, r.body); return pintar(); }
-    st.consent = r.body.consent; st.branding = r.body.branding || {};
-    st.avisoVersao = (st.branding && st.branding.privacy_notice_version) || "v1";
-    st.blocksMeta = r.body.blocks || []; st.instrument = r.body.instrument;
+    aplicarApresentacao(r.body);
     irPara("apresentacao");
   }
   async function comecar() {
@@ -285,15 +324,17 @@ export function iniciarApp(cfg) {
     st.flat = itensDosBlocos(st.blocks); st.respostas = {}; st.pos = 0; st.transicaoBloco = 0;
     persistir(); irPara("transicao");
   }
-  async function retomar(previewKey, token, posSalva) {
-    st.previewKey = previewKey; st.token = token; st.tela = "carregando"; pintar();
-    const r = await cliente.retomar(previewKey, token);
-    if (r.status !== 200) { limparSessao(evento); st.token = null; st.previewKey = null; st.tela = "codigo"; return pintar(); }
+  async function retomar(salva) {
+    st.previewKey = salva.previewKey || null; st.token = salva.token;
+    st.modo = salva.modo || "degustacao"; st.leadMode = salva.leadMode || "none";
+    st.tela = "carregando"; pintar();
+    const r = await cliente.retomar(st.previewKey, st.token);
+    if (r.status !== 200) { limparSessao(evento); st.token = null; st.previewKey = null; st.tela = "abertura"; return pintar(); }
     st.instrument = r.body.instrument; st.blocks = r.body.blocks; st.flat = itensDosBlocos(st.blocks);
     st.respostas = r.body.answered || {}; st.submitido = !!r.body.submitted;
     if (st.submitido) return carregarResultado();
     const nova = primeiraNaoRespondida(st.blocks, st.respostas);
-    st.pos = Math.min(typeof posSalva === "number" ? posSalva : nova, Math.max(0, st.flat.length - 1));
+    st.pos = Math.min(typeof salva.pos === "number" ? salva.pos : nova, Math.max(0, st.flat.length - 1));
     persistir(); irPara("questionario");
   }
   async function salvarResposta(item_id, option_id) {
@@ -304,22 +345,36 @@ export function iniciarApp(cfg) {
     else { st.salvoRecente = true; st.erroTopo = null; }
     pintar();
   }
+  // Após ter o resultado: lead obrigatório antes de mostrar? senão devolutiva.
+  function seguirParaResultado() {
+    if (st.leadMode === "required_before_result" && !st.leadEnviado) return irPara("lead_gate");
+    irPara("devolutiva");
+  }
   async function carregarResultado() {
     st.tela = "carregando"; pintar();
     const r = await cliente.resultado(st.previewKey, st.token);
     if (r.status !== 200) { st.erroTopo = mensagemErro(r.status, r.body); st.tela = "revisao"; return pintar(); }
-    st.devolutiva = r.body; st.submitido = true; irPara("devolutiva");
+    st.devolutiva = r.body; st.submitido = true; seguirParaResultado();
   }
   async function enviar() {
     st.tentandoEnviar = true; pintar();
     const r = await cliente.enviar(st.previewKey, st.token);
     st.tentandoEnviar = false;
     if (r.status !== 200) { st.erroTopo = mensagemErro(r.status, r.body); st.tela = "revisao"; return pintar(); }
-    st.devolutiva = r.body; st.submitido = true; irPara("devolutiva");
+    st.devolutiva = r.body; st.submitido = true; seguirParaResultado();
+  }
+  async function enviarLead(nome, email, optIn) {
+    if (!validarEmail(email)) { st.leadErro = "Informe um e-mail válido."; return pintar(); }
+    st.leadEnviando = true; st.leadErro = null; pintar();
+    const r = await cliente.lead(st.previewKey, st.token, { nome: (nome || "").trim() || null, email: email.trim(), marketing_opt_in: !!optIn });
+    st.leadEnviando = false;
+    if (r.status !== 200) { st.leadErro = mensagemErro(r.status, r.body); return pintar(); }
+    st.leadEnviado = true; st.leadErro = null;
+    if (st.tela === "lead_gate") irPara("devolutiva"); else pintar();
   }
   function recomecar() {
     limparSessao(evento);
-    Object.assign(st, { token: null, previewKey: null, respostas: {}, blocks: [], flat: [], pos: 0, devolutiva: null, submitido: false });
+    Object.assign(st, { token: null, previewKey: null, respostas: {}, blocks: [], flat: [], pos: 0, devolutiva: null, submitido: false, leadEnviado: false, leadErro: null });
     irPara("abertura");
   }
 
@@ -362,7 +417,7 @@ export function iniciarApp(cfg) {
       <p class="sc-eyebrow">Boomit · Diagnóstico</p>
       <h1 class="sc-hero__title">Screener de maturidade em IA</h1>
       <p class="sc-hero__lead">Uma leitura estruturada de como você atua, como percebe a organização e o estágio de uso de IA. São 30 itens em três blocos — Pessoa, Empresa e IA — em cerca de 10 minutos.</p>
-      <div class="sc-actions"><button class="sc-btn sc-btn--primary" type="button" data-acao="ir-codigo">Iniciar ${ICONE.seta}</button></div>
+      <div class="sc-actions"><button class="sc-btn sc-btn--primary" type="button" data-acao="entrar">Iniciar ${ICONE.seta}</button></div>
       <p class="sc-hero__foot">Instrumento indicativo para desenvolvimento e priorização. Não é avaliação clínica nem base para decisão de emprego.</p>
     </div>`;
   }
@@ -550,6 +605,30 @@ export function iniciarApp(cfg) {
       <div class="sc-al__track"><span class="sc-al__center"></span>${barra}</div>
     </div>`;
   }
+  // Formulário de lead (nome opcional, e-mail obrigatório, opt-in). O servidor
+  // revalida e normaliza; guarda a PII isolada em screener_leads.
+  function formLeadHtml(titulo, subtitulo) {
+    if (st.leadEnviado) return `<div class="sc-note sc-note--ok" role="status">${ICONE.check}<span>Contato registrado. A Boomit pode falar com você sobre este retrato.</span></div>`;
+    const erro = st.leadErro ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.leadErro)}</span></div>` : "";
+    return `<form class="sc-leadform" data-acao="lead">
+      <p class="sc-eyebrow">${escapeHtml(titulo)}</p>
+      ${subtitulo ? `<p class="sc-leadform__sub">${escapeHtml(subtitulo)}</p>` : ""}
+      ${erro}
+      <div class="sc-field"><label class="sc-label" for="sc-lead-nome">Nome <span class="sc-muted">(opcional)</span></label>
+        <input class="sc-input" id="sc-lead-nome" name="nome" type="text" autocomplete="name" placeholder="Seu nome"></div>
+      <div class="sc-field"><label class="sc-label" for="sc-lead-email">E-mail</label>
+        <input class="sc-input" id="sc-lead-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="voce@empresa.com" required></div>
+      <label class="sc-ack"><input type="checkbox" id="sc-lead-opt"><span>Aceito receber contato da Boomit sobre este diagnóstico.</span></label>
+      <div class="sc-actions"><button class="sc-btn sc-btn--brand sc-btn--block" type="submit" ${st.leadEnviando ? "disabled" : ""}>${st.leadEnviando ? "Enviando…" : "Enviar contato"}</button></div>
+    </form>`;
+  }
+  function telaLeadGate() {
+    return `<div class="sc-card">
+      <div class="sc-result__head" style="padding:var(--space-2) 0 var(--space-4)"><p class="sc-eyebrow">Quase lá</p><h1 class="sc-title">Seu retrato está pronto</h1></div>
+      ${formLeadHtml("Para acessar a devolutiva", "Deixe seu contato para ver o resultado.")}
+    </div>`;
+  }
+
   function telaDevolutiva() {
     const d = st.devolutiva || {};
     const unidade = (d.assessment_unit && d.assessment_unit.name) || "sua empresa";
@@ -608,17 +687,19 @@ export function iniciarApp(cfg) {
           <li>Pessoa, Empresa e IA nunca são somadas numa nota geral.</li>
           <li>Retrato de degustação a partir de uma percepção; não é diagnóstico definitivo da empresa.</li>
           <li>Uso proibido para decisão individual de emprego (contratação, promoção, remuneração ou desligamento).</li>
-          <li class="sc-muted">As leituras por dimensão, o racional das prioridades e a evidência a acompanhar serão autorados a partir desta homologação.</li>
+          ${st.modo === "homologacao" ? '<li class="sc-muted">As leituras por dimensão, o racional das prioridades e a evidência a acompanhar serão autorados a partir desta homologação.</li>' : ""}
         </ul>
       </div>`);
 
+    const leadBloco = (st.leadMode === "optional_after_submit")
+      ? `<section class="sc-sec"><div class="sc-card sc-card--lead">${formLeadHtml("Vamos conversar?", "Se quiser aprofundar este retrato com a Boomit, deixe seu contato.")}</div></section>` : "";
     return `<div class="sc-result__head">
-        <p class="sc-eyebrow">Devolutiva · homologação</p>
+        <p class="sc-eyebrow">Devolutiva${st.modo === "homologacao" ? " · homologação" : ""}</p>
         <h1 class="sc-title sc-title--xl">${escapeHtml(unidade)}</h1>
         <p class="sc-lead sc-center">Retrato de degustação, escala 0–100. Percepção de uma pessoa.</p>
       </div>
-      ${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}
-      <div class="sc-actions sc-center-actions"><button class="sc-btn sc-btn--ghost" type="button" data-acao="recomecar">Nova sessão de homologação</button></div>`;
+      ${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${leadBloco}
+      <div class="sc-actions sc-center-actions"><button class="sc-btn sc-btn--ghost" type="button" data-acao="recomecar">${st.modo === "homologacao" ? "Nova sessão de homologação" : "Nova resposta"}</button></div>`;
   }
 
   function carregando() { return `<div class="sc-loading"><span class="sc-spin" aria-hidden="true"></span> Carregando…</div>`; }
@@ -631,13 +712,15 @@ export function iniciarApp(cfg) {
       case "transicao": return telaTransicao();
       case "questionario": return telaQuestionario();
       case "revisao": return telaRevisao();
+      case "lead_gate": return telaLeadGate();
       case "devolutiva": return telaDevolutiva();
       default: return carregando();
     }
   }
   function pintar() {
     const compacto = st.tela === "questionario" || st.tela === "transicao";
-    raiz.innerHTML = tarja + `<div class="sc-shell">` + cabecalho(compacto) + corpo() + `</div>`;
+    const topo = st.modo === "homologacao" ? tarja : "";
+    raiz.innerHTML = topo + `<div class="sc-shell">` + cabecalho(compacto) + corpo() + `</div>`;
   }
 
   // --- eventos ---
@@ -645,10 +728,10 @@ export function iniciarApp(cfg) {
     const alvo = ev.target.closest("[data-acao]"); if (!alvo) return;
     const acao = alvo.getAttribute("data-acao");
     const fns = {
-      tema: alternarTema, "ir-codigo": () => irPara("codigo"), "voltar-codigo": () => irPara("codigo"),
+      tema: alternarTema, entrar: tentarEntrar, "voltar-codigo": () => irPara("codigo"),
       comecar, "voltar-apresentacao": () => irPara("apresentacao"), "iniciar-bloco": iniciarBloco,
       "voltar-nav": voltar, "avancar-nav": avancar, "voltar-item": () => irPara("questionario"),
-      enviar, recomecar,
+      enviar, recomecar, "pular-lead": () => irPara("devolutiva"),
     };
     if (acao === "editar") return editarItem(Number(alvo.getAttribute("data-pos")));
     if (fns[acao]) return fns[acao]();
@@ -659,18 +742,25 @@ export function iniciarApp(cfg) {
     if (alvo.getAttribute("data-acao") === "ack") { const b = raiz.querySelector('[data-acao="comecar"]'); if (b) b.disabled = !alvo.checked; }
   });
   raiz.addEventListener("submit", (ev) => {
-    const form = ev.target; if (!form.getAttribute || form.getAttribute("data-acao") !== "codigo") return;
-    ev.preventDefault();
-    const campo = form.querySelector("#sc-codigo"); const codigo = (campo && campo.value || "").trim();
-    if (!codigo) { st.erroTopo = "Informe o código de acesso."; return pintar(); }
-    abrirApresentacao(codigo);
+    const form = ev.target; if (!form.getAttribute) return;
+    const acao = form.getAttribute("data-acao");
+    if (acao === "codigo") {
+      ev.preventDefault();
+      const campo = form.querySelector("#sc-codigo"); const codigo = (campo && campo.value || "").trim();
+      if (!codigo) { st.erroTopo = "Informe o código de acesso."; return pintar(); }
+      abrirApresentacao(codigo);
+    } else if (acao === "lead") {
+      ev.preventDefault();
+      const nome = form.querySelector("#sc-lead-nome"); const email = form.querySelector("#sc-lead-email"); const opt = form.querySelector("#sc-lead-opt");
+      enviarLead(nome && nome.value, email && email.value, opt && opt.checked);
+    }
   });
 
   // --- arranque ---
   (function bootstrap() {
     try { const t = globalThis.localStorage.getItem("screener:tema"); if (t) doc.documentElement.setAttribute("data-theme", t); } catch { /* ok */ }
     const salva = lerSessao(evento);
-    if (salva && salva.token && salva.previewKey) retomar(salva.previewKey, salva.token, salva.pos);
+    if (salva && salva.token) retomar(salva);
     else irPara("abertura");
   })();
 

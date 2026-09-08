@@ -148,6 +148,12 @@ body { margin: 0; background: var(--bg-canvas); color: var(--text-primary); }
 .sc-note { display: flex; gap: var(--space-3); align-items: flex-start; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: var(--text-sm); line-height: var(--leading-sm); margin-top: var(--space-4); }
 .sc-note svg { flex: none; width: 1.1rem; height: 1.1rem; margin-top: 1px; }
 .sc-note--danger { background: var(--status-danger-bg); color: var(--status-danger-fg); border: 1px solid var(--status-danger-border); }
+.sc-note--ok { background: var(--status-success-bg); color: var(--status-success-fg); border: 1px solid var(--status-success-border); }
+
+/* --- Captura de lead (degustação pública) --------------------------------- */
+.sc-leadform { display: grid; gap: var(--space-4); }
+.sc-leadform__sub { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); line-height: var(--leading-sm); }
+.sc-card--lead { background: var(--bg-brand-subtle); border-color: var(--border-default); }
 
 /* =========================================================================
    DEVOLUTIVA

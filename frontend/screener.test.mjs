@@ -9,6 +9,7 @@ import {
   escapeHtml, rotuloCobertura, pontoExibicao, glosaFaixa, rotuloDirecao, rotuloGovernanca,
   rotuloEscopo, matrizPonto, sinteseExecutiva, planoDeAcao, mensagemErro, chaveArmazenamento,
   guardarSessao, lerSessao, limparSessao, criarCliente, EVENTO_PADRAO,
+  modoDoStatus, leadModoEfetivo, validarEmail,
 } from "./screener.mjs";
 
 function memStore() {
@@ -131,6 +132,26 @@ test("planoDeAcao: uma ação por escopo (dedup)", () => {
   assert.equal(p[0].action, "A");
 });
 
+test("modoDoStatus: internal_preview → homologação; público → degustação", () => {
+  assert.equal(modoDoStatus("internal_preview"), "homologacao");
+  assert.equal(modoDoStatus("public_pilot"), "degustacao");
+  assert.equal(modoDoStatus("published"), "degustacao");
+  assert.equal(modoDoStatus(undefined), "degustacao");
+});
+
+test("leadModoEfetivo: usa o do vínculo; default por modo", () => {
+  assert.equal(leadModoEfetivo("required_before_result", "degustacao"), "required_before_result");
+  assert.equal(leadModoEfetivo("none", "degustacao"), "none");
+  assert.equal(leadModoEfetivo(undefined, "degustacao"), "optional_after_submit");
+  assert.equal(leadModoEfetivo(undefined, "homologacao"), "none");
+  assert.equal(leadModoEfetivo("lixo", "degustacao"), "optional_after_submit");
+});
+
+test("validarEmail", () => {
+  for (const ok of ["a@b.co", "voce@empresa.com.br", " x@y.io "]) assert.ok(validarEmail(ok), ok);
+  for (const bad of ["", "sem-arroba", "a@b", "a@ b.co", "@b.co", null, 42]) assert.ok(!validarEmail(bad), String(bad));
+});
+
 test("mensagemErro: 404 credencial, 403, 410, incompleta, 429", () => {
   assert.match(mensagemErro(404, { error: "nao_encontrado" }), /[Cc]ódigo/);
   assert.match(mensagemErro(403, { error: "indisponivel" }), /não está aberto/);
@@ -182,6 +203,18 @@ test("cliente.salvar: PUT /response com ids opacos; token/credencial só em head
   const c = chamadas[0];
   assert.equal(c.init.method, "PUT");
   assert.deepEqual(JSON.parse(c.init.body), { item_id: "item123", option_id: "opt456" });
+  assert.ok(!c.url.includes("TOKEN") && !c.url.includes("SEGREDO"));
+  assert.equal(c.init.headers["x-session-token"], "TOKEN");
+  assert.equal(c.init.headers["x-preview-key"], "SEGREDO");
+});
+
+test("cliente.lead: POST /lead com dados no corpo; token/credencial só em header", async () => {
+  const { chamadas, cliente } = espiao();
+  await cliente.lead("SEGREDO", "TOKEN", { nome: "Ana", email: "ana@x.com", marketing_opt_in: true });
+  const c = chamadas[0];
+  assert.equal(c.init.method, "POST");
+  assert.ok(c.url.endsWith("/screener/lead"));
+  assert.deepEqual(JSON.parse(c.init.body), { nome: "Ana", email: "ana@x.com", marketing_opt_in: true });
   assert.ok(!c.url.includes("TOKEN") && !c.url.includes("SEGREDO"));
   assert.equal(c.init.headers["x-session-token"], "TOKEN");
   assert.equal(c.init.headers["x-preview-key"], "SEGREDO");
