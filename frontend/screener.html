@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Screener de maturidade em IA · Boomit</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23545E54'/><circle cx='32' cy='17' r='5' fill='%23EDE9E4'/><rect x='27' y='27' width='10' height='22' rx='5' fill='%23EDE9E4'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- A PP Mori é a fonte da marca, mas é licenciada e não é webfont pública; o
+     produto Boomit no ar usa Inter como fallback — mesma escolha aqui. A pilha
+     em tokens.css já pede "PP Mori" primeiro, e a usa se estiver instalada. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="screener.css">
+<script>
+  // Aplica o tema salvo antes da pintura, para não piscar.
+  try { var t = localStorage.getItem("screener:tema"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+
+  // Config PÚBLICA. A anon key é a chave publicável (identifica a aplicação, não
+  // o usuário) — pode ficar no HTML. A CREDENCIAL DE PRÉVIA nunca fica aqui:
+  // é digitada pelo gestor em runtime e só viaja no header x-preview-key.
+  window.SCREENER_CONFIG = {
+    EDGE_URL: "https://klnpnjumogojspubyabi.supabase.co/functions/v1/screener",
+    ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsbnBuanVtb2dvanNwdWJ5YWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODI1NjcsImV4cCI6MjA5NjE1ODU2N30.D3L-wybr8jf0Esi3HcJC2kMrmqrBgKfQ3KIo8dV0DUI"
+  };
+</script>
+</head>
+<body>
+  <main id="sc-app" aria-live="polite"></main>
+  <script type="module" src="screener.mjs"></script>
+</body>
+</html>
