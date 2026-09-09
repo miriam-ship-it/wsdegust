@@ -203,11 +203,11 @@ export function mensagemErro(status, body) {
  */
 export function descreverErro(status, body) {
   const e = body && body.error;
-  if (status === 410) return { titulo: "Sua sessão expirou", mensagem: "As respostas ficam guardadas por tempo limitado. Comece uma nova sessão para continuar.", recuperavel: false, icone: "relogio" };
-  if (status === 403 || e === "indisponivel") return { titulo: "Evento indisponível", mensagem: "Este evento não está aberto para respostas no momento.", recuperavel: false, icone: "aviso" };
-  if (status === 404) return { titulo: "Sessão não encontrada", mensagem: "Não localizamos esta sessão. Comece uma nova para continuar.", recuperavel: false, icone: "aviso" };
-  if (status === 429) return { titulo: "Muitas tentativas em pouco tempo", mensagem: "Aguarde um instante e tente novamente.", recuperavel: true, icone: "relogio" };
-  return { titulo: "Algo não saiu como esperado", mensagem: "Não foi possível concluir agora. Tente novamente em instantes.", recuperavel: true, icone: "aviso" };
+  if (status === 410) return { titulo: "Sua sessão expirou", mensagem: "As respostas ficam guardadas por tempo limitado. Comece uma nova sessão para continuar.", recuperavel: false, icone: "relogio", tom: "warning" };
+  if (status === 403 || e === "indisponivel") return { titulo: "Evento indisponível", mensagem: "Este evento não está aberto para respostas no momento.", recuperavel: false, icone: "aviso", tom: "neutral" };
+  if (status === 404) return { titulo: "Sessão não encontrada", mensagem: "Não localizamos esta sessão. Comece uma nova para continuar.", recuperavel: false, icone: "aviso", tom: "neutral" };
+  if (status === 429) return { titulo: "Muitas tentativas em pouco tempo", mensagem: "Aguarde um instante e tente novamente.", recuperavel: true, icone: "relogio", tom: "warning" };
+  return { titulo: "Algo não saiu como esperado", mensagem: "Não foi possível concluir agora. Tente novamente em instantes.", recuperavel: true, icone: "aviso", tom: "neutral" };
 }
 
 /** Chave de armazenamento da sessão, isolada por evento. */
@@ -733,15 +733,23 @@ export function iniciarApp(cfg) {
   function telaErro() {
     const d = st.erro || {};
     const ic = ICONE[d.icone] || ICONE.aviso;
+    const tom = d.tom || "neutral";
     const retry = (d.recuperavel && d.retry)
       ? `<button class="sc-btn sc-btn--primary" type="button" data-acao="retry">${st.tentandoEnviar ? "Tentando…" : "Tentar novamente"}</button>` : "";
+    // Momento de estado vazio: a marca aparece como textura (grafismo, baixa
+    // opacidade — orientação do design system), sobre superfície quente.
     return `<div class="sc-erro">
-      <div class="sc-erro__ic" aria-hidden="true">${ic}</div>
-      <h1 class="sc-title">${escapeHtml(d.titulo || "Algo não saiu como esperado")}</h1>
-      <p class="sc-lead">${escapeHtml(d.mensagem || "")}</p>
-      <div class="sc-actions">
-        ${retry}
-        <button class="sc-btn ${retry ? "sc-btn--ghost" : "sc-btn--primary"}" type="button" data-acao="recomecar">Começar de novo</button>
+      <div class="sc-erro__card">
+        <img class="sc-erro__grafismo" src="grafismo-boomit.png" alt="" aria-hidden="true" width="900" height="900">
+        <div class="sc-erro__corpo">
+          <div class="sc-erro__ic sc-erro__ic--${tom}" aria-hidden="true">${ic}</div>
+          <h1 class="sc-title">${escapeHtml(d.titulo || "Algo não saiu como esperado")}</h1>
+          <p class="sc-lead">${escapeHtml(d.mensagem || "")}</p>
+          <div class="sc-actions">
+            ${retry}
+            <button class="sc-btn ${retry ? "sc-btn--ghost" : "sc-btn--primary"}" type="button" data-acao="recomecar">Começar de novo</button>
+          </div>
+        </div>
       </div>
     </div>`;
   }
