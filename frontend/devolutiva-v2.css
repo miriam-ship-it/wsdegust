@@ -1,0 +1,55 @@
+/* =============================================================
+   Devolutiva V2 — estilos da escada de maturidade em IA.
+   Consome tokens.css + screener.css (base) e acrescenta só o que é do V2.
+   ============================================================= */
+
+/* Topo: anel do nível + a escada */
+.sc-v2-topo { display: grid; grid-template-columns: auto 1fr; gap: var(--space-6); align-items: center; }
+@media (max-width: 40rem) { .sc-v2-topo { grid-template-columns: 1fr; } }
+
+.sc-v2-anel { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--space-2); width: 9rem; height: 9rem; border-radius: var(--radius-full); border: 2px solid var(--text-brand); background: var(--bg-brand-subtle); }
+.sc-v2-anel__nome { font-size: var(--text-base); font-weight: var(--weight-semibold); line-height: 1.15; max-width: 7rem; }
+.sc-v2-anel__n { font-size: var(--text-sm); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.sc-v2-anel__de { color: var(--text-tertiary); }
+
+/* A escada: degraus topo→base */
+.sc-v2-escada { display: grid; gap: var(--space-2); min-width: 0; }
+.sc-v2-degrau { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); opacity: 0.72; }
+.sc-v2-degrau__n { flex: none; width: 1.75rem; height: 1.75rem; border-radius: var(--radius-full); background: var(--bg-muted); color: var(--text-tertiary); display: grid; place-items: center; font-size: var(--text-sm); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+.sc-v2-degrau__nome { font-size: var(--text-sm); font-weight: var(--weight-medium); display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.sc-v2-degrau__resumo { font-size: var(--text-xs); color: var(--text-tertiary); line-height: var(--leading-sm); margin-top: 2px; }
+.sc-v2-degrau.is-atual { opacity: 1; border-color: var(--text-brand); background: var(--bg-brand-subtle); box-shadow: var(--shadow-sm); }
+.sc-v2-degrau.is-atual .sc-v2-degrau__n { background: var(--text-brand); color: var(--text-on-brand); }
+.sc-v2-degrau.is-esperado { opacity: 1; border-color: var(--border-strong); border-style: dashed; }
+
+.sc-v2-tag { font-size: 0.65rem; letter-spacing: 0.03em; text-transform: uppercase; font-weight: var(--weight-medium); border-radius: var(--radius-full); padding: 1px 8px; white-space: nowrap; }
+.sc-v2-tag--atual { background: var(--text-brand); color: var(--text-on-brand); }
+.sc-v2-tag--esp { background: transparent; color: var(--text-secondary); border: 1px dashed var(--border-strong); }
+
+/* Esperado × atual */
+.sc-v2-esp { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--space-4); align-items: center; }
+@media (max-width: 30rem) { .sc-v2-esp { grid-template-columns: 1fr; } .sc-v2-esp__x { display: none; } }
+.sc-v2-esp__k { display: block; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.sc-v2-esp__v { display: block; margin-top: var(--space-1); font-size: var(--text-lg); font-weight: var(--weight-medium); }
+.sc-v2-esp__x { font-size: var(--text-xl); color: var(--text-tertiary); }
+
+/* Eixos */
+.sc-v2-eixos { display: grid; gap: var(--space-5); }
+.sc-v2-eixo__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.sc-v2-eixo__top > span:first-child { font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.sc-v2-eixo__nivel { font-size: var(--text-sm); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* Leitura do nível */
+.sc-v2-leitura { display: grid; gap: var(--space-4); margin-top: var(--space-5); }
+.sc-v2-leitura__item { display: grid; gap: var(--space-1); }
+.sc-v2-leitura__k { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.sc-v2-leitura__item p { margin: 0; font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
+
+/* Plano de 30 dias */
+.sc-v2-plano { display: grid; gap: var(--space-3); }
+.sc-v2-plano__item { display: flex; gap: var(--space-3); align-items: flex-start; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-top: 2px solid var(--text-brand); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); }
+.sc-v2-plano__n { flex: none; width: 1.75rem; height: 1.75rem; border-radius: var(--radius-full); background: var(--bg-inverse); color: var(--text-inverse); display: grid; place-items: center; font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.sc-v2-plano__item p { margin: 0; font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); align-self: center; }
+
+/* Nota inline informativa (sinal de eixos) */
+.sc-note--info { background: var(--status-info-bg); color: var(--status-info-fg); border: 1px solid var(--status-info-border); }
