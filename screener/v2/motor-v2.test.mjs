@@ -1,4 +1,4 @@
-// Testes do motor V2 (algoritmo da escada + teto de liderança). node --test.
+// Testes do motor V2 (escada ponderada 0.4·T + 0.6·L + teto de liderança). node --test.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calcularV2 } from "./motor-v2.mjs";
@@ -10,7 +10,8 @@ test("adoção frágil: técnico à frente da liderança → nível efetivo trav
   const r = calcularV2(R(4, 1), "diretoria");
   assert.equal(r.eixos.tecnico.nivel, 4);
   assert.equal(r.eixos.lideranca.nivel, 1);
-  assert.equal(r.nivel.n, 2);            // min(4, 1+1) = 2 (teto de liderança)
+  assert.equal(r.ponderada, 2.2);         // 0.4·4 + 0.6·1 = 2.2 → round 2
+  assert.equal(r.nivel.n, 2);            // min(round(2.2), 1+1) = 2 (teto de liderança)
   assert.equal(r.sinal, "adocao_fragil"); // 4 − 1 ≥ 2
 });
 
@@ -20,12 +21,20 @@ test("equilibrado mediano → nível segue os eixos, sem sinal", () => {
   assert.equal(r.sinal, "none");
 });
 
-test("liderança a destravar: liderança acima do uso técnico", () => {
+test("liderança a destravar: liderança acima do uso técnico puxa o nível para cima", () => {
   const r = calcularV2(R(1, 3));
   assert.equal(r.eixos.tecnico.nivel, 1);
   assert.equal(r.eixos.lideranca.nivel, 3);
-  assert.equal(r.nivel.n, 1);            // min(1, 3+1) = 1
+  assert.equal(r.ponderada, 2.2);         // 0.4·1 + 0.6·3 = 2.2 → round 2
+  assert.equal(r.nivel.n, 2);            // liderança pesa mais e não há teto (min(2, 3+1)=2)
   assert.equal(r.sinal, "lideranca_a_destravar");
+});
+
+test("teto de liderança impede saltar acima da liderança + folga", () => {
+  // T=4, L=2 → ponderada 0.4·4+0.6·2 = 2.8 → round 3, mas teto = 2+1 = 3 → 3 (no limite)
+  assert.equal(calcularV2(R(4, 2)).nivel.n, 3);
+  // T=3, L=1 → ponderada 0.4·3+0.6·1 = 1.8 → round 2, teto = 1+1 = 2 → 2
+  assert.equal(calcularV2(R(3, 1)).nivel.n, 2);
 });
 
 test("topo: tudo Nível 4 → efetivo 4, display 100", () => {

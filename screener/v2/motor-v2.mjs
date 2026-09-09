@@ -34,10 +34,13 @@ export function calcularV2(respostas = {}, senioridade) {
   const nivelT = T == null ? null : Math.round(T);
   const nivelL = L == null ? null : Math.round(L);
 
-  // Nível efetivo com o teto de liderança (regra central do Guia da Carol).
-  let nivelEfetivo = null, sinal = "none";
+  // Nível efetivo: média PONDERADA (liderança pesa mais) + TETO de liderança
+  // (não sustenta mais de `folga` degraus acima dela — regra do Guia da Carol).
+  let nivelEfetivo = null, sinal = "none", ponderada = null;
   if (nivelT != null && nivelL != null) {
-    nivelEfetivo = clamp(Math.min(nivelT, nivelL + SCORING.folga_lideranca), SCORING.niveis_min, SCORING.niveis_max);
+    ponderada = SCORING.pesos.tecnico * T + SCORING.pesos.lideranca * L;
+    const nivelPonderado = Math.round(ponderada);
+    nivelEfetivo = clamp(Math.min(nivelPonderado, nivelL + SCORING.folga_lideranca), SCORING.niveis_min, SCORING.niveis_max);
     if (nivelT - nivelL >= SCORING.gap_fragil) sinal = "adocao_fragil";
     else if (nivelL > nivelT) sinal = "lideranca_a_destravar";
   } else if (nivelT != null) {
@@ -61,6 +64,7 @@ export function calcularV2(respostas = {}, senioridade) {
       tecnico: { media: T, nivel: nivelT, display: display(nivelT), cobertura: covT, respondidos: porEixo.tecnico.length, total: 3 },
       lideranca: { media: L, nivel: nivelL, display: display(nivelL), cobertura: covL, respondidos: porEixo.lideranca.length, total: 5 },
     },
+    ponderada: ponderada == null ? null : Math.round(ponderada * 100) / 100,
     nivel: nivelEfetivo == null ? null : { n: nivelEfetivo, code: nivelInfo(nivelEfetivo).code, name: nivelInfo(nivelEfetivo).name, resumo: nivelInfo(nivelEfetivo).resumo, display: display(nivelEfetivo) },
     senioridade: sen ? { code: sen.code, label: sen.label, esperado, esperado_nome: nivelInfo(esperado)?.name || null } : null,
     gap: gap == null ? null : { valor: gap, classe: gapClasse },

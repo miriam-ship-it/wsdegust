@@ -133,8 +133,10 @@ export const QUESTOES = [
 export const SCORING = {
   niveis_min: 1, niveis_max: 4,
   cobertura_min: { tecnico: 2, lideranca: 3 }, // itens válidos exigidos por eixo
-  // teto de liderança: o nível efetivo não sustenta mais de 1 degrau acima da
-  // liderança. min( round(T), round(L) + folga ).
+  // Combinação PONDERADA + TETO: nível = round( peso_T·T + peso_L·L ), mas nunca
+  // mais de `folga_lideranca` degraus acima da liderança (regra do Guia da Carol).
+  // A liderança pesa mais (é ela que extrai o valor). Pesos ajustáveis.
+  pesos: { tecnico: 0.4, lideranca: 0.6 },
   folga_lideranca: 1,
   gap_fragil: 2, // se round(T) − round(L) ≥ isto → "adoção frágil"
 };
