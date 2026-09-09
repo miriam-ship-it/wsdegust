@@ -250,6 +250,13 @@ body { margin: 0; background: var(--bg-canvas); color: var(--text-primary); }
 .sc-meta li { font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
 .sc-meta b { font-weight: var(--weight-medium); color: var(--text-primary); }
 
+/* --- Tela de erro (estados terminais) ------------------------------------- */
+.sc-erro { max-width: 32rem; margin: 0 auto; text-align: center; padding: var(--space-16) var(--space-2) var(--space-12); }
+.sc-erro__ic { width: 3.5rem; height: 3.5rem; margin: 0 auto var(--space-6); border-radius: var(--radius-full); background: var(--bg-muted); color: var(--text-secondary); display: grid; place-items: center; }
+.sc-erro__ic svg { width: 1.75rem; height: 1.75rem; }
+.sc-erro .sc-lead { margin-top: var(--space-3); }
+.sc-erro .sc-actions { justify-content: center; margin-top: var(--space-8); }
+
 /* --- Carregamento --------------------------------------------------------- */
 .sc-loading { display: flex; gap: var(--space-3); align-items: center; justify-content: center; padding: var(--space-16) 0; color: var(--text-tertiary); font-size: var(--text-sm); }
 .sc-spin { width: 1.25rem; height: 1.25rem; border: 2px solid var(--border-default); border-top-color: var(--text-brand); border-radius: var(--radius-full); animation: sc-rot 0.7s linear infinite; }

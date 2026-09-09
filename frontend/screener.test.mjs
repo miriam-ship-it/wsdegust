@@ -9,7 +9,7 @@ import {
   escapeHtml, rotuloCobertura, pontoExibicao, glosaFaixa, rotuloDirecao, rotuloGovernanca,
   rotuloEscopo, matrizPonto, sinteseExecutiva, planoDeAcao, mensagemErro, chaveArmazenamento,
   guardarSessao, lerSessao, limparSessao, criarCliente, EVENTO_PADRAO,
-  modoDoStatus, leadModoEfetivo, validarEmail,
+  modoDoStatus, leadModoEfetivo, validarEmail, descreverErro,
 } from "./screener.mjs";
 
 function memStore() {
@@ -158,6 +158,17 @@ test("mensagemErro: 404 credencial, 403, 410, incompleta, 429", () => {
   assert.match(mensagemErro(410, {}), /expirou/);
   assert.match(mensagemErro(400, { error: "submissao_incompleta" }), /faltam respostas/i);
   assert.match(mensagemErro(429, {}), /[Mm]uitas tentativas/);
+});
+
+test("descreverErro: terminal vs recuperável, título/ícone por status", () => {
+  const exp = descreverErro(410, {});
+  assert.match(exp.titulo, /expirou/); assert.equal(exp.recuperavel, false); assert.equal(exp.icone, "relogio");
+  assert.equal(descreverErro(403, { error: "indisponivel" }).recuperavel, false);
+  assert.match(descreverErro(404, {}).titulo, /não localiz|não encontr/i);
+  const r429 = descreverErro(429, {});
+  assert.equal(r429.recuperavel, true); assert.match(r429.titulo, /[Mm]uitas tentativas/);
+  const g = descreverErro(500, {});
+  assert.equal(g.recuperavel, true); assert.match(g.titulo, /não saiu como esperado/);
 });
 
 test("armazenamento: isolado por evento; round-trip; limpar", () => {

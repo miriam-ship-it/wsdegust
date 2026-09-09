@@ -197,6 +197,19 @@ export function mensagemErro(status, body) {
   return "Não foi possível concluir a operação agora. Tente novamente em instantes.";
 }
 
+/**
+ * Descreve um erro TERMINAL para a tela dedicada (título/mensagem/ícone e se é
+ * recuperável por nova tentativa). Genérico e sem PII.
+ */
+export function descreverErro(status, body) {
+  const e = body && body.error;
+  if (status === 410) return { titulo: "Sua sessão expirou", mensagem: "As respostas ficam guardadas por tempo limitado. Comece uma nova sessão para continuar.", recuperavel: false, icone: "relogio" };
+  if (status === 403 || e === "indisponivel") return { titulo: "Evento indisponível", mensagem: "Este evento não está aberto para respostas no momento.", recuperavel: false, icone: "aviso" };
+  if (status === 404) return { titulo: "Sessão não encontrada", mensagem: "Não localizamos esta sessão. Comece uma nova para continuar.", recuperavel: false, icone: "aviso" };
+  if (status === 429) return { titulo: "Muitas tentativas em pouco tempo", mensagem: "Aguarde um instante e tente novamente.", recuperavel: true, icone: "relogio" };
+  return { titulo: "Algo não saiu como esperado", mensagem: "Não foi possível concluir agora. Tente novamente em instantes.", recuperavel: true, icone: "aviso" };
+}
+
 /** Chave de armazenamento da sessão, isolada por evento. */
 export function chaveArmazenamento(evento) {
   return PREFIXO_ARMAZENAMENTO + (evento || EVENTO_PADRAO);
@@ -247,6 +260,7 @@ const ICONE = {
   seta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   volta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  relogio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
 };
 
 // Wordmark institucional Boomit (imagem real; o tema é tratado em .sc-logo).
@@ -273,6 +287,7 @@ export function iniciarApp(cfg) {
     submitido: false, devolutiva: null,
     leadMode: "none", leadEnviado: false, leadEnviando: false, leadErro: null,
     salvando: 0, salvoRecente: false, erroTopo: null, tentandoEnviar: false,
+    erro: null,
   };
 
   // --- tema ---
@@ -289,6 +304,12 @@ export function iniciarApp(cfg) {
 
   function irPara(tela) { st.tela = tela; st.erroTopo = null; pintar(); scrollTopo(); }
   function scrollTopo() { try { globalThis.scrollTo(0, 0); } catch { /* ok */ } }
+  // Tela de erro dedicada (estados terminais). `retry` (opcional) re-executa a
+  // ação que falhou, quando o erro é recuperável.
+  function irParaErro(status, body, retry) {
+    st.erro = { ...descreverErro(status, body), retry: retry || null };
+    st.erroTopo = null; st.tela = "erro"; pintar(); scrollTopo();
+  }
   const persistir = () => guardarSessao(evento, { previewKey: st.previewKey, token: st.token, pos: st.pos, modo: st.modo, leadMode: st.leadMode });
 
   // --- rede ---
@@ -330,6 +351,7 @@ export function iniciarApp(cfg) {
     st.modo = salva.modo || "degustacao"; st.leadMode = salva.leadMode || "none";
     st.tela = "carregando"; pintar();
     const r = await cliente.retomar(st.previewKey, st.token);
+    if (r.status === 410) { limparSessao(evento); st.token = null; st.previewKey = null; return irParaErro(410, r.body); }
     if (r.status !== 200) { limparSessao(evento); st.token = null; st.previewKey = null; st.tela = "abertura"; return pintar(); }
     st.instrument = r.body.instrument; st.blocks = r.body.blocks; st.flat = itensDosBlocos(st.blocks);
     st.respostas = r.body.answered || {}; st.submitido = !!r.body.submitted;
@@ -342,7 +364,9 @@ export function iniciarApp(cfg) {
     st.respostas[item_id] = option_id; st.salvando++; st.salvoRecente = false; pintar();
     const r = await cliente.salvar(st.previewKey, st.token, item_id, option_id);
     st.salvando--;
-    if (r.status !== 200) st.erroTopo = mensagemErro(r.status, r.body);
+    // Sessão morta (expirada/indisponível/inexistente) → tela de erro dedicada.
+    if (r.status === 410 || r.status === 403 || r.status === 404) return irParaErro(r.status, r.body);
+    if (r.status !== 200) st.erroTopo = mensagemErro(r.status, r.body); // transiente → tarja
     else { st.salvoRecente = true; st.erroTopo = null; }
     pintar();
   }
@@ -354,14 +378,14 @@ export function iniciarApp(cfg) {
   async function carregarResultado() {
     st.tela = "carregando"; pintar();
     const r = await cliente.resultado(st.previewKey, st.token);
-    if (r.status !== 200) { st.erroTopo = mensagemErro(r.status, r.body); st.tela = "revisao"; return pintar(); }
+    if (r.status !== 200) return irParaErro(r.status, r.body, carregarResultado);
     st.devolutiva = r.body; st.submitido = true; seguirParaResultado();
   }
   async function enviar() {
     st.tentandoEnviar = true; pintar();
     const r = await cliente.enviar(st.previewKey, st.token);
     st.tentandoEnviar = false;
-    if (r.status !== 200) { st.erroTopo = mensagemErro(r.status, r.body); st.tela = "revisao"; return pintar(); }
+    if (r.status !== 200) return irParaErro(r.status, r.body, enviar);
     st.devolutiva = r.body; st.submitido = true; seguirParaResultado();
   }
   async function enviarLead(nome, email, optIn) {
@@ -706,6 +730,22 @@ export function iniciarApp(cfg) {
       <div class="sc-actions sc-center-actions"><button class="sc-btn sc-btn--ghost" type="button" data-acao="recomecar">${st.modo === "homologacao" ? "Nova sessão de homologação" : "Nova resposta"}</button></div>`;
   }
 
+  function telaErro() {
+    const d = st.erro || {};
+    const ic = ICONE[d.icone] || ICONE.aviso;
+    const retry = (d.recuperavel && d.retry)
+      ? `<button class="sc-btn sc-btn--primary" type="button" data-acao="retry">${st.tentandoEnviar ? "Tentando…" : "Tentar novamente"}</button>` : "";
+    return `<div class="sc-erro">
+      <div class="sc-erro__ic" aria-hidden="true">${ic}</div>
+      <h1 class="sc-title">${escapeHtml(d.titulo || "Algo não saiu como esperado")}</h1>
+      <p class="sc-lead">${escapeHtml(d.mensagem || "")}</p>
+      <div class="sc-actions">
+        ${retry}
+        <button class="sc-btn ${retry ? "sc-btn--ghost" : "sc-btn--primary"}" type="button" data-acao="recomecar">Começar de novo</button>
+      </div>
+    </div>`;
+  }
+
   function carregando() { return `<div class="sc-loading"><span class="sc-spin" aria-hidden="true"></span> Carregando…</div>`; }
 
   function corpo() {
@@ -718,6 +758,7 @@ export function iniciarApp(cfg) {
       case "revisao": return telaRevisao();
       case "lead_gate": return telaLeadGate();
       case "devolutiva": return telaDevolutiva();
+      case "erro": return telaErro();
       default: return carregando();
     }
   }
@@ -744,6 +785,7 @@ export function iniciarApp(cfg) {
       comecar, "voltar-apresentacao": () => irPara("apresentacao"), "iniciar-bloco": iniciarBloco,
       "voltar-nav": voltar, "avancar-nav": avancar, "voltar-item": () => irPara("questionario"),
       enviar, recomecar, "pular-lead": () => irPara("devolutiva"),
+      retry: () => { const f = st.erro && st.erro.retry; if (f) f(); },
     };
     if (acao === "editar") return editarItem(Number(alvo.getAttribute("data-pos")));
     if (fns[acao]) return fns[acao]();
