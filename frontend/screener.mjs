@@ -194,7 +194,7 @@ export function mensagemErro(status, body) {
   if (status === 400 && e === "submissao_incompleta") return "Ainda faltam respostas. Responda todos os itens antes de enviar.";
   if (status === 413) return "O envio ficou grande demais. Recarregue a página e tente novamente.";
   if (status === 429) return "Muitas tentativas em pouco tempo. Aguarde um instante e tente de novo.";
-  return "Não foi possível concluir a operação agora. Tente novamente em instantes.";
+  return "Não foi possível concluir agora. Tente novamente em instantes.";
 }
 
 /**
@@ -480,7 +480,7 @@ export function iniciarApp(cfg) {
         <div class="sc-usebox"><h3>Para que serve</h3><p>${escapeHtml(st.consent && st.consent.intended_use || "")}</p></div>
         <div class="sc-usebox"><h3>Não serve para</h3><ul>${usos}</ul></div>
         ${blocos ? `<div class="sc-usebox"><h3>Blocos</h3><ul>${blocos}</ul></div>` : ""}
-        <label class="sc-ack"><input type="checkbox" data-acao="ack"><span>Li o aviso acima e concordo em responder para fins de homologação do instrumento.</span></label>
+        <label class="sc-ack"><input type="checkbox" data-acao="ack"><span>Li o aviso acima e concordo em responder${st.modo === "homologacao" ? " para fins de homologação do instrumento" : ""}.</span></label>
       </div>
       <div class="sc-actions sc-actions--split">
         <button class="sc-btn sc-btn--ghost" type="button" data-acao="voltar-codigo">Voltar</button>
@@ -510,7 +510,7 @@ export function iniciarApp(cfg) {
   function autosaveHtml() {
     if (st.salvando > 0) return `<span class="sc-save sc-save--ativo">Salvando…</span>`;
     if (st.salvoRecente) return `<span class="sc-save sc-save--ok">${ICONE.check} Resposta salva</span>`;
-    return `<span class="sc-save">Autosalvo a cada resposta</span>`;
+    return `<span class="sc-save">Salvo automaticamente</span>`;
   }
   function telaQuestionario() {
     const it = st.flat[st.pos]; if (!it) return carregando();
@@ -652,7 +652,7 @@ export function iniciarApp(cfg) {
   }
   function telaLeadGate() {
     return `<div class="sc-card">
-      <div class="sc-result__head" style="padding:var(--space-2) 0 var(--space-4)"><p class="sc-eyebrow">Quase lá</p><h1 class="sc-title">Seu retrato está pronto</h1></div>
+      <div class="sc-result__head" style="padding:var(--space-2) 0 var(--space-4)"><p class="sc-eyebrow">Antes do resultado</p><h1 class="sc-title">Seu retrato está pronto</h1></div>
       ${formLeadHtml("Para acessar a devolutiva", "Deixe seu contato para ver o resultado.")}
     </div>`;
   }
@@ -677,7 +677,7 @@ export function iniciarApp(cfg) {
       `<div class="sc-idx">${anelIndice(org.index_display, org.band_label)}<div class="sc-idx__dims"><div class="sc-dims">${(org.dimensions || []).map((x) => dimLinha(x, "Sua percepção indica ")).join("")}</div></div></div>`);
 
     // 4. Maturidade em IA percebida (índice + eixos + gate separado)
-    const s4 = secao("4", "Maturidade em IA percebida", "Governança é um gate à parte; não reduz o índice.",
+    const s4 = secao("4", "Maturidade em IA percebida", "A governança entra à parte e não reduz o índice.",
       `<div class="sc-idx">${anelIndice(ia.index_display, ia.band_label)}<div class="sc-idx__dims"><div class="sc-dims">${(ia.dimensions || []).map((x) => dimLinha(x, "Sua percepção indica ")).join("")}</div>
         <div class="sc-gate"><span class="sc-gate__k">Governança</span><span class="sc-gate__v">${escapeHtml(gov.label)}</span><p class="sc-gate__n">${escapeHtml(gov.nota)}</p></div>
       </div></div>`);
@@ -694,7 +694,7 @@ export function iniciarApp(cfg) {
        <div class="sc-al__leg"><span>Você à frente</span><span>Alinhado</span><span>Contexto à frente</span></div>`);
 
     // 7. Prioridades (uma por escopo)
-    const s7 = secao("7", "Três prioridades", "No máximo uma por escopo. O racional detalhado é definido na homologação.",
+    const s7 = secao("7", "Três prioridades", st.modo === "homologacao" ? "No máximo uma por escopo. O racional detalhado é definido na homologação." : "No máximo uma por escopo — a de menor resultado em cada frente.",
       `<div class="sc-prio">${(d.priorities || []).map((p) => `<div class="sc-prio__item">
         <span class="sc-prio__rank">${escapeHtml(String(p.rank))}</span>
         <div class="sc-prio__body"><span class="sc-prio__scope">${escapeHtml(rotuloEscopo(p.scope))}${p.dimension_name ? " · " + escapeHtml(p.dimension_name) : ""}</span>
@@ -706,7 +706,6 @@ export function iniciarApp(cfg) {
       `<div class="sc-plano">${plano.map((p, i) => `<div class="sc-plano__item"><span class="sc-plano__k">${escapeHtml(rotuloEscopo(p.scope))}</span><p class="sc-plano__a">${escapeHtml(p.action || "")}</p></div>`).join("")}</div>`);
 
     // 9. Nota metodológica
-    const proib = (st.consent && st.consent.prohibited_uses) ? st.consent.prohibited_uses : ((d.notes) || []);
     const s9 = secao("9", "Nota metodológica", null,
       `<div class="sc-card sc-card--quiet">
         <ul class="sc-meta">
@@ -724,10 +723,10 @@ export function iniciarApp(cfg) {
     return `<div class="sc-result__head">
         <p class="sc-eyebrow">Devolutiva${st.modo === "homologacao" ? " · homologação" : ""}</p>
         <h1 class="sc-title sc-title--xl">${escapeHtml(unidade)}</h1>
-        <p class="sc-lead sc-center">Retrato de degustação, escala 0–100. Percepção de uma pessoa.</p>
+        <p class="sc-lead sc-center">Retrato de degustação, em escala 0–100, a partir da percepção de uma pessoa.</p>
       </div>
       ${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${leadBloco}
-      <div class="sc-actions sc-center-actions"><button class="sc-btn sc-btn--ghost" type="button" data-acao="recomecar">${st.modo === "homologacao" ? "Nova sessão de homologação" : "Nova resposta"}</button></div>`;
+      <div class="sc-actions sc-center-actions"><button class="sc-btn sc-btn--ghost" type="button" data-acao="recomecar">${st.modo === "homologacao" ? "Nova sessão de homologação" : "Responder de novo"}</button></div>`;
   }
 
   function telaErro() {
