@@ -14,6 +14,13 @@ const METODOS = {
   "/submit": ["POST"],
   "/result": ["GET"],
   "/lead": ["POST"],
+  // V2 (diagnóstico de maturidade em IA) — mesmas rotas sob prefixo /v2
+  "/v2/start": ["GET", "POST"],
+  "/v2/session": ["GET"],
+  "/v2/response": ["PUT"],
+  "/v2/submit": ["POST"],
+  "/v2/result": ["GET"],
+  "/v2/lead": ["POST"],
 };
 /** Métodos da rota (sem OPTIONS), ou null se a rota não existe. */
 export function metodosDaRota(rota) { return METODOS[rota] ? METODOS[rota].slice() : null; }

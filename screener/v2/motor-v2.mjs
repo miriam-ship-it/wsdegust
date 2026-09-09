@@ -58,7 +58,7 @@ export function calcularV2(respostas = {}, senioridade) {
   }
 
   return {
-    contract_version: "PublicResultIAV2",
+    contract_version: "ScoreResultIAV2", // resultado INTERNO (com media/ponderada); a edge projeta o PublicResultIAV2
     instrument: { code: INSTRUMENTO_IA_V2.code, version: INSTRUMENTO_IA_V2.version },
     eixos: {
       tecnico: { media: T, nivel: nivelT, display: display(nivelT), cobertura: covT, respondidos: porEixo.tecnico.length, total: 3 },

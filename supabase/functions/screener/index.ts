@@ -16,6 +16,7 @@
 // autorização é do próprio handler (credencial/token/estado/vigência/RPC).
 import postgres from "npm:postgres@3";
 import * as H from "../../../screener/edge/handlers.mjs";
+import * as HV2 from "../../../screener/edge/handlers-v2.mjs";
 import {
   metodosDaRota, allowDaRota, parseAllowlist, avaliarOrigem, corsHeaders,
   preflightHeaders, headersSolicitadosPermitidos, lerCorpoJson,
@@ -97,6 +98,14 @@ Deno.serve(async (req: Request) => {
     else if (req.method === "POST" && rota === "/submit") r = await H.postSubmit(ctx, a);
     else if (req.method === "GET" && rota === "/result") r = await H.getResult(ctx, a);
     else if (req.method === "POST" && rota === "/lead") r = await H.postLead(ctx, a);
+    // V2 — diagnóstico de maturidade em IA (motor roda aqui; navegador recebe só o público)
+    else if (req.method === "GET" && rota === "/v2/start") r = await HV2.getStartV2(ctx, a);
+    else if (req.method === "POST" && rota === "/v2/start") r = await HV2.postStartV2(ctx, a);
+    else if (req.method === "GET" && rota === "/v2/session") r = await HV2.getSessionV2(ctx, a);
+    else if (req.method === "PUT" && rota === "/v2/response") r = await HV2.putResponseV2(ctx, a);
+    else if (req.method === "POST" && rota === "/v2/submit") r = await HV2.postSubmitV2(ctx, a);
+    else if (req.method === "GET" && rota === "/v2/result") r = await HV2.getResultV2(ctx, a);
+    else if (req.method === "POST" && rota === "/v2/lead") r = await HV2.postLeadV2(ctx, a);
     else return json(404, { error: "rota_desconhecida" }, cors);
     return json(r.status, r.body, cors);
   } catch (e) {
