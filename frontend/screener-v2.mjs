@@ -40,12 +40,21 @@ export function iniciarV2(cfg = {}) {
   function alternarTema() { const p = temaAtual() === "dark" ? "light" : "dark"; doc.documentElement.setAttribute("data-theme", p); try { globalThis.localStorage.setItem("screener:tema", p); } catch { /* ok */ } pintar(); }
   function irPara(t) { st.tela = t; pintar(); try { globalThis.scrollTo(0, 0); } catch { /* ok */ } }
 
-  function calcular() {
-    const compute = cfg.transporte || calcularV2; // injetável (server em produção)
-    st.resultado = compute(st.respostas, st.senioridade);
-    irPara("devolutiva");
+  async function calcular() {
+    // Produção: cfg.transporte faz o fluxo na edge (start→salva→submit) e devolve o
+    // público sanitizado (async). Demo: calcula no cliente (a devolutiva lê o mesmo
+    // subconjunto de campos em ambos os casos).
+    const compute = cfg.transporte || ((r, s) => calcularV2(r, s));
+    st.erro = null; irPara("carregando");
+    try {
+      st.resultado = await compute(st.respostas, st.senioridade);
+      irPara("devolutiva");
+    } catch (e) {
+      st.erro = (e && e.corpo && e.corpo.error) || (e && e.message) || "falha";
+      irPara("erro");
+    }
   }
-  function recomecar() { st.senioridade = null; st.respostas = {}; st.pos = 0; st.resultado = null; irPara("abertura"); }
+  function recomecar() { st.senioridade = null; st.respostas = {}; st.pos = 0; st.resultado = null; st.erro = null; irPara("abertura"); }
 
   // --- render ---
   function cabecalho(compacto) {
@@ -103,11 +112,24 @@ export function iniciarV2(cfg = {}) {
         <button class="sc-btn sc-btn--primary" type="button" data-acao="avancar" ${escolhido !== undefined ? "" : "disabled"}>${ultimo ? "Ver resultado" : "Avançar"} ${ICON.seta}</button>
       </div>`;
   }
+  function telaCarregando() {
+    return `<div class="sc-card sc-center"><p class="sc-eyebrow">Um instante</p>
+      <h1 class="sc-title">Calculando o seu resultado</h1>
+      <p class="sc-lead">Estamos posicionando você na escada de maturidade.</p></div>`;
+  }
+  function telaErro() {
+    return `<div class="sc-card sc-center"><p class="sc-eyebrow">Não foi possível concluir</p>
+      <h1 class="sc-title">Algo interrompeu o envio</h1>
+      <p class="sc-lead">Suas respostas continuam aqui. Você pode tentar de novo.</p>
+      <div class="sc-actions"><button class="sc-btn sc-btn--primary" type="button" data-acao="tentar-de-novo">Tentar de novo ${ICON.seta}</button></div></div>`;
+  }
   function corpo() {
     switch (st.tela) {
       case "abertura": return telaAbertura();
       case "senioridade": return telaSenioridade();
       case "questao": return telaQuestao();
+      case "carregando": return telaCarregando();
+      case "erro": return telaErro();
       case "devolutiva": return renderDevolutivaV2(st.resultado, NARRATIVAS, cfg.unidade || "sua área");
       default: return `<div class="sc-loading">…</div>`;
     }
@@ -129,7 +151,8 @@ export function iniciarV2(cfg = {}) {
     const alvo = ev.target.closest("[data-acao]"); if (!alvo) return;
     const a = alvo.getAttribute("data-acao");
     const fns = { tema: alternarTema, "ir-senioridade": () => irPara("senioridade"),
-      "senioridade-ok": () => { st.pos = 0; irPara("questao"); }, voltar, avancar, recomecar };
+      "senioridade-ok": () => { st.pos = 0; irPara("questao"); }, voltar, avancar, recomecar,
+      "tentar-de-novo": calcular };
     if (fns[a]) fns[a]();
   });
   raiz.addEventListener("change", (ev) => {
