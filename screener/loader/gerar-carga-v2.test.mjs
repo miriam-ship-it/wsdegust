@@ -14,7 +14,7 @@ import { gerarCargaV2SQL } from "./gerar-carga-v2.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, "..", "..");
-const SQL_GERADO = path.join(RAIZ, "supabase/migrations/20260907120000_screener_v2_carga_inativa.sql");
+const SQL_GERADO = path.join(RAIZ, "supabase/migrations/20260907120000_screener_v2_carga_publica.sql");
 
 test("[estático] sem drift: o SQL commitado é idêntico ao regenerado da fonte", () => {
   const atual = fs.readFileSync(SQL_GERADO, "utf8").replace(/\r\n/g, "\n");
@@ -51,10 +51,17 @@ test("[estático] guardas de instrumento e vínculo presentes", () => {
   assert.ok(sql.includes("'inactive'"), "instrumento deve entrar inativo");
   assert.ok(sql.includes("checksum divergente"));
   assert.ok(sql.includes("definição divergente"));
-  assert.ok(sql.includes("preview-interno-ia-v2"), "slug do vínculo V2 ausente");
-  assert.ok(sql.includes("'internal_preview'"), "vínculo deve nascer em internal_preview");
+  assert.ok(sql.includes("boomit-degustacao-ia-v2"), "slug do vínculo público V2 ausente");
+  assert.ok(sql.includes("'public_pilot'"), "vínculo deve nascer público (public_pilot)");
+  assert.ok(sql.includes("'required_before_result'"), "captura de lead deve ser obrigatória (portão)");
   assert.ok(sql.includes("outro vínculo corrente"));
   assert.ok(sql.includes("configuração divergente"));
+});
+
+test("[estático] vínculo público não usa credencial de prévia", () => {
+  const sql = gerarCargaV2SQL();
+  assert.ok(!sql.includes("preview_credential"), "carga pública não deve semear credencial");
+  assert.ok(!sql.includes("internal_preview"), "não deve nascer em internal_preview");
 });
 
 test("[estático] não referencia tabelas legadas nem as do V1 de resposta", () => {

@@ -10,13 +10,13 @@
 //   - idempotente ⇒ seguro no replay greenfield.
 //
 // Não fala com o banco. Só gera o SQL (fonte no repo). O apply é passo à parte,
-// sob aprovação. O vínculo nasce em internal_preview SEM credencial — inerte até
-// que o hash da credencial seja semeado FORA da migration (regra de segurança:
-// a chave nunca vai à migration; só o hash sha256, por statement parametrizado).
+// sob aprovação. O vínculo nasce PÚBLICO (public_pilot) e SEM credencial: o link
+// é público — qualquer um responde. É uma ISCA DE LEAD, então a captura é
+// obrigatória (required_before_result). Público exige retenção definida.
 //
 // Uso:  node screener/loader/gerar-carga-v2.mjs   # imprime o SQL em stdout
 // Destino canônico (posterior ao schema+rpc V2 20260906120000):
-//   supabase/migrations/20260907120000_screener_v2_carga_inativa.sql
+//   supabase/migrations/20260907120000_screener_v2_carga_publica.sql
 // =============================================================
 
 import { createHash } from "node:crypto";
@@ -31,13 +31,12 @@ function sqlLit(s) {
 /**
  * Gera o SQL de carga V2 (DO block transacional e idempotente).
  *
- * Configuração do vínculo (ajuste ANTES de aplicar, se preciso):
- *   slug=preview-interno-ia-v2 · status=internal_preview · lead=none.
- * Para o evento PÚBLICO, crie um vínculo NOVO (outro slug, ex.
- * boomit-degustacao-ia-v2) — não sobrescreva este (regra da casa).
+ * Configuração do vínculo PÚBLICO (ajuste ANTES de aplicar, se preciso):
+ *   slug=boomit-degustacao-ia-v2 · status=public_pilot · lead=required_before_result
+ *   retenção: sessão 180 dias, lead 365 dias (exigida para vínculo público).
  *
  * @param {object} [def=instrumentoV2]
- * @param {{slug?:string,status?:string,leadMode?:string}} [binding]
+ * @param {{slug?:string,status?:string,leadMode?:string,sessionRetentionDays?:number,leadRetentionDays?:number}} [binding]
  * @returns {string}
  */
 export function gerarCargaV2SQL(def = instrumentoV2, binding = {}) {
@@ -45,9 +44,11 @@ export function gerarCargaV2SQL(def = instrumentoV2, binding = {}) {
   const sum = createHash("sha256").update(canonical).digest("hex");
   const code = def.code;
   const version = def.version;
-  const slug = binding.slug || "preview-interno-ia-v2";
-  const status = binding.status || "internal_preview";
-  const leadMode = binding.leadMode || "none";
+  const slug = binding.slug || "boomit-degustacao-ia-v2";
+  const status = binding.status || "public_pilot";
+  const leadMode = binding.leadMode || "required_before_result";
+  const sessionRet = binding.sessionRetentionDays ?? 180;
+  const leadRet = binding.leadRetentionDays ?? 365;
 
   const TAG = "$def$";
   if (canonical.includes(TAG)) {
@@ -55,7 +56,7 @@ export function gerarCargaV2SQL(def = instrumentoV2, binding = {}) {
   }
 
   return `-- =============================================================
--- SCREENER_IA_V2 — carga INATIVA de ${code} ${version}
+-- SCREENER_IA_V2 — carga do instrumento ${code} ${version} + vínculo público
 --
 -- ⚠️ GERADO por screener/loader/gerar-carga-v2.mjs a partir de
 --    screener/v2/instrumento-ia-v2.mjs — NÃO editar à mão. Para mudar o
@@ -66,8 +67,9 @@ export function gerarCargaV2SQL(def = instrumentoV2, binding = {}) {
 --   INSTRUMENTO: insere se ausente; no-op só se checksum E definição batem;
 --     falha se checksum diverge, ou se checksum bate mas definição diverge.
 --   VÍNCULO: idempotência explícita (sem cláusula silenciosa de conflito).
---     Nasce em ${status} SEM credencial (inerte até semear o hash fora daqui).
---     Para o evento público, crie um vínculo NOVO (outro slug) — não altere este.
+--     Nasce PÚBLICO (${status}) SEM credencial — o link é público (isca de lead),
+--     captura obrigatória (${leadMode}). Aplicar isto = deixar o evento pronto
+--     para ir ao ar assim que a edge e o frontend estiverem publicados.
 --
 -- checksum = sha256(canonicalize(definição)) = ${sum}
 -- =============================================================
@@ -77,12 +79,14 @@ declare
   v_version     text  := ${sqlLit(version)};
   v_checksum    text  := ${sqlLit(sum)};
   v_definition  jsonb := ${TAG}${canonical}${TAG}::jsonb;
-  -- configuração PRETENDIDA do vínculo técnico interno V2
+  -- configuração PRETENDIDA do vínculo público V2 (isca de lead)
   v_slug        text    := ${sqlLit(slug)};
   v_status      text    := ${sqlLit(status)};
   v_is_current  boolean := true;
   v_result_mode text    := 'immediate';
   v_lead_mode   text    := ${sqlLit(leadMode)};
+  v_session_ret integer := ${Number(sessionRet)};
+  v_lead_ret    integer := ${Number(leadRet)};
   v_branding    jsonb   := '{}'::jsonb;
   -- estado existente
   v_ex_sum   text;
@@ -119,16 +123,18 @@ begin
       raise exception 'carga v2 recusada: já existe outro vínculo corrente para o evento % — recuso criar duplicado.', v_slug;
     end if;
     insert into public.screener_event_bindings
-      (event_slug, instrument_code, instrument_version, is_current, status, result_mode, lead_capture_mode, branding)
-      values (v_slug, v_code, v_version, v_is_current, v_status, v_result_mode, v_lead_mode, v_branding);
+      (event_slug, instrument_code, instrument_version, is_current, status, result_mode, lead_capture_mode,
+       session_retention_days, lead_retention_days, branding)
+      values (v_slug, v_code, v_version, v_is_current, v_status, v_result_mode, v_lead_mode,
+              v_session_ret, v_lead_ret, v_branding);
     raise notice 'carga v2: vínculo % criado (status %)', v_slug, v_status;
   elsif v_b.status = v_status
         and v_b.is_current = v_is_current
         and v_b.result_mode = v_result_mode
         and v_b.lead_capture_mode = v_lead_mode
         and v_b.branding = v_branding
-        and v_b.session_retention_days is null
-        and v_b.lead_retention_days is null then
+        and v_b.session_retention_days is not distinct from v_session_ret
+        and v_b.lead_retention_days is not distinct from v_lead_ret then
     raise notice 'carga v2: vínculo % já presente e coincidente — no-op', v_slug;
   else
     raise exception 'carga v2 recusada: vínculo % existe com configuração divergente — recuso sobrescrever.', v_slug;
