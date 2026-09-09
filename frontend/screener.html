@@ -31,9 +31,10 @@
 <link rel="apple-touch-icon" href="favicon-boomit-preto.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- A PP Mori é a fonte da marca, mas é licenciada e não é webfont pública; o
-     produto Boomit no ar usa Inter como fallback — mesma escolha aqui. A pilha
-     em tokens.css já pede "PP Mori" primeiro, e a usa se estiver instalada. -->
+<!-- Fonte definitiva: INTER. A PP Mori (fonte da marca) é licenciada e não é
+     webfont pública; o produto Boomit no ar usa Inter, e a decisão aqui é a
+     mesma. Carregamos os pesos 400/500/600 (sem bold); screener.css fixa a Inter
+     como --font-sans, sobrepondo o token do design system. -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="screener.css">
