@@ -135,6 +135,7 @@ export function renderDevolutivaV2(res, NARR, unidade = "sua área") {
       <li>Cobertura das respostas: Uso técnico <b>${cob(res.eixos.tecnico)}</b>, Liderança <b>${cob(res.eixos.lideranca)}</b>.</li>
       <li>"Não sei" não vira zero: fica fora da conta.</li>
       <li>O nível combina dois eixos (técnica × liderança); a <b>liderança é o teto</b> do que se sustenta.</li>
+      <li>Este diagnóstico posiciona você na escada. Mapear <b>quais atribuições</b> são elegíveis para IA é um passo seguinte, feito por área.</li>
       <li>É uma <b>leitura</b> a partir da sua percepção, não um veredito nem uma auditoria.</li>
     </ul></div>`);
 

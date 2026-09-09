@@ -75,16 +75,20 @@ Exemplo do corte: T = 4, L = 1 → ponderada = 0,4·4 + 0,6·1 = 2,2 → round 2
 
 ### 2.6 Esperado por senioridade
 
-A questão de senioridade define o nível **esperado** para aquela pessoa (calibrável — ponto de partida para o piloto):
+A questão de senioridade define o nível **esperado** para aquela pessoa (calibrável — ponto de partida para o piloto). A curva não é um 1‑a‑1 mecânico com o cargo: mapeia cada senioridade ao degrau cujo **arquétipo** — o próprio nome do nível — descreve o seu papel.
 
-| Senioridade | Esperado |
-|---|---|
-| Analista / operacional | 1 |
-| Especialista / sênior | 2 |
-| Coordenação / gerência | 3 |
-| Diretoria / C-level | 4 |
+| Senioridade | Papel | Esperado | Por que esse degrau |
+|---|---|---|---|
+| Analista / operacional | executa tarefas | **1 · Operacional Ágil** | O nome do degrau é o papel: uso individual de IA, produtividade pessoal. |
+| Especialista / sênior | referência técnica, sem gestão | **2 · Gestor Tático** | Espera-se IA embutida e medida no seu processo/domínio, mesmo sem gestão. |
+| Coordenação / gerência | lidera pessoas/processos | **2 · Gestor Tático** | Mesmo bar de maturidade do especialista — muda o escopo (área/time), não o nível. |
+| Diretoria / C-level | define estratégia | **3 · Estrategista de Escala** | "Estrategista" é o arquétipo de quem define estratégia. |
 
-O esperado não altera o nível efetivo; serve de régua para lê-lo. Espera-se mais de quem define estratégia do que de quem executa tarefas.
+**Por que ninguém tem N4 como base.** O Nível 4 (Arquiteto de IA) é a **fronteira** — no deck da Carol, ~0,3% das empresas. Usá-lo como linha de base de toda a diretoria tornaria o gap punitivo e pouco crível (quase todo diretor leria "abaixo"). Em vez disso, o N4 aparece como o **degrau à frente** no plano de 30 dias e na leitura — a aspiração vive na narrativa, não num déficit. Consequência desejada: um diretor genuinamente estratégico lê "no esperado"; só quem chegou à fronteira lê "acima".
+
+**Empate especialista = gerência.** É proposital. O *nível de maturidade* esperado é o mesmo (IA embutida e medida no processo); o que difere entre um especialista sênior e um coordenador é o **escopo** (o próprio trabalho vs. a área e o time), não o degrau. Como só há três valores de esperado (1–3) para quatro cargos, algum empate é inevitável — e este é o mais defensável.
+
+O esperado **não altera** o nível efetivo; serve de régua para lê-lo. Espera-se mais de quem tem mais autoridade para dirigir o uso da IA.
 
 ### 2.7 Gap
 
@@ -186,14 +190,14 @@ Complementos de desenho que reforçam o mesmo: a **raiz varia** (às vezes pergu
 
 ### Exemplo A — Técnica alta, liderança baixa (adoção frágil)
 
-Uma coordenação comprou ferramentas potentes, mas sem medição nem redesenho.
+Uma diretoria liberou orçamento para ferramentas potentes, mas sem assumir a direção, a medição ou o redesenho.
 
 - Técnico: Q1 = 4, Q2 = 3, Q3 = "Não sei". Válidos: 2 de 3 (cobre o mínimo). **T = (4 + 3) / 2 = 3,5 → round(T) = 4** (0,5 para cima).
 - Liderança: Q4 = 1, Q5 = 1, Q6 = 2, Q7 = 1, Q8 = "Não sei". Válidos: 4 de 5 (cobre o mínimo). **L = (1 + 1 + 2 + 1) / 4 = 1,25 → round(L) = 1**.
 - Ponderada: `0,4·3,5 + 0,6·1,25 = 1,4 + 0,75 = 2,15 → round 2`. Teto: `min( 2, 1 + 1 ) = 2`. `clamp(2,1,4) = 2`. **Nível efetivo = 2**. (A liderança pesa mais: já puxa o efetivo para 2, e o teto confirma.)
 - Sinal: `round(T) − round(L) = 4 − 1 = 3 ≥ 2` → **adoção frágil**.
-- Senioridade = coordenação → **esperado = 3**. **Gap = 2 − 3 = −1 → abaixo**.
-- Leitura: a área usa IA em patamar 4, mas sem liderança que sustente. O efetivo é 2, abaixo do esperado para uma coordenação. O caminho não é comprar mais ferramenta — é destravar medição e direção.
+- Senioridade = diretoria → **esperado = 3**. **Gap = 2 − 3 = −1 → abaixo**.
+- Leitura: a área usa IA em patamar técnico 4, mas sem liderança que sustente. O efetivo é 2, abaixo do esperado para uma diretoria (3). O caminho não é comprar mais ferramenta — é a própria liderança destravar medição e direção.
 
 ### Exemplo B — Técnica e liderança medianas (equilíbrio)
 
@@ -214,8 +218,8 @@ Uma diretoria madura em direção e medição, mas com uso técnico ainda incipi
 - Liderança: Q4 = 3, Q5 = 3, Q6 = 3, Q7 = 4, Q8 = 3. Válidos: 5 de 5. **L = 16 / 5 = 3,2 → round(L) = 3**.
 - Ponderada: `0,4·1,5 + 0,6·3,2 = 0,6 + 1,92 = 2,52 → round 3`. Teto: `min( 3, 3 + 1 ) = 3`. `clamp(3,1,4) = 3`. **Nível efetivo = 3**. (A liderança madura, pesando 0,6, puxa o efetivo para 3 mesmo com a técnica incipiente — o teto não corta, porque a liderança comporta bem mais.)
 - Sinal: `round(L) = 3 > round(T) = 2` → **liderança a destravar**. (`round(T) − round(L) = −1`, sem adoção frágil.)
-- Senioridade = diretoria → **esperado = 4**. **Gap = 3 − 4 = −1 → abaixo**.
-- Leitura: a liderança comporta bem mais do que a área usa e, no modelo ponderado, sustenta o efetivo em N3. O gap ainda é negativo para uma diretoria (esperado 4), mas o gargalo é claramente técnico, não de direção — há espaço pronto para avançar dados, integração e alcance do uso. Compare com o Exemplo A: mesma distância entre eixos, sinais opostos — lá a técnica adiantada é freada, aqui a liderança madura puxa.
+- Senioridade = diretoria → **esperado = 3**. **Gap = 3 − 3 = 0 → no esperado**.
+- Leitura: a liderança comporta bem mais do que a área usa e, no modelo ponderado, sustenta o efetivo em N3 — no esperado para uma diretoria. O gargalo é claramente técnico, não de direção: há espaço pronto para avançar dados, integração e alcance do uso, e o degrau à frente (N4, Arquiteto de IA) é a fronteira a mirar. Compare com o Exemplo A: **mesma senioridade (diretoria), mesma distância entre eixos, resultados opostos** — lá a técnica adiantada sobre liderança ausente cai para N2 e lê "abaixo"; aqui a liderança madura sobre técnica incipiente sustenta N3 e lê "no esperado". É a liderança que decide o degrau.
 
 ---
 
@@ -223,8 +227,20 @@ Uma diretoria madura em direção e medição, mas com uso técnico ainda incipi
 
 O que confirmar no piloto antes de tratar os cortes como fixos:
 
-- **Corte por senioridade.** A tabela esperado (Analista 1, Especialista 2, Gerência 3, Diretoria 4) é o ponto de partida. Verificar, com os dados do piloto, se a distribuição de gaps por cargo faz sentido — se toda a diretoria aparece "abaixo", talvez o esperado de N4 esteja alto para o momento do mercado, não a amostra imatura.
+- **Corte por senioridade.** A curva esperado (Analista 1, Especialista 2, Gerência 2, Diretoria 3) é o ponto de partida. Ela já reserva o N4 (Arquiteto de IA) como fronteira, fora da linha de base de qualquer cargo — justamente para não fazer toda a diretoria ler "abaixo" (ver §2.6). Verificar, com os dados do piloto, se a distribuição de gaps por cargo faz sentido; se a intenção comercial for uma régua mais exigente para a liderança, a curva íngreme (…, Gerência 3, Diretoria 4) é a alternativa — é uma linha em `SENIORIDADE`.
 - **Pesos dos eixos.** Cada item pesa igual dentro do eixo; entre eixos, a liderança pesa **0,6** e a técnica **0,4** na média que define o nível, e a liderança ainda é o teto. Esses pesos foram fixados na calibração (a liderança extrai o valor, então tem mais voz) e têm uma consequência conhecida: com 0,6, o teto de liderança não chega a cortar — a ponderação já o cumpre (ver §2.5). Confirmar no piloto se 0,4/0,6 reproduz bem os casos reais; se a intenção for que o teto volte a *morder* a técnica adiantada, é preciso aproximar os pesos (ex.: 0,5/0,5). Verificar também se algum item (por exemplo governança, Q3) merece peso diferente dentro do eixo.
 - **Consistência interna.** Medir se os itens de cada eixo se movem juntos (os três técnicos entre si; os cinco de liderança entre si). Item que destoa do próprio eixo pode estar medindo outra coisa e precisa de revisão de redação.
 - **Cobertura e "Não sei".** Acompanhar a taxa de "Não sei" por questão. Muita gente marcando "Não sei" numa pergunta é sinal de redação confusa ou de tema fora do repertório do respondente — e pode derrubar a cobertura mínima com frequência indesejada.
 - **Folga do teto e limiar de adoção frágil.** A folga de um degrau e o limiar de dois degraus para "adoção frágil" são parâmetros (`folga_lideranca`, `gap_fragil`). Revisar se, na prática, um degrau de folga é o ponto certo entre acomodar a técnica adiantada e sinalizar risco.
+
+---
+
+## 7. Escopo — o que este instrumento não mede (e por quê)
+
+**A classificação de atribuições fica de fora do cálculo do nível.** O modelo da Carol tem um segundo construto — a **elegibilidade de atribuições** (o "Clone": quais tarefas são IA‑Automatizadas, IA‑Aumentadas, IA‑Independentes ou de IA‑Orquestração). Ele **não** vira questão do screener, por três razões:
+
+1. **Mede outra coisa.** Elegibilidade classifica *tarefas* pela sua aptidão para IA; o screener posiciona a *área/pessoa* numa escada de maturidade. São eixos diferentes — misturá‑los num único número quebraria a psicometria de dois eixos (técnica × liderança) e a leitura do nível.
+2. **É um ímã de viés.** Autorrelatar "minhas atribuições são de Orquestração" é a definição de viés de desejabilidade/assertividade — exatamente o que o desenho combate (§4). Ninguém marca "minhas tarefas são automatizáveis por IA".
+3. **Exige inventário, não autorrelato.** Classificar atribuições pressupõe listar e avaliar cada tarefa — trabalho de **workshop por área** (o "AI Tracker"/pré‑assessment da Carol), não de um questionário de ≤10 itens.
+
+**Onde ela vive, então.** A orquestração humano‑agente já está codificada no **topo da escada** — o Nível 4 (Arquiteto de IA) e a opção de nível 4 da Q6 ("estrutura desenhada para força híbrida pessoas + agentes, papéis de orquestração"). Ou seja, o screener já *gesticula* para esse futuro sem um item enviesado. A classificação fina de atribuições é uma **camada separada**, aplicada depois que o screener posiciona a área, e a devolutiva a aponta como próximo passo. Se um dia se quiser trazê‑la para o produto, o lugar certo é um instrumento próprio de elegibilidade, não uma questão dentro deste.

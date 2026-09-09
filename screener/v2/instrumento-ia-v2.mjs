@@ -33,12 +33,23 @@ export const NIVEIS = [
     resumo: "IA no núcleo do negócio, solução proprietária; força híbrida pessoas + agentes." },
 ];
 
-/** Senioridade → nível ESPERADO (calibrável; ponto de partida para o piloto). */
+/**
+ * Senioridade → nível ESPERADO (calibrável; ponto de partida para o piloto).
+ *
+ * A curva mapeia cada cargo ao degrau cujo ARQUÉTIPO (o nome do nível) descreve
+ * o seu papel: quem executa → Operacional Ágil (1); referência técnica e gerência
+ * → Gestor Tático (2) — mesmo nível de maturidade esperado, diferindo em escopo,
+ * não em bar; quem define estratégia → Estrategista de Escala (3).
+ *
+ * O Nível 4 (Arquiteto de IA) NÃO é linha de base de nenhum cargo de propósito:
+ * é a fronteira (~0,3% no deck da Carol). Ele aparece como o degrau à frente no
+ * plano — aspiração na narrativa, não um gap punitivo. Ver RACIONAL §2.6.
+ */
 export const SENIORIDADE = [
   { code: "analista", label: "Analista / operacional — executo tarefas", esperado: 1 },
   { code: "especialista", label: "Especialista / sênior — referência técnica, sem gestão", esperado: 2 },
-  { code: "gerencia", label: "Coordenação / gerência — lidero pessoas e/ou processos", esperado: 3 },
-  { code: "diretoria", label: "Diretoria / C-level — defino estratégia", esperado: 4 },
+  { code: "gerencia", label: "Coordenação / gerência — lidero pessoas e/ou processos", esperado: 2 },
+  { code: "diretoria", label: "Diretoria / C-level — defino estratégia", esperado: 3 },
 ];
 
 /** Eixos que a posição combina. */

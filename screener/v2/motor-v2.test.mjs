@@ -37,13 +37,14 @@ test("teto de liderança impede saltar acima da liderança + folga", () => {
   assert.equal(calcularV2(R(3, 1)).nivel.n, 2);
 });
 
-test("topo: tudo Nível 4 → efetivo 4, display 100", () => {
+test("topo: tudo Nível 4 → efetivo 4, display 100 (acima até da diretoria)", () => {
   const r = calcularV2(R(4, 4), "diretoria");
   assert.equal(r.nivel.n, 4);
   assert.equal(r.nivel.name, "Arquiteto de IA");
   assert.equal(r.nivel.display, 100);
-  assert.equal(r.gap.valor, 0);
-  assert.equal(r.gap.classe, "no");
+  assert.equal(r.senioridade.esperado, 3);  // N4 é a fronteira, acima da linha de base da diretoria
+  assert.equal(r.gap.valor, 1);
+  assert.equal(r.gap.classe, "acima");
 });
 
 test('"Não sei" é excluído da média (não vira zero)', () => {
@@ -62,10 +63,16 @@ test("cobertura insuficiente por eixo é sinalizada", () => {
   assert.equal(r.cobertura_ok, false);
 });
 
-test("esperado por senioridade e classe do gap", () => {
-  assert.equal(calcularV2(R(3, 3), "diretoria").gap.classe, "abaixo"); // efetivo 3, esperado 4
-  assert.equal(calcularV2(R(3, 3), "gerencia").gap.classe, "no");      // efetivo 3, esperado 3
-  assert.equal(calcularV2(R(2, 2), "analista").gap.classe, "acima");   // efetivo 2, esperado 1
+test("esperado por senioridade (curva 1-2-2-3) e classe do gap", () => {
+  // Curva: analista 1, especialista 2, gerência 2, diretoria 3 (N4 = fronteira, sem cargo base).
+  assert.equal(calcularV2(R(2, 2), "diretoria").senioridade.esperado, 3);
+  assert.equal(calcularV2(R(2, 2), "gerencia").senioridade.esperado, 2);
+  assert.equal(calcularV2(R(2, 2), "especialista").senioridade.esperado, 2);
+  assert.equal(calcularV2(R(2, 2), "analista").senioridade.esperado, 1);
+  // Classe do gap = efetivo − esperado.
+  assert.equal(calcularV2(R(2, 2), "diretoria").gap.classe, "abaixo"); // efetivo 2, esperado 3
+  assert.equal(calcularV2(R(3, 3), "diretoria").gap.classe, "no");     // efetivo 3, esperado 3
+  assert.equal(calcularV2(R(3, 3), "gerencia").gap.classe, "acima");   // efetivo 3, esperado 2
 });
 
 test("exibição 0–100 por nível", () => {
