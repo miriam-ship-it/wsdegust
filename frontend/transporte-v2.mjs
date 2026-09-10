@@ -19,11 +19,12 @@ const codigo = (v) => (v === "na" || v === "NA" ? "NA" : "N" + v);
 /**
  * Cria o transporte assíncrono usado como `cfg.transporte(respostas, senioridade)`.
  * Faz o fluxo completo: start → salva a senioridade e cada resposta → submit,
- * e devolve `{ resultado, capturarLead }`:
- *   - `resultado`: o PublicResultIAV2 sanitizado (o motor rodou no servidor);
- *   - `capturarLead(dados)`: envia o lead para ESTA sessão (POST /v2/lead), usada
- *     pelo portão `required_before_result`. O token fica na closure — o app nunca
- *     o manuseia.
+ * e devolve `{ resultado, capturarLead, obterResultado }`:
+ *   - `resultado`: o PublicResultIAV2 sanitizado, OU null quando o vínculo é
+ *     `required_before_result` (o portão retém o resultado no servidor);
+ *   - `capturarLead(dados)`: envia o lead para ESTA sessão (POST /v2/lead);
+ *   - `obterResultado()`: busca o resultado (GET /v2/result) — a edge só o libera
+ *     depois do lead. O token fica na closure — o app nunca o manuseia.
  *
  * @param {object} cfg
  * @param {string} cfg.baseUrl               URL base da função edge (ex.: https://x.supabase.co/functions/v1/screener)
@@ -64,10 +65,15 @@ export function criarTransporteV2({ baseUrl, eventSlug, previewKey = null, priva
     for (const [item_code, v] of Object.entries(respostas)) {
       await pedir("/v2/response", { method: "PUT", token, body: { item_code, answer_code: codigo(v) } });
     }
-    const resultado = await pedir("/v2/submit", { method: "POST", token, body: {} });
-    // captura de lead ligada a ESTA sessão (token na closure; nunca exposto ao app)
+    const sub = await pedir("/v2/submit", { method: "POST", token, body: {} });
+    // Com portão (required_before_result) o submit NÃO devolve o resultado (só
+    // { submitted, lead_required }). O app captura o lead e chama obterResultado(),
+    // que busca /v2/result — a edge/RPC só libera com lead. Sem portão, o resultado
+    // já vem no submit.
+    const resultado = sub && sub.contract_version ? sub : null;
     const capturarLead = ({ nome = null, email, marketing_opt_in = false } = {}) =>
       pedir("/v2/lead", { method: "POST", token, body: { nome, email, marketing_opt_in } });
-    return { resultado, capturarLead };
+    const obterResultado = () => pedir("/v2/result", { method: "GET", token });
+    return { resultado, capturarLead, obterResultado };
   };
 }

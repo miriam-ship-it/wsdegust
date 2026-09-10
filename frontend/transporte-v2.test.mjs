@@ -85,6 +85,24 @@ test("start sem token → erro", async () => {
   await assert.rejects(criarTransporteV2({ baseUrl: BASE, eventSlug: "ev", fetchImpl: f })(RESP, "analista"), /sem_token/);
 });
 
+test("portão: submit sem resultado → resultado null; obterResultado busca /v2/result após o lead", async () => {
+  const rotas = {
+    ...rotasOk,
+    "/v2/submit": { body: { submitted: true, lead_required: true } }, // portão retém
+    "/v2/lead": { body: { ok: true } },
+    "/v2/result": { body: PUBLICO },
+  };
+  const { f, chamadas } = fetchFalso(rotas);
+  const t = await criarTransporteV2({ baseUrl: BASE, eventSlug: "ev", fetchImpl: f })(RESP, "diretoria");
+  assert.equal(t.resultado, null); // não vem no submit
+  await t.capturarLead({ email: "ana@x.co" });
+  const r = await t.obterResultado();
+  assert.deepEqual(r, PUBLICO);
+  const rotasChamadas = chamadas.map((c) => c.method + " " + new URL(c.url).pathname.replace(/.*\/screener/, ""));
+  assert.deepEqual(rotasChamadas.slice(-2), ["POST /v2/lead", "GET /v2/result"]);
+  assert.equal(chamadas.at(-1).headers["x-session-token"], "tok-abc"); // token no header também no /result
+});
+
 test("capturarLead: POST /v2/lead com o token da sessão no header (nunca na URL)", async () => {
   const { f, chamadas } = fetchFalso({ ...rotasOk, "/v2/lead": { body: { ok: true } } });
   const { capturarLead } = await criarTransporteV2({ baseUrl: BASE, eventSlug: "ev", fetchImpl: f })(RESP, "diretoria");

@@ -180,9 +180,13 @@ export async function postSubmitV2(ctx, { token, previewKey }) {
   const binding = data.binding, sess = data.session;
   const cap = capacidades(binding, ctx.now());
   if (!cap.autorizado) return resp(404, { error: "sessao_nao_encontrada" });
+  // Portão: em required_before_result o resultado NÃO sai no submit — o frontend
+  // captura o lead e depois busca via GET /v2/result (que a RPC libera com lead).
+  const comPortao = binding.lead_capture_mode === "required_before_result";
 
   if (sess.status === "submitted") {
     const got = await rpc(ctx, "screener_v2_op_get_result", [th, previewHash]);
+    if (got && got.lead_required) return resp(200, { submitted: true, lead_required: true });
     if (!got || !got.result) return resp(409, { error: "submetida_sem_snapshot" });
     return resp(200, paraPublicoV2(got.result));
   }
@@ -206,6 +210,8 @@ export async function postSubmitV2(ctx, { token, previewKey }) {
     try {
       const fin = await rpc(ctx, "screener_v2_op_finalize",
         [th, canon, interno, instrument_checksum, input_checksum, instrumentoV2.version, instrumentoV2.version, previewHash]);
+      // com portão, retém o resultado (sessão recém-submetida ainda não tem lead)
+      if (comPortao) return resp(200, { submitted: true, lead_required: true });
       return resp(200, paraPublicoV2(fin.result));
     } catch (e) {
       ultimoErro = e;
@@ -229,7 +235,10 @@ export async function getResultV2(ctx, { token, previewKey }) {
   if (!cap.autorizado) return resp(404, { error: "sessao_nao_encontrada" });
   if (!cap.podeLerResultado) return resp(403, { error: "leitura_indisponivel" });
   if (!sessaoValida(sess, ctx.now())) return resp(410, { error: "sessao_expirada" });
-  if (!data.result) return resp(404, { error: "sem_resultado" });
+  if (!data.result) {
+    if (data.lead_required) return resp(403, { error: "lead_required" }); // portão: falta capturar o lead
+    return resp(404, { error: "sem_resultado" });
+  }
   return resp(200, paraPublicoV2(data.result));
 }
 

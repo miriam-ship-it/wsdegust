@@ -141,6 +141,23 @@ test("credencial de prévia (internal_preview): sem hash o start falha; com hash
   assert.equal(await call(db, "screener_v2_op_resume", [th, null]), null); // resume sem credencial → null
 });
 
+test("gate de lead na RPC: required_before_result retém o resultado até haver lead", async () => {
+  const db = await ambiente({ leadMode: "required_before_result" });
+  const th = await abrir(db, "tkg");
+  await call(db, "screener_v2_op_save_response", [th, "Q1", "N2", null]);
+  const canon = canonico(null, { Q1: "N2" });
+  await call(db, "screener_v2_op_finalize", [th, canon, RESULTADO, HEX("a"), sha(canon), "2.0.0", "2.0.0", null]);
+  // sem lead: a própria RPC retém o resultado (nem a edge consegue lê-lo)
+  let got = await call(db, "screener_v2_op_get_result", [th, null]);
+  assert.equal(got.result, null);
+  assert.equal(got.lead_required, true);
+  // captura o lead → RPC libera
+  await call(db, "screener_v2_op_capturar_lead", [th, null, "Ana", "a@b.co", false]);
+  got = await call(db, "screener_v2_op_get_result", [th, null]);
+  assert.equal(got.lead_required, false);
+  assert.equal(got.result.contract_version, "ScoreResultIAV2");
+});
+
 test("privilégios: runtime só EXECUTE nas 6 funções; zero privilégio nas tabelas V2", async () => {
   const db = await ambiente();
   const fns = [

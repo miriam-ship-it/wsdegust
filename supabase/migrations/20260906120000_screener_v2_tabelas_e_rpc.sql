@@ -173,6 +173,7 @@ begin
       'revoked_at', v_sess.revoked_at, 'submitted_at', v_sess.submitted_at, 'seniority_code', v_sess.seniority_code),
     'binding', jsonb_build_object('event_slug', v_bind.event_slug, 'status', v_bind.status,
       'starts_at', v_bind.starts_at, 'ends_at', v_bind.ends_at, 'branding', v_bind.branding,
+      'lead_capture_mode', v_bind.lead_capture_mode,
       'instrument_code', v_bind.instrument_code, 'instrument_version', v_bind.instrument_version),
     'responses', coalesce((
       select jsonb_agg(jsonb_build_object('item_code', r.item_code, 'answer_code', r.answer_code))
@@ -270,10 +271,15 @@ begin
   return jsonb_build_object('status','finalizada','result', v_result);
 end $$;
 
--- 2e. get_result — devolve o snapshot mais recente
+-- 2e. get_result — devolve o snapshot mais recente.
+--     GATE DE LEAD (fronteira): quando o vínculo é 'required_before_result', o
+--     resultado só sai DEPOIS que há lead capturado para a sessão. Sem lead,
+--     devolve result=null + lead_required=true. Assim o navegador não consegue
+--     ler o resultado sem antes dar o contato — nem burlando a edge.
 create or replace function public.screener_v2_op_get_result(p_token_hash text, p_preview_hash text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_sess public.screener_v2_sessions%rowtype; v_bind public.screener_event_bindings%rowtype;
+        v_base jsonb; v_tem_lead boolean;
 begin
   select * into v_sess from public.screener_v2_sessions where token_hash = p_token_hash;
   if not found then return null; end if;
@@ -281,12 +287,21 @@ begin
   if v_bind.status = 'internal_preview' and not public.screener_priv_previa_ok(v_bind.preview_credential_hash, v_bind.preview_expires_at, v_bind.preview_revoked_at, p_preview_hash) then
     return null;
   end if;
-  return jsonb_build_object(
+  v_base := jsonb_build_object(
     'session', jsonb_build_object('status', v_sess.status, 'expires_at', v_sess.expires_at, 'revoked_at', v_sess.revoked_at),
     'binding', jsonb_build_object('event_slug', v_bind.event_slug, 'status', v_bind.status,
-      'starts_at', v_bind.starts_at, 'ends_at', v_bind.ends_at, 'branding', v_bind.branding),
+      'lead_capture_mode', v_bind.lead_capture_mode,
+      'starts_at', v_bind.starts_at, 'ends_at', v_bind.ends_at, 'branding', v_bind.branding));
+  if v_bind.lead_capture_mode = 'required_before_result' then
+    select exists (select 1 from public.screener_v2_leads l where l.session_id = v_sess.id) into v_tem_lead;
+    if not v_tem_lead then
+      return v_base || jsonb_build_object('result', null, 'lead_required', true);
+    end if;
+  end if;
+  return v_base || jsonb_build_object(
     'result', (select r.result from public.screener_v2_result_snapshots r
-               where r.session_id = v_sess.id order by r.created_at desc limit 1));
+               where r.session_id = v_sess.id order by r.created_at desc limit 1),
+    'lead_required', false);
 end $$;
 
 -- 2f. capturar_lead — único caminho de escrita da PII; exige sessão submetida + válida,

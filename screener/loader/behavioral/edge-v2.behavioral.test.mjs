@@ -18,15 +18,15 @@ const V2 = fs.readFileSync(path.join(MIGR, "20260906120000_screener_v2_tabelas_e
 const HEX64 = "a".repeat(64);
 const IC = instrumentoV2.code, IV = instrumentoV2.version;
 
-async function ambiente({ status = "public_pilot" } = {}) {
+async function ambiente({ status = "public_pilot", leadMode = "optional_after_submit" } = {}) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
   await db.exec(SCHEMA); await db.exec(RPC); await db.exec(V2);
   await db.query(`insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
                   values ($1,$2,$3,$4,'active')`, [IC, IV, instrumentoV2, HEX64]);
   await db.query(`insert into public.screener_event_bindings
-      (event_slug, instrument_code, instrument_version, is_current, status, session_retention_days, lead_retention_days)
-      values ('ev-ia-v2',$1,$2, true, $3, 180, 365)`, [IC, IV, status]);
+      (event_slug, instrument_code, instrument_version, is_current, status, lead_capture_mode, session_retention_days, lead_retention_days)
+      values ('ev-ia-v2',$1,$2, true, $3, $4, 180, 365)`, [IC, IV, status, leadMode]);
   let now = new Date("2026-09-10T12:00:00Z");
   return { q: (sql, params = []) => db.query(sql, params), now: () => now, _db: db };
 }
@@ -144,6 +144,43 @@ test("binding de instrumento diferente → 409 instrumento_indisponivel", async 
   const g = await HV2.getStartV2(ctx, { event_slug: "ev-ia-v2" });
   assert.equal(g.status, 409);
   assert.equal(g.body.error, "instrumento_indisponivel");
+});
+
+test("PORTÃO: submit não devolve o resultado; getResult 403 até o lead; libera depois", async () => {
+  const ctx = await ambiente({ leadMode: "required_before_result" });
+  const s = await HV2.postStartV2(ctx, { event_slug: "ev-ia-v2", privacy_ack: true, privacy_notice_version: "v1" });
+  await preencher(ctx, s.body.token);
+  // submit retém o resultado — corpo só sinaliza lead_required, sem nível/eixos
+  const sub = await HV2.postSubmitV2(ctx, { token: s.body.token });
+  assert.equal(sub.status, 200);
+  assert.equal(sub.body.lead_required, true);
+  assert.equal("nivel" in sub.body, false);
+  assert.equal("ponderada" in sub.body, false);
+  assert.equal("eixos" in sub.body, false);
+  // getResult antes do lead → 403
+  const r1 = await HV2.getResultV2(ctx, { token: s.body.token });
+  assert.equal(r1.status, 403);
+  assert.equal(r1.body.error, "lead_required");
+  // captura o lead → getResult libera o resultado
+  const lead = await HV2.postLeadV2(ctx, { token: s.body.token, nome: "Ana", email: "ana@x.co", marketing_opt_in: false });
+  assert.equal(lead.status, 200);
+  const r2 = await HV2.getResultV2(ctx, { token: s.body.token });
+  assert.equal(r2.status, 200);
+  assert.equal(r2.body.contract_version, "PublicResultIAV2");
+  assert.equal(r2.body.nivel.n, 3);
+  // snapshot no banco existe desde o submit (o gate é só na entrega)
+  assert.equal((await ctx.q("select count(*)::int n from public.screener_v2_result_snapshots")).rows[0].n, 1);
+});
+
+test("PORTÃO idempotente: re-submit após o lead devolve o resultado", async () => {
+  const ctx = await ambiente({ leadMode: "required_before_result" });
+  const s = await HV2.postStartV2(ctx, { event_slug: "ev-ia-v2", privacy_ack: true, privacy_notice_version: "v1" });
+  await preencher(ctx, s.body.token);
+  await HV2.postSubmitV2(ctx, { token: s.body.token });
+  await HV2.postLeadV2(ctx, { token: s.body.token, email: "ana@x.co" });
+  const re = await HV2.postSubmitV2(ctx, { token: s.body.token }); // já submetida + com lead
+  assert.equal(re.status, 200);
+  assert.equal(re.body.nivel.n, 3);
 });
 
 test("checksumV2 é estável (hex64)", async () => {

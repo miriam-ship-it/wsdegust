@@ -50,7 +50,9 @@ export function iniciarV2(cfg = {}) {
       const out = await compute(st.respostas, st.senioridade);
       st.resultado = out && "resultado" in out ? out.resultado : out; // tolera retorno simples
       st.capturarLead = (out && out.capturarLead) || null;
+      st.obterResultado = (out && out.obterResultado) || null;
       // Portão: o contato é exigido ANTES do resultado (required_before_result).
+      // Em produção o resultado nem vem no submit — é buscado após o lead.
       if (cfg.leadMode === "required_before_result") irPara("portao");
       else irPara("devolutiva");
     } catch (e) {
@@ -58,7 +60,7 @@ export function iniciarV2(cfg = {}) {
       irPara("erro");
     }
   }
-  function recomecar() { st.senioridade = null; st.respostas = {}; st.pos = 0; st.resultado = null; st.capturarLead = null; st.erro = null; irPara("abertura"); }
+  function recomecar() { st.senioridade = null; st.respostas = {}; st.pos = 0; st.resultado = null; st.capturarLead = null; st.obterResultado = null; st.erro = null; irPara("abertura"); }
 
   // --- render ---
   function cabecalho(compacto) {
@@ -182,6 +184,8 @@ export function iniciarV2(cfg = {}) {
     if (btn) { btn.disabled = true; btn.textContent = "Enviando…"; }
     try {
       if (st.capturarLead) await st.capturarLead({ nome: nome || null, email, marketing_opt_in: optin });
+      // com portão em produção o resultado é retido no servidor: busca-o após o lead
+      if (!st.resultado && st.obterResultado) st.resultado = await st.obterResultado();
       irPara("devolutiva");
     } catch (e) {
       const cod = (e && e.corpo && e.corpo.error) || "";
