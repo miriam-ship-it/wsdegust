@@ -28,7 +28,8 @@ test("fluxo: start → senioridade + 8 respostas → submit; devolve o público"
   const { f, chamadas } = fetchFalso(rotasOk);
   const transporte = criarTransporteV2({ baseUrl: BASE, eventSlug: "ev-ia-v2", fetchImpl: f });
   const out = await transporte(RESP, "diretoria");
-  assert.deepEqual(out, PUBLICO);
+  assert.deepEqual(out.resultado, PUBLICO);
+  assert.equal(typeof out.capturarLead, "function");
 
   const rotas = chamadas.map((c) => c.method + " " + new URL(c.url).pathname.replace(/.*\/screener/, ""));
   assert.equal(rotas[0], "POST /v2/start");
@@ -82,6 +83,19 @@ test("erro do servidor no submit → ErroTransporteV2 com status", async () => {
 test("start sem token → erro", async () => {
   const { f } = fetchFalso({ ...rotasOk, "/v2/start": { body: { session_id: "s1" } } });
   await assert.rejects(criarTransporteV2({ baseUrl: BASE, eventSlug: "ev", fetchImpl: f })(RESP, "analista"), /sem_token/);
+});
+
+test("capturarLead: POST /v2/lead com o token da sessão no header (nunca na URL)", async () => {
+  const { f, chamadas } = fetchFalso({ ...rotasOk, "/v2/lead": { body: { ok: true } } });
+  const { capturarLead } = await criarTransporteV2({ baseUrl: BASE, eventSlug: "ev", fetchImpl: f })(RESP, "diretoria");
+  const r = await capturarLead({ nome: "Ana", email: "ana@x.co", marketing_opt_in: true });
+  assert.deepEqual(r, { ok: true });
+  const lead = chamadas.at(-1);
+  assert.equal(new URL(lead.url).pathname.replace(/.*\/screener/, ""), "/v2/lead");
+  assert.equal(lead.method, "POST");
+  assert.equal(lead.headers["x-session-token"], "tok-abc"); // token no header
+  assert.equal(lead.url.includes("tok-abc"), false);          // nunca na URL
+  assert.deepEqual(lead.body, { nome: "Ana", email: "ana@x.co", marketing_opt_in: true });
 });
 
 test("baseUrl com barra final é normalizada", async () => {

@@ -53,3 +53,11 @@
 
 /* Nota inline informativa (sinal de eixos) */
 .sc-note--info { background: var(--status-info-bg); color: var(--status-info-fg); border: 1px solid var(--status-info-border); }
+
+/* --- Portão de lead (required_before_result) ----------------------------- */
+.sc-v2-portao { max-width: 30rem; margin-inline: auto; }
+.sc-v2-form { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-6); text-align: left; }
+.sc-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-color: var(--border-strong); }
+.sc-check { display: flex; align-items: flex-start; gap: var(--space-3); font-size: var(--text-sm); line-height: var(--leading-md); color: var(--text-secondary); cursor: pointer; }
+.sc-check input { margin-top: 0.15rem; width: 1.05rem; height: 1.05rem; flex: none; accent-color: var(--text-brand); }
+.sc-erro { margin: 0; font-size: var(--text-sm); color: var(--status-danger-fg); }

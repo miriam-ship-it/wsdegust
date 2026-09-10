@@ -19,7 +19,11 @@ const codigo = (v) => (v === "na" || v === "NA" ? "NA" : "N" + v);
 /**
  * Cria o transporte assíncrono usado como `cfg.transporte(respostas, senioridade)`.
  * Faz o fluxo completo: start → salva a senioridade e cada resposta → submit,
- * e devolve o resultado público sanitizado.
+ * e devolve `{ resultado, capturarLead }`:
+ *   - `resultado`: o PublicResultIAV2 sanitizado (o motor rodou no servidor);
+ *   - `capturarLead(dados)`: envia o lead para ESTA sessão (POST /v2/lead), usada
+ *     pelo portão `required_before_result`. O token fica na closure — o app nunca
+ *     o manuseia.
  *
  * @param {object} cfg
  * @param {string} cfg.baseUrl               URL base da função edge (ex.: https://x.supabase.co/functions/v1/screener)
@@ -27,7 +31,7 @@ const codigo = (v) => (v === "na" || v === "NA" ? "NA" : "N" + v);
  * @param {string|null} [cfg.previewKey]     credencial de prévia (só se internal_preview); vai no header
  * @param {string} [cfg.privacyNoticeVersion="v1"]
  * @param {typeof fetch} [cfg.fetchImpl]     injeção para teste
- * @returns {(respostas:Record<string,number|"na">, senioridade:string)=>Promise<object>}
+ * @returns {(respostas:Record<string,number|"na">, senioridade:string)=>Promise<{resultado:object, capturarLead:(d:object)=>Promise<object>}>}
  */
 export function criarTransporteV2({ baseUrl, eventSlug, previewKey = null, privacyNoticeVersion = "v1", fetchImpl } = {}) {
   if (!baseUrl || !eventSlug) throw new Error("criarTransporteV2: baseUrl e eventSlug são obrigatórios");
@@ -60,6 +64,10 @@ export function criarTransporteV2({ baseUrl, eventSlug, previewKey = null, priva
     for (const [item_code, v] of Object.entries(respostas)) {
       await pedir("/v2/response", { method: "PUT", token, body: { item_code, answer_code: codigo(v) } });
     }
-    return await pedir("/v2/submit", { method: "POST", token, body: {} });
+    const resultado = await pedir("/v2/submit", { method: "POST", token, body: {} });
+    // captura de lead ligada a ESTA sessão (token na closure; nunca exposto ao app)
+    const capturarLead = ({ nome = null, email, marketing_opt_in = false } = {}) =>
+      pedir("/v2/lead", { method: "POST", token, body: { nome, email, marketing_opt_in } });
+    return { resultado, capturarLead };
   };
 }

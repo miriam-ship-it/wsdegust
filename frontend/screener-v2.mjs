@@ -41,20 +41,24 @@ export function iniciarV2(cfg = {}) {
   function irPara(t) { st.tela = t; pintar(); try { globalThis.scrollTo(0, 0); } catch { /* ok */ } }
 
   async function calcular() {
-    // Produção: cfg.transporte faz o fluxo na edge (start→salva→submit) e devolve o
-    // público sanitizado (async). Demo: calcula no cliente (a devolutiva lê o mesmo
-    // subconjunto de campos em ambos os casos).
-    const compute = cfg.transporte || ((r, s) => calcularV2(r, s));
+    // Produção: cfg.transporte faz o fluxo na edge (start→salva→submit) e devolve
+    // { resultado, capturarLead } (async). Demo: calcula no cliente e não captura
+    // lead (a devolutiva lê o mesmo subconjunto de campos em ambos os casos).
+    const compute = cfg.transporte || ((r, s) => ({ resultado: calcularV2(r, s), capturarLead: null }));
     st.erro = null; irPara("carregando");
     try {
-      st.resultado = await compute(st.respostas, st.senioridade);
-      irPara("devolutiva");
+      const out = await compute(st.respostas, st.senioridade);
+      st.resultado = out && "resultado" in out ? out.resultado : out; // tolera retorno simples
+      st.capturarLead = (out && out.capturarLead) || null;
+      // Portão: o contato é exigido ANTES do resultado (required_before_result).
+      if (cfg.leadMode === "required_before_result") irPara("portao");
+      else irPara("devolutiva");
     } catch (e) {
       st.erro = (e && e.corpo && e.corpo.error) || (e && e.message) || "falha";
       irPara("erro");
     }
   }
-  function recomecar() { st.senioridade = null; st.respostas = {}; st.pos = 0; st.resultado = null; st.erro = null; irPara("abertura"); }
+  function recomecar() { st.senioridade = null; st.respostas = {}; st.pos = 0; st.resultado = null; st.capturarLead = null; st.erro = null; irPara("abertura"); }
 
   // --- render ---
   function cabecalho(compacto) {
@@ -123,6 +127,23 @@ export function iniciarV2(cfg = {}) {
       <p class="sc-lead">Suas respostas continuam aqui. Você pode tentar de novo.</p>
       <div class="sc-actions"><button class="sc-btn sc-btn--primary" type="button" data-acao="tentar-de-novo">Tentar de novo ${ICON.seta}</button></div></div>`;
   }
+  function telaPortao() {
+    return `<div class="sc-card sc-v2-portao">
+      <p class="sc-eyebrow">Quase lá</p>
+      <h1 class="sc-title">Seu diagnóstico está pronto</h1>
+      <p class="sc-lead">Deixe seu contato para ver o resultado: a sua posição na escada, a leitura do nível e o plano de 30 dias.</p>
+      <div class="sc-v2-form">
+        <label class="sc-field"><span class="sc-label">Nome</span>
+          <input class="sc-input" type="text" autocomplete="name" data-campo="nome" placeholder="Como podemos te chamar"></label>
+        <label class="sc-field"><span class="sc-label">E-mail de trabalho</span>
+          <input class="sc-input" type="email" autocomplete="email" inputmode="email" data-campo="email" placeholder="voce@empresa.com"></label>
+        <label class="sc-check"><input type="checkbox" data-campo="optin"><span>Quero receber a leitura completa e conteúdos da Boomit sobre IA.</span></label>
+        <p class="sc-erro" id="sc-lead-erro" role="alert" hidden></p>
+        <button class="sc-btn sc-btn--primary sc-btn--block" type="button" data-acao="ver-resultado">Ver meu resultado ${ICON.seta}</button>
+      </div>
+      <p class="sc-hero__foot">Usamos seu e-mail para enviar o resultado e conteúdos relacionados. Você pode sair quando quiser.</p>
+    </div>`;
+  }
   function corpo() {
     switch (st.tela) {
       case "abertura": return telaAbertura();
@@ -130,6 +151,7 @@ export function iniciarV2(cfg = {}) {
       case "questao": return telaQuestao();
       case "carregando": return telaCarregando();
       case "erro": return telaErro();
+      case "portao": return telaPortao();
       case "devolutiva": return renderDevolutivaV2(st.resultado, NARRATIVAS, cfg.unidade || "sua área");
       default: return `<div class="sc-loading">…</div>`;
     }
@@ -147,12 +169,35 @@ export function iniciarV2(cfg = {}) {
   }
   function voltar() { if (st.pos <= 0) return irPara("senioridade"); st.pos--; pintar(); try { globalThis.scrollTo(0, 0); } catch { /* ok */ } }
 
+  async function enviarLead() {
+    const val = (sel) => { const el = raiz.querySelector(sel); return el ? el.value : ""; };
+    const nome = val('[data-campo="nome"]').trim();
+    const email = val('[data-campo="email"]').trim();
+    const elOpt = raiz.querySelector('[data-campo="optin"]');
+    const optin = !!(elOpt && elOpt.checked);
+    const erroEl = raiz.querySelector("#sc-lead-erro");
+    const mostrarErro = (msg) => { if (erroEl) { erroEl.textContent = msg; erroEl.hidden = false; } };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return mostrarErro("Informe um e-mail válido para ver o resultado.");
+    const btn = raiz.querySelector('[data-acao="ver-resultado"]');
+    if (btn) { btn.disabled = true; btn.textContent = "Enviando…"; }
+    try {
+      if (st.capturarLead) await st.capturarLead({ nome: nome || null, email, marketing_opt_in: optin });
+      irPara("devolutiva");
+    } catch (e) {
+      const cod = (e && e.corpo && e.corpo.error) || "";
+      mostrarErro(cod === "email_invalido"
+        ? "Esse e-mail não parece válido. Confira e tente de novo."
+        : "Não foi possível enviar agora. Tente de novo em instantes.");
+      if (btn) { btn.disabled = false; btn.innerHTML = `Ver meu resultado ${ICON.seta}`; }
+    }
+  }
+
   raiz.addEventListener("click", (ev) => {
     const alvo = ev.target.closest("[data-acao]"); if (!alvo) return;
     const a = alvo.getAttribute("data-acao");
     const fns = { tema: alternarTema, "ir-senioridade": () => irPara("senioridade"),
       "senioridade-ok": () => { st.pos = 0; irPara("questao"); }, voltar, avancar, recomecar,
-      "tentar-de-novo": calcular };
+      "tentar-de-novo": calcular, "ver-resultado": enviarLead };
     if (fns[a]) fns[a]();
   });
   raiz.addEventListener("change", (ev) => {

@@ -19,6 +19,11 @@
 </head>
 <body>
   <main id="sc-app" aria-live="polite"></main>
+  <script>
+    // DEMO: calcula no cliente e mostra o PORTÃO de lead (required_before_result).
+    // Em produção, o bootstrap injeta cfg.transporte (edge) + o mesmo leadMode.
+    window.SCREENER_V2_CONFIG = { leadMode: "required_before_result" };
+  </script>
   <script type="module" src="screener-v2.mjs"></script>
 </body>
 </html>
