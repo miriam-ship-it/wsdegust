@@ -68,11 +68,13 @@ Critério de sucesso: as 4 checagens batem. Se qualquer uma divergir, **pare** e
 
 ---
 
-## Passo 1 — Ligar a HTML de produção ao servidor (código, sem prod)
+## Passo 1 — Ligar a HTML de produção ao servidor (código, sem prod) — FEITO
 
 Objetivo: em produção o frontend calcula na EDGE (não no cliente) e usa o portão.
-Hoje `screener-v2.html` roda em modo DEMO (cálculo no cliente). A página de produção
-precisa injetar o transporte + o env, ANTES do módulo:
+`frontend/screener-v2.html` continua sendo a DEMO (cálculo no cliente, para revisão).
+A página de PRODUÇÃO é **`frontend/degustacao-ia.html`** (já criada), com head
+institucional (favicon, OG, Inter) e o bootstrap que injeta o transporte da edge +
+o modo de lead ANTES do app:
 
 ```html
 <script type="module">
@@ -89,14 +91,13 @@ precisa injetar o transporte + o env, ANTES do módulo:
 <script type="module" src="screener-v2.mjs"></script>
 ```
 
-- **Verificação:** `node --test frontend/transporte-v2.test.mjs` verde; smoke local
-  do fluxo (o portão retém o resultado e o revela após o lead).
-- **Commit** no branch; entra em produção só no Passo 6 (merge→main).
-- Rollback: reverter o commit (nada foi a prod ainda).
-
-> Decisão em aberto: publicar como página nova (ex.: `degustacao-ia.html`) ou
-> reaproveitar `screener-v2.html`. Recomendo **página própria de produção** para não
-> confundir com a demo.
+- **Verificado:** a página carrega, injeta `cfg.transporte` (função) + `leadMode`, e
+  renderiza a abertura institucional sem chamar a edge no load (a chamada só ocorre
+  ao calcular). `node --test frontend/transporte-v2.test.mjs` verde.
+- **Pendências de publicação (ajustar antes/no Passo 6):** o link do evento vira a URL
+  desta página (`degustacao-ia.html`); tornar `og:image`/`og:url` ABSOLUTOS com o
+  domínio real; decidir `robots` (hoje `noindex`).
+- Entra em produção só no Passo 6 (merge→main). Nada foi a prod ainda.
 
 ---
 
