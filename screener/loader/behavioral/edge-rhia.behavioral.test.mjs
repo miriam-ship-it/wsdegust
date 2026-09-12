@@ -475,11 +475,31 @@ test("lead: e-mail inválido 400; sessão não submetida 409; modo none 409; tok
   assert.equal(off.status, 409); assert.equal(off.body.error, "lead_desativado");
 });
 
-test("GET /rhia/result sem submissão → 404 sem_resultado", async () => {
-  const ctx = await ambiente();
+test("GET /rhia/result sem submissão → 404 sem_resultado (inclusive na configuração de produção)", async () => {
+  // required_before_result é o modo do vínculo público: o portão não pode
+  // responder 403 lead_required a quem sequer submeteu — não há o que reter.
+  for (const leadMode of ["optional_after_submit", "required_before_result"]) {
+    const ctx = await ambiente({ leadMode });
+    const s = await start(ctx);
+    const r = await HR.getResultRhia(ctx, { token: s.body.token });
+    assert.equal(r.status, 404, leadMode); assert.equal(r.body.error, "sem_resultado", leadMode);
+  }
+});
+
+test("POST /rhia/lead: caractere de controle é aparado no nome e recusa e-mail; erro do Postgres não vaza", async () => {
+  const ctx = await ambiente({ leadMode: "required_before_result" });
   const s = await start(ctx);
-  const r = await HR.getResultRhia(ctx, { token: s.body.token });
-  assert.equal(r.status, 404); assert.equal(r.body.error, "sem_resultado");
+  await preencher(ctx, s.body.token);
+  await HR.postSubmitRhia(ctx, { token: s.body.token });
+  // NUL no e-mail: 400 email_invalido (nunca o texto cru "invalid byte sequence…")
+  const mail = await HR.postLeadRhia(ctx, { token: s.body.token, email: "a\u0000b@x.co" });
+  assert.equal(mail.status, 400); assert.equal(mail.body.error, "email_invalido");
+  assert.deepEqual(Object.keys(mail.body), ["error"], "resposta não carrega detalhe do banco");
+  // NUL no nome: aceito, aparado antes do banco
+  const ok = await HR.postLeadRhia(ctx, { token: s.body.token, nome: "a\u0000b", email: "a@x.co" });
+  assert.equal(ok.status, 200);
+  const { rows } = await ctx.q(`select nome from public.screener_rhia_leads order by created_at desc limit 1`);
+  assert.equal(rows[0].nome, "a b");
 });
 
 // ---------------------------------------------------------------- prévia interna

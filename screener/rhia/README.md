@@ -52,7 +52,7 @@ edge Supabase — função `screener`, rotas /rhia/*
    │  valida resposta e submissão; calcula o contrato; projeta o público
    │  conecta como `screener_runtime` (só EXECUTE nas RPC)
    ▼
-RPC SECURITY DEFINER  screener_rhia_op_{start,resume,save_response,finalize,get_result,capturar_lead}
+RPC SECURITY DEFINER  screener_rhia_op_{start,resume,save_response,finalize,get_result,capturar_lead,get_binding}
    (supabase/migrations/20260912120000_screener_rhia_tabelas_e_rpc.sql; dono screener_owner)
    │  valida item/opção contra a definição gravada; canônico; snapshot imutável; gate de lead
    ▼

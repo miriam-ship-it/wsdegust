@@ -1,4 +1,4 @@
-// Fronteira de segurança do rhia — as 6 funções screener_rhia_op_* em pglite (Postgres real).
+// Fronteira de segurança do rhia — as 7 funções screener_rhia_op_* em pglite (Postgres real).
 // Prova: fluxo start→save(30 itens + texto livre)→finalize→get_result→lead; validações
 // contra a definição gravada (opção inválida, item estranho, texto curto/longo/com
 // controle); idempotência; imutabilidade; canônico com texto livre idêntico ao da edge;
@@ -286,14 +286,19 @@ test("gate de lead na RPC: required_before_result retém; optional_after_submit 
   assert.equal(got.result.public.version, "2.0.0-pilot");
 });
 
-test("get_result: sessão inexistente → null; sessão aberta sem snapshot → result null e gate conforme o vínculo", async () => {
-  const db = await ambiente({ leadMode: "optional_after_submit" });
-  assert.equal(await call(db, "screener_rhia_op_get_result", [sha("nao-existe"), null]), null);
-  const th = await abrir(db, "tkr");
-  const got = await call(db, "screener_rhia_op_get_result", [th, null]);
-  assert.equal(got.session.status, "open");
-  assert.equal(got.result, null);
-  assert.equal(got.lead_required, false);
+test("get_result: sessão inexistente → null; sessão aberta sem snapshot → result null e SEM portão", async () => {
+  // O portão só existe sobre um resultado existente. Numa sessão ainda aberta
+  // não há nada a reter — inclusive na configuração de PRODUÇÃO
+  // (required_before_result), senão a edge nunca chegaria ao 404 sem_resultado.
+  for (const leadMode of ["optional_after_submit", "required_before_result"]) {
+    const db = await ambiente({ leadMode });
+    assert.equal(await call(db, "screener_rhia_op_get_result", [sha("nao-existe"), null]), null);
+    const th = await abrir(db, "tkr");
+    const got = await call(db, "screener_rhia_op_get_result", [th, null]);
+    assert.equal(got.session.status, "open", leadMode);
+    assert.equal(got.result, null, leadMode);
+    assert.equal(got.lead_required, false, leadMode);
+  }
 });
 
 test("lead rhia: exige sessão submetida; normaliza e-mail; opt-in coerente; lead_source = slug; upsert", async () => {
@@ -381,7 +386,7 @@ test("credencial de prévia (internal_preview): sem hash falha/oculta; com hash 
   assert.equal((await call(db, "screener_rhia_op_get_result", [th, PH])).result.public.version, "2.0.0-pilot");
 });
 
-test("privilégios: runtime só EXECUTE nas 6 funções; zero privilégio nas tabelas rhia; dono screener_owner", async () => {
+test("privilégios: runtime só EXECUTE nas 7 funções; zero privilégio nas tabelas rhia; dono screener_owner", async () => {
   const db = await ambiente();
   const fns = [
     "screener_rhia_op_start(text,text,text,timestamptz,timestamptz,text)",
@@ -390,6 +395,8 @@ test("privilégios: runtime só EXECUTE nas 6 funções; zero privilégio nas ta
     "screener_rhia_op_finalize(text,text,jsonb,text,text,text,text,text)",
     "screener_rhia_op_get_result(text,text)",
     "screener_rhia_op_capturar_lead(text,text,text,text,boolean)",
+    // a 7ª: serve o caminho SEM rate limit (o padrão da degustação pública)
+    "screener_rhia_op_get_binding(text,text)",
   ];
   for (const f of fns) {
     assert.equal((await db.query(`select has_function_privilege('screener_runtime','public.${f}','execute') as ok`)).rows[0].ok, true, `runtime execute ${f}`);

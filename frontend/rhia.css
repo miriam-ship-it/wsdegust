@@ -22,10 +22,13 @@
       cor nunca é o único sinal. Crítico/insuficiente ganham borda 2px e
       escala maior (prioridade visual), não um bloco chapado.
    5. Escada — componente novo, monocromático: cinco degraus como colunas de
-      altura crescente (a metáfora da escada), o atual em destaque por borda
-      forte, superfície e peso 500 mais o rótulo textual "Degrau atual"; a
-      referência, por borda tracejada e rótulo. Sem verde chapado, sem medalha,
-      sem número grande. Abaixo de 40rem vira lista vertical.
+      altura crescente (a metáfora da escada), com UM ÚNICO destaque — o degrau
+      atual, por borda forte, superfície e peso 500 mais o rótulo textual
+      "Degrau atual". A referência de atuação não é marcada aqui (ela é dita em
+      prosa no bloco 3): dois destaques na mesma escada leriam como "onde você
+      deveria estar". Sem verde chapado, sem medalha, sem número grande. Abaixo
+      de 40rem vira lista vertical. Nota fixa sob a escada: o quinto degrau não
+      exige tecnologia proprietária, modelo próprio nem agentes.
    6. Rota NIST — lista ordenada com ícone de ciclo e frase explícita "funções
       complementares e recorrentes, não estágios"; nada de setas de progresso.
    7. Plano 30–60–90 — tabela com divisor (sem zebra), cabeçalho 500; em tela
@@ -34,7 +37,9 @@
    8. Impressão — @media print: fundo branco (o app troca para o tema claro em
       beforeprint, então os tokens semânticos já são os claros), sem sombra,
       sem botões/controles, cartões com break-inside: avoid, cabeçalho com data
-      e versão (.rh-print-head) e disclaimer sempre presente. Cores oficiais
+      e versão (.rh-print-head), disclaimer sempre presente e a MEDIDA DE
+      LEITURA preservada (40em centralizados; sem ela a linha em A4 chega a
+      ~110 caracteres). Cores oficiais
       (--boomit-preto / --boomit-apoio-02) só como rede de segurança de texto e
       borda no papel.
    9. A11y — anel de foco de 2px/offset 2px (herdado de tokens.css) em tudo que
@@ -50,6 +55,11 @@
 .rh-k { font-weight: var(--weight-medium); color: var(--text-primary); }
 
 /* --- Abertura ------------------------------------------------------------- */
+/* O título deste diagnóstico é longo ("Diagnóstico Boomit — RH, Desenvolvimento
+   e IA") e a regra do V1 (.sc-hero__title, 48px fixos) estourava a largura em
+   320px: só a palavra "Desenvolvimento" mede mais que a caixa. Sobrescrito
+   APENAS no rhia (o V1 é intocável), com escala fluida e quebra em último caso. */
+.rh-hero .sc-hero__title { font-size: clamp(var(--text-2xl), 8.5vw, var(--text-4xl)); line-height: 1.1; overflow-wrap: anywhere; }
 .rh-hero .sc-hero__lead { max-width: 38rem; }
 .rh-hero__fatos { list-style: none; margin: var(--space-8) auto 0; padding: 0; max-width: 34rem; display: grid; gap: var(--space-3); text-align: left; }
 .rh-hero__fatos li { display: flex; gap: var(--space-3); align-items: flex-start; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
@@ -118,10 +128,8 @@
 .rh-escada__num { font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .rh-escada__nome { font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
 .rh-escada__tag { display: inline-block; margin-top: var(--space-1); font-size: var(--text-xs); letter-spacing: 0.03em; text-transform: uppercase; font-weight: var(--weight-medium); color: var(--text-primary); }
-.rh-escada__tag--ref { color: var(--text-secondary); }
 .rh-escada__degrau.is-atual { background: var(--bg-surface); border: 2px solid var(--border-strong); color: var(--text-primary); }
 .rh-escada__degrau.is-atual .rh-escada__nome { font-weight: var(--weight-medium); }
-.rh-escada__degrau.is-ref:not(.is-atual) { border-style: dashed; border-color: var(--border-default); color: var(--text-secondary); }
 .rh-escada__nota { margin-top: var(--space-3); }
 @media (max-width: 40rem) {
   .rh-escada { grid-template-columns: 1fr; align-items: stretch; }
@@ -214,7 +222,10 @@
   html, body { background: var(--bg-surface); color: var(--boomit-preto); }
   .sc-shell, .rh-shell { max-width: none; padding: 0; }
   .sc-head, .sc-theme, .rh-ctas, .sc-btn, .sc-note, .rh-sec--lead, .sc-nav, .sc-footbar { display: none !important; }
-  .rh-result { max-width: none; animation: none; }
+  /* A medida de leitura vale no papel também (Modo 3 — relatório): sem limite,
+     a linha em A4 passa de ~65 para ~110 caracteres. `ch` depende da fonte do
+     papel, então aqui a medida é em `em`, que o navegador resolve na impressão. */
+  .rh-result { max-width: 40em; margin: 0 auto; animation: none; }
   .rh-print-head { display: block; font-size: var(--text-xs); color: var(--boomit-preto); border-bottom: 1px solid var(--boomit-apoio-02); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
   .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada__degrau, .rh-tabela tr, .rh-disclaimer, .rh-lente { break-inside: avoid; page-break-inside: avoid; }
   .rh-sec { margin-top: var(--space-8); }

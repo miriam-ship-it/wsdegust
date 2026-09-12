@@ -35,6 +35,14 @@ export const ESCADA_PUBLICA = Object.freeze([
   "Criador de Tecnologia",
 ]);
 
+/**
+ * Ressalva do quinto degrau, exibida SEMPRE junto da escada (não só a quem cai
+ * nele). O motor só manda `positioning.clarification` no quinto degrau; a
+ * restrição do método, porém, vale para qualquer pessoa que leia o nome
+ * "Criador de Tecnologia" na escada.
+ */
+export const NOTA_QUINTO_DEGRAU = "O quinto degrau, Criador de Tecnologia, não exige tecnologia proprietária, modelos próprios ou agentes de IA. Exige capacidade consistente de desenhar, integrar, validar e governar soluções adequadas ao contexto.";
+
 /** Eventos de analytics permitidos — nada além destes, nunca texto livre. */
 export const EVENTOS_ANALYTICS = Object.freeze([
   "assessment_started", "context_completed", "question_answered", "assessment_completed",
@@ -223,9 +231,13 @@ export function tomGovernanca(id) {
   }[id] || { tom: "neutral", prioridade: false, icone: "info" };
 }
 
-/** Escada de 5 degraus com o atual (e a referência, quando válida) marcados. */
-export function escadaComAtual(atual, referencia) {
-  return ESCADA_PUBLICA.map((nome, i) => ({ nome, posicao: i + 1, atual: nome === atual, referencia: !!referencia && nome === referencia }));
+/**
+ * Escada de 5 degraus com SÓ o degrau atual marcado. A referência de atuação
+ * (`reference.stage`) aparece no bloco 3, em prosa: um segundo destaque aqui
+ * leria como "onde você deveria estar" — o que o método proíbe (PROMPT §5.2).
+ */
+export function escadaComAtual(atual) {
+  return ESCADA_PUBLICA.map((nome, i) => ({ nome, posicao: i + 1, atual: nome === atual }));
 }
 
 /** "YYYY-MM-DD" → "DD/MM/YYYY" (sem Date: não depende de fuso). */
@@ -389,17 +401,22 @@ function cabecalhoImpressao(pub, instrumentVersion) {
   return `<div class="rh-print-head" aria-hidden="true">${partes.map(escapeHtml).join(" · ")}</div>`;
 }
 
-function escadaHtml(pos, ref) {
-  const degraus = escadaComAtual(pos && pos.stage, ref && ref.status === "VALID" ? ref.stage : null);
-  const li = degraus.map((d) => `<li class="rh-escada__degrau ${d.atual ? "is-atual" : ""} ${d.referencia ? "is-ref" : ""}" ${d.atual ? 'aria-current="step"' : ""}>
+function escadaHtml(pos) {
+  const degraus = escadaComAtual(pos && pos.stage);
+  const li = degraus.map((d) => `<li class="rh-escada__degrau ${d.atual ? "is-atual" : ""}" ${d.atual ? 'aria-current="step"' : ""}>
       <span class="rh-escada__num" aria-hidden="true">${d.posicao}</span>
       <span class="rh-escada__nome">${escapeHtml(d.nome)}</span>
       ${d.atual ? `<span class="rh-escada__tag">Degrau atual</span>` : ""}
-      ${d.referencia && !d.atual ? `<span class="rh-escada__tag rh-escada__tag--ref">Referência</span>` : ""}
-      ${d.referencia && d.atual ? `<span class="rh-escada__tag rh-escada__tag--ref">Também sua referência</span>` : ""}
     </li>`).join("");
+  // A ressalva do quinto degrau vale para quem LÊ a escada, não só para quem
+  // cai nele: o nome "Criador de Tecnologia" sugere propriedade de tecnologia,
+  // e o método afirma o contrário (PROMPT §3; item do CHECKLIST-DE-ACEITE).
+  // Quando o motor manda a clarificação (o respondente está no quinto degrau),
+  // usamos a palavra dele; caso contrário, a mesma ressalva em terceira pessoa.
+  const nota = (pos && pos.clarification) || NOTA_QUINTO_DEGRAU;
   return `<ol class="rh-escada" aria-label="Escada de cinco referências, do primeiro ao quinto degrau">${li}</ol>
-    <p class="sc-help sc-muted rh-escada__nota">Cinco referências de atuação, não um ranking de pessoas nem uma sequência obrigatória.</p>`;
+    <p class="sc-help sc-muted rh-escada__nota">Cinco referências de atuação, não um ranking de pessoas nem uma sequência obrigatória.</p>
+    <p class="sc-help sc-muted rh-escada__nota">${escapeHtml(nota)}</p>`;
 }
 
 function gateHtml(gov, restriction) {
@@ -441,13 +458,12 @@ export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } =
 
   // 2. Escada + degrau atual
   const s2 = secao("escada", "Onde as práticas se situam", "Cinco referências; só o degrau atual está em destaque.",
-    escadaHtml(pos, ref) +
+    escadaHtml(pos) +
     `<div class="rh-degrau">
       <h3 class="rh-degrau__nome">${escapeHtml(pos.stage || "")}</h3>
       <p class="rh-degrau__headline">${escapeHtml(pos.headline || "")}</p>
       <p class="rh-prosa">${escapeHtml(pos.reading || "")}</p>
       ${pos.next ? `<p class="rh-prosa"><span class="rh-k">Próximo movimento.</span> ${escapeHtml(pos.next)}</p>` : ""}
-      ${pos.clarification ? `<p class="sc-help sc-muted">${escapeHtml(pos.clarification)}</p>` : ""}
     </div>`);
 
   // 3. Referência de atuação e distância (ou inconclusiva)
@@ -550,7 +566,7 @@ export function iniciarApp(cfg) {
     branding: {}, instrument: null, groups: [], itens: [], contexto: [], flat: [], cf: null,
     respostas: {}, textoOutro: "", textoErro: null, pos: 0,
     submitido: false, resultado: null, modoLeitura: false,
-    leadMode: "optional_after_submit", leadEnviado: false, leadEnviando: false, leadErro: null,
+    leadMode: "optional_after_submit", leadEnviado: false, leadEnviando: false, leadErro: null, leadErroCampo: false,
     salvando: 0, salvoRecente: false, erroTopo: null, tentandoEnviar: false,
     erro: null, storageOk: true, ignorarHash: false,
   };
@@ -694,12 +710,21 @@ export function iniciarApp(cfg) {
     mostrarResultado(r.body);
   }
   async function enviarLead(nome, email, optIn) {
-    if (!validarEmail(email)) { st.leadErro = "Informe um e-mail válido."; return pintar(); }
-    st.leadEnviando = true; st.leadErro = null; pintar();
+    if (!validarEmail(email)) {
+      st.leadErro = "Informe um e-mail válido."; st.leadErroCampo = true;
+      pintar(); focar("#sc-lead-email"); return;
+    }
+    st.leadEnviando = true; st.leadErro = null; st.leadErroCampo = false; pintar();
     const r = await cliente.lead(st.previewKey, st.token, { nome: (nome || "").trim() || null, email: email.trim(), marketing_opt_in: !!optIn });
     st.leadEnviando = false;
-    if (r.status !== 200) { st.leadErro = mensagemErro(r.status, r.body); return pintar(); }
-    st.leadEnviado = true; st.leadErro = null;
+    if (r.status !== 200) {
+      st.leadErro = mensagemErro(r.status, r.body);
+      st.leadErroCampo = r.status === 400 && !!r.body && r.body.error === "email_invalido";
+      pintar();
+      if (st.leadErroCampo) focar("#sc-lead-email");
+      return;
+    }
+    st.leadEnviado = true; st.leadErro = null; st.leadErroCampo = false;
     if (st.tela === "lead_gate") return carregarResultado();
     pintar();
   }
@@ -718,7 +743,7 @@ export function iniciarApp(cfg) {
       rastrear("reassessment_clicked");
     }
     limparSessao(evento, store);
-    Object.assign(st, { token: null, respostas: {}, textoOutro: "", textoErro: null, pos: 0, resultado: null, submitido: false, modoLeitura: false, leadEnviado: false, leadErro: null, erro: null, erroTopo: null });
+    Object.assign(st, { token: null, respostas: {}, textoOutro: "", textoErro: null, pos: 0, resultado: null, submitido: false, modoLeitura: false, leadEnviado: false, leadErro: null, leadErroCampo: false, erro: null, erroTopo: null });
     if (st.itens.length) irPara("abertura"); else carregarApresentacao();
   }
 
@@ -822,9 +847,13 @@ export function iniciarApp(cfg) {
           ${erro ? `<p class="rh-field__erro" id="rh-texto-erro" role="alert">${ICONE.info}<span>${escapeHtml(erro)}</span></p>` : ""}
         </div>`;
       }
+      // O nome acessível do grupo é o ENUNCIADO (aria-labelledby), não a palavra
+      // "Alternativas": com três grupos na mesma tela, quem usa leitor de tela
+      // ouviria o mesmo rótulo três vezes, sem a pergunta (WCAG 1.3.1 / 4.1.2).
+      const idPrompt = `rh-ctx-p-${escapeHtml(it.id)}`;
       return `<fieldset class="rh-ctx">
-        <legend class="rh-ctx__prompt">${escapeHtml(it.prompt)}</legend>
-        <div class="sc-opts rh-ctx__opts" role="radiogroup" aria-label="Alternativas">${opcoesHtml(it, escolhido, false)}</div>
+        <legend class="rh-ctx__prompt" id="${idPrompt}">${escapeHtml(it.prompt)}</legend>
+        <div class="sc-opts rh-ctx__opts" role="radiogroup" aria-labelledby="${idPrompt}">${opcoesHtml(it, escolhido, false)}</div>
         ${texto}
       </fieldset>`;
     }).join("");
@@ -854,8 +883,8 @@ export function iniciarApp(cfg) {
     return `${progressoHtml(`${escapeHtml(grupo)}${dim}`, `Pergunta ${it.order} de ${st.itens.length}`)}
       ${avisoStorage()}${noteTopo()}
       <article class="sc-item" id="sc-questao" tabindex="-1" aria-label="Pergunta ${it.order} de ${st.itens.length}">
-        <p class="sc-item__prompt">${escapeHtml(it.prompt)}</p>
-        <div class="sc-opts" role="radiogroup" aria-label="Alternativas">${opcoesHtml(it, escolhido, true)}</div>
+        <p class="sc-item__prompt" id="rh-item-prompt">${escapeHtml(it.prompt)}</p>
+        <div class="sc-opts" role="radiogroup" aria-labelledby="rh-item-prompt">${opcoesHtml(it, escolhido, true)}</div>
       </article>
       <p class="sc-kbd">Use <kbd>1</kbd>–<kbd>${it.options.length}</kbd> para escolher · <kbd>Enter</kbd> avança · <kbd>←</kbd> volta</p>
       <div class="sc-nav">
@@ -908,15 +937,24 @@ export function iniciarApp(cfg) {
   // ---------- render: portão de lead ----------
   function formLeadHtml(titulo, subtitulo) {
     if (st.leadEnviado) return `<div class="sc-note sc-note--ok" role="status">${ICONE.check}<span>Contato registrado. A Boomit pode falar com você sobre esta leitura.</span></div>`;
-    const erro = st.leadErro ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.leadErro)}</span></div>` : "";
+    // Erro DO CAMPO (e-mail inválido) fica abaixo do campo, com ícone e ligado
+    // por aria-describedby — o padrão da casa, já usado no texto livre do
+    // contexto. Erro que não é do campo (rede, limite, lead desativado) segue
+    // como tarja no topo do formulário.
+    const noCampo = !!st.leadErro && st.leadErroCampo;
+    const erroTopo = st.leadErro && !st.leadErroCampo
+      ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.leadErro)}</span></div>` : "";
+    const erroCampo = noCampo
+      ? `<p class="rh-field__erro" id="sc-lead-email-erro" role="alert">${ICONE.info}<span>${escapeHtml(st.leadErro)}</span></p>` : "";
     return `<form class="sc-leadform" data-acao="lead" novalidate>
       <p class="sc-eyebrow">${escapeHtml(titulo)}</p>
       ${subtitulo ? `<p class="sc-leadform__sub">${escapeHtml(subtitulo)}</p>` : ""}
-      ${erro}
+      ${erroTopo}
       <div class="sc-field"><label class="sc-label" for="sc-lead-nome">Nome <span class="sc-muted">(opcional)</span></label>
         <input class="sc-input" id="sc-lead-nome" name="nome" type="text" autocomplete="name" placeholder="Seu nome"></div>
       <div class="sc-field"><label class="sc-label" for="sc-lead-email">E-mail</label>
-        <input class="sc-input" id="sc-lead-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="voce@empresa.com" required ${st.leadErro ? 'aria-invalid="true"' : ""}></div>
+        <input class="sc-input" id="sc-lead-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="voce@empresa.com" required ${noCampo ? 'aria-invalid="true" aria-describedby="sc-lead-email-erro"' : ""}>
+        ${erroCampo}</div>
       <label class="sc-ack"><input type="checkbox" id="sc-lead-opt"><span>Aceito receber contato da Boomit sobre este diagnóstico.</span></label>
       <div class="sc-actions"><button class="sc-btn sc-btn--brand sc-btn--block" type="submit" ${st.leadEnviando ? "disabled" : ""}>${st.leadEnviando ? "Enviando…" : "Ver minha leitura"}</button></div>
     </form>`;
@@ -976,13 +1014,34 @@ export function iniciarApp(cfg) {
       default: return carregando();
     }
   }
+  /**
+   * Como reencontrar, depois da repintura, o elemento que estava em foco.
+   * `pintar()` troca todo o innerHTML: sem isto o foco cai no <body> e o
+   * próximo Tab recomeça no cabeçalho — inviável para quem navega por teclado
+   * (na tela de contexto, cada seta do radiogroup destruiria o foco).
+   */
+  function marcaDeFoco() {
+    const el = doc.activeElement;
+    if (!el || !el.getAttribute || el === doc.body || !raiz.contains(el)) return null;
+    if (el.id) return `#${el.id}`;
+    const item = el.getAttribute("data-item"), opcao = el.getAttribute("data-opcao");
+    if (item && opcao) return `input[data-item="${item}"][data-opcao="${opcao}"]`;
+    const acao = el.getAttribute("data-acao");
+    return acao ? `[data-acao="${acao}"]` : null;
+  }
   function pintar() {
     const compacto = st.tela === "questoes" || st.tela === "contexto";
+    const foco = marcaDeFoco();
     raiz.innerHTML = `<div class="sc-shell rh-shell rh-tela--${st.tela}">` + cabecalho(compacto) + corpo() + `</div>`;
     if (st.tela === "questoes") {
       const q = raiz.querySelector("#sc-questao");
       if (q) { try { q.focus({ preventScroll: true }); } catch { /* ok */ } }
+      return;
     }
+    // Nas demais telas, devolve o foco a quem o tinha (mesmo elemento, mesma
+    // alternativa). Se o elemento não existe mais, o foco simplesmente não é
+    // roubado — nenhuma tela depende disso para funcionar.
+    if (foco) focar(foco);
   }
 
   // --- eventos ---

@@ -27,7 +27,9 @@
 --
 -- PORTÃO DE LEAD (server-side): quando o vínculo é `required_before_result`, a própria
 -- RPC de leitura retém o resultado até existir lead da sessão. Sem lead, `result` é
--- null e `lead_required` é true — nem contornando a edge o resultado sai.
+-- null e `lead_required` é true — nem contornando a edge o resultado sai. O portão só
+-- vale sobre um snapshot EXISTENTE: sessão ainda aberta responde `result` null com
+-- `lead_required` false (não há nada a reter, e a edge devolve 404 sem_resultado).
 -- =============================================================
 
 -- membership temporária só para reatribuir propriedade ao owner (revogada no fim)
@@ -318,10 +320,13 @@ end $$;
 --     resultado só sai DEPOIS que há lead capturado para a sessão. Sem lead,
 --     devolve result=null + lead_required=true. Assim o navegador não consegue
 --     ler o resultado sem antes dar o contato — nem burlando a edge.
+--     ORDEM IMPORTA: o snapshot é consultado ANTES do gate. Sem snapshot não há
+--     o que reter, e o portão anunciaria "dê seu contato" para uma sessão que
+--     sequer foi submetida (e o 404 sem_resultado da edge nunca aconteceria).
 create or replace function public.screener_rhia_op_get_result(p_token_hash text, p_preview_hash text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_sess public.screener_rhia_sessions%rowtype; v_bind public.screener_event_bindings%rowtype;
-        v_base jsonb; v_tem_lead boolean;
+        v_base jsonb; v_tem_lead boolean; v_result jsonb;
 begin
   select * into v_sess from public.screener_rhia_sessions where token_hash = p_token_hash;
   if not found then return null; end if;
@@ -336,16 +341,22 @@ begin
       'lead_capture_mode', v_bind.lead_capture_mode,
       'starts_at', v_bind.starts_at, 'ends_at', v_bind.ends_at, 'branding', v_bind.branding,
       'instrument_code', v_bind.instrument_code, 'instrument_version', v_bind.instrument_version));
+  select r.result into v_result from public.screener_rhia_result_snapshots r
+    where r.session_id = v_sess.id order by r.created_at desc limit 1;
+  -- O portão só existe sobre um resultado EXISTENTE: numa sessão ainda aberta
+  -- não há nada a reter, e anunciar lead_required ali esconderia o estado real
+  -- ("ainda não há resultado") atrás de um pedido de contato — além de tornar
+  -- inalcançável o 404 sem_resultado que a edge implementa.
+  if v_result is null then
+    return v_base || jsonb_build_object('result', null, 'lead_required', false);
+  end if;
   if v_bind.lead_capture_mode = 'required_before_result' then
     select exists (select 1 from public.screener_rhia_leads l where l.session_id = v_sess.id) into v_tem_lead;
     if not v_tem_lead then
       return v_base || jsonb_build_object('result', null, 'lead_required', true);
     end if;
   end if;
-  return v_base || jsonb_build_object(
-    'result', (select r.result from public.screener_rhia_result_snapshots r
-               where r.session_id = v_sess.id order by r.created_at desc limit 1),
-    'lead_required', false);
+  return v_base || jsonb_build_object('result', v_result, 'lead_required', false);
 end $$;
 
 -- 2f. capturar_lead — único caminho de escrita da PII. Regras idênticas ao

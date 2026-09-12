@@ -67,7 +67,12 @@
 </script>
 </head>
 <body>
-  <main id="sc-app" aria-live="polite">
+  <!-- Sem aria-live aqui: `pintar()` troca TODO o conteúdo deste <main> a cada
+       resposta e a cada navegação; como live region, o leitor de tela
+       re-anunciaria a tela inteira (mil caracteres) a cada interação. Os avisos
+       pontuais já têm role="status"/role="alert" (autosave, armazenamento, erro
+       de topo, erro de campo) e cada tela recebe foco programático. -->
+  <main id="sc-app">
     <div class="sc-shell rh-boot"><div class="sc-loading"><span class="sc-spin" aria-hidden="true"></span> Carregando o diagnóstico…</div></div>
   </main>
   <noscript><div class="sc-shell"><div class="sc-card" role="alert"><h1 class="sc-title">Este diagnóstico precisa de JavaScript</h1><p class="sc-lead">Ative o JavaScript no navegador e recarregue a página para responder.</p></div></div></noscript>

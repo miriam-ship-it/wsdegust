@@ -122,12 +122,26 @@ A restrição (`NO_SCALE`, `CONTROLLED_EXPERIMENTS`) é dita por extenso, não i
 - **Impressão:** a escada preserva o destaque por borda e peso, que sobrevive ao
   preto e branco.
 
+- **Ressalva do quinto degrau, sempre visível.** O nome “Criador de Tecnologia”
+  está na escada para todo mundo, e o método afirma que ele **não exige
+  tecnologia proprietária, modelo próprio nem agentes** (PROMPT §3; item do
+  CHECKLIST-DE-ACEITE). O motor só manda essa clarificação a quem cai no quinto
+  degrau, então a nota acompanha a escada em todos os casos: quando o motor
+  manda, vale a palavra dele; senão, a mesma ressalva em terceira pessoa
+  (`NOTA_QUINTO_DEGRAU` em `rhia.mjs`).
+
 **O que foi feito.** Componente novo e monocromático: cinco degraus como colunas de
-altura crescente (a metáfora da escada). O degrau atual é marcado por borda forte,
-superfície própria, peso 500 e o rótulo textual **“Degrau atual”**; a referência de
-atuação, por borda tracejada e rótulo próprio. Sem verde chapado, sem número grande,
-sem medalha — a leitura não pode soar premiação. Abaixo de 40rem a escada vira lista
-vertical, preservando a ordem.
+altura crescente (a metáfora da escada). **Um único destaque**: o degrau atual, por
+borda forte, superfície própria, peso 500 e o rótulo textual **“Degrau atual”**. A
+referência de atuação aparece só em prosa, no bloco 3 — um segundo destaque aqui
+leria como “onde você deveria estar”. Sem verde chapado, sem número grande, sem
+medalha — a leitura não pode soar premiação. Abaixo de 40rem a escada vira lista
+vertical, preservando a ordem. Sob a escada, a ressalva do quinto degrau.
+
+> Correção (12/09): a primeira versão marcava também o degrau de referência
+> (borda tracejada + rótulo “Referência”), contra o próprio bullet acima e
+> contra o PROMPT §5.2. Removido de `rhia.mjs` e de `rhia.css`, e o teste que
+> exigia o segundo destaque foi corrigido.
 
 ### 1.6 Impressão
 
@@ -151,7 +165,17 @@ segurança de texto e borda no papel.
 - Alternativas em `radiogroup`/`radio`; teclado 1–9 seleciona, Enter avança,
   setas navegam (mesmo padrão do V1).
 - Alvo de toque mínimo de 44px (Boomit UI).
-- `aria-live` nos avisos de autosave, validação e storage.
+- `aria-live` **nos avisos** (autosave, validação, storage, erro de topo) — e
+  só neles. O `<main id="sc-app">` NÃO é live region: `pintar()` troca todo o
+  conteúdo dele a cada resposta, e um leitor de tela re-anunciaria a tela
+  inteira a cada interação.
+- Nome acessível do grupo = o **enunciado** (`aria-labelledby` apontando para a
+  `<legend>`/`<p>` da pergunta), nunca a palavra "Alternativas": na tela de
+  contexto há três grupos e eles precisam se distinguir.
+- O foco sobrevive à repintura: `pintar()` guarda quem estava em foco (por id
+  ou por `data-item`/`data-opcao`) e devolve o foco depois de trocar o DOM.
+  Sem isso, cada seta do radiogroup jogava o foco no `<body>` e o Tab seguinte
+  recomeçava no cabeçalho.
 - `prefers-reduced-motion` desliga transições.
 - 320px sem overflow horizontal; tabela do plano 30–60–90 vira cards em tela
   estreita (Boomit UI, tabelas: "transforme cada linha em card em vez de rolar na
@@ -162,9 +186,19 @@ segurança de texto e borda no papel.
 **O que foi feito.** Anel de foco de 2px com offset 2px (herdado de `tokens.css`) em
 tudo que é clicável; alvo mínimo de 44px (2.75rem) em botões e opções; `radiogroup` com
 `fieldset`/`legend` na tela de contexto; erro de campo abaixo do campo, com ícone e
-`aria-describedby`; `prefers-reduced-motion` desliga as animações; **320px sem overflow
-horizontal** — os grids colapsam e a tabela do plano vira cartão com o rótulo da coluna.
-Verificado no navegador a 320px: nenhum elemento ultrapassa a largura do documento.
+`aria-describedby` (no texto livre do contexto **e** no e-mail do portão de lead, que
+também recebe o foco quando a validação falha); `prefers-reduced-motion` desliga as
+animações; **320px sem overflow horizontal** — os grids colapsam e a tabela do plano
+vira cartão com o rótulo da coluna.
+
+> Correções (12/09), todas comprovadas no navegador: (a) o título da abertura
+> usava os 48px fixos do V1 e estourava a largura em 320px (a palavra
+> "Desenvolvimento" sozinha media 403px numa caixa de 272px) — agora
+> `clamp()` só no rhia; (b) o `<main>` era `aria-live="polite"` inteiro; (c) os
+> radiogroups tinham todos o mesmo `aria-label="Alternativas"`; (d) responder
+> na tela de contexto jogava o foco no `<body>`; (e) o erro do portão de lead
+> não estava ligado ao campo. A afirmação de "zero overflow a 320px" do
+> RELATORIO-DE-TESTES estava errada e foi corrigida lá.
 
 ### 1.8 Tom de voz
 
@@ -253,6 +287,32 @@ não altera cálculo. Seguimos o motor e os documentos: a interface reforça
 "Responda pensando na mesma área do início ao fim", e o campo fica gravado
 verbatim na definição, sem efeito. Registrado aqui para a revisão do
 instrumento decidir se o valor do JSON deve mudar.
+
+### 2.6.1 Nomes de dimensão: o JSON e o motor divergem em cinco das seis
+
+As duas fontes do pacote nomeiam as mesmas dimensões de formas diferentes:
+
+| id | JSON (`instrumento-rh-ia-v1.json`, usado no questionário) | Motor (`output-definition-v2.mjs`, usado na devolutiva) |
+|---|---|---|
+| EST | Estratégia e valor para o negócio | Estratégia e valor para o negócio |
+| TAL | Inteligência de talentos e força de trabalho | Talento e capacidades |
+| DES | Performance e desenvolvimento | Desenvolvimento e aprendizagem |
+| INF | Influência, liderança e mudança | Influência e mobilização |
+| DAD | Dados e inteligência de decisão | Dados e evidências |
+| IA | Redesenho do trabalho e adoção de IA | Adoção responsável de IA |
+
+Na prática o participante vê dois nomes para o mesmo construto: o cabeçalho da
+questão traz o `dimension_name` do JSON ("Práticas · Inteligência de talentos e
+força de trabalho") e o resultado traz o nome do motor ("Talento e
+capacidades"). Nenhuma das duas fontes é lida pela outra e o cálculo não muda.
+
+**Decisão.** Cada camada continua usando a sua fonte, sem reescrever nenhuma das
+duas: o questionário é conteúdo literal do JSON (precedência 1) e a devolutiva é
+o vocabulário do motor (precedência 2). Nada é traduzido por conta própria — uma
+tabela de-para nossa seria texto novo do instrumento, que não nos cabe escrever.
+Fica **registrado para a revisão do instrumento**: as duas fontes do pacote
+precisam convergir num nome só por dimensão. Enquanto não convergem, a
+ambiguidade está aqui e em LIMITES-METODOLOGICOS §4.
 
 ### 2.7 Textos ampliados do `.docx`
 

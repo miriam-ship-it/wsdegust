@@ -70,8 +70,7 @@ test("protótipo legado ia.html não está publicado nem é referenciado (Q9)", 
   // 3. nenhum arquivo publicado referencia /ia.html
   for (const f of arquivosDe(publishDir).filter((x) => EXT_TEXTO.has(path.extname(x).toLowerCase()))) {
     const txt = fs.readFileSync(f, "utf8");
-    // `ia.html` como NOME de arquivo — não como sufixo de outro nome (ex.: rhia.html).
-    assert.ok(!/(^|[^\w-])ia\.html/.test(txt), `${path.relative(RAIZ, f)} referencia ia.html`);
+    assert.ok(!txt.includes("ia.html"), `${path.relative(RAIZ, f)} referencia ia.html`);
   }
 });
 

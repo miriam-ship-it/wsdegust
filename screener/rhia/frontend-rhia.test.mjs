@@ -6,16 +6,21 @@
 // resultado renderizada a partir de um modelo REAL do motor não pode conter
 // pontos-base, escala, códigos de estágio, ids de item nem eixos internos.
 //
-// ATENÇÃO (fronteira de publicação): este arquivo vive em frontend/ e por isso
-// NÃO pode escrever ids de item nem enunciados do instrumento. Tudo que
-// precisa deles vem do JSON importado (só aqui, no teste — o app não importa).
+// ONDE ELE VIVE (fronteira de publicação): FORA de `frontend/`. O Netlify
+// publica o diretório `frontend/` inteiro, e este teste carrega justamente o
+// que a fronteira promete não entregar ao navegador — pontos-base, códigos de
+// estágio, eixos internos e o caminho do motor privado. Por isso mora em
+// `screener/rhia/` (rodado pelo glob `screener/rhia/*.test.mjs` do `npm test`)
+// e importa o app por caminho relativo. Os dois testes de fronteira reprovam
+// qualquer arquivo de teste que volte a aparecer dentro do publish dir e
+// qualquer arquivo publicado que importe de fora dele.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  EVENTO_PADRAO, TITULO, ESCADA_PUBLICA, EVENTOS_ANALYTICS, HASH_DA_TELA,
+  EVENTO_PADRAO, TITULO, ESCADA_PUBLICA, NOTA_QUINTO_DEGRAU, EVENTOS_ANALYTICS, HASH_DA_TELA,
   lerEvento, montarHeaders, progresso, escapeHtml, validarEmail,
   campoCondicional, validarTextoOutro, mensagemTextoOutro, textoAposTrocarOpcao, textoExigido,
   agruparPorGrupo, itensFaltantes, primeiraNaoRespondida, contextoCompleto, submissaoCompleta,
@@ -23,12 +28,13 @@ import {
   formatarData, mensagemErro, descreverErro,
   chaveArmazenamento, guardarSessao, lerSessao, limparSessao,
   telaDoHash, criarRastreador, criarCliente, renderResultado, renderInsuficiente,
-} from "./rhia.mjs";
-// SÓ NO TESTE: o motor e o instrumento do pacote (fora de frontend/).
-import { buildResultContractV2 } from "../screener/rhia/pacote/src/output-engine-v2.mjs";
-import instrumento from "../screener/rhia/pacote/instrumento-rh-ia-v1.json" with { type: "json" };
+} from "../../frontend/rhia.mjs";
+// SÓ NO TESTE: o motor e o instrumento do pacote (o app nunca os importa).
+import { buildResultContractV2 } from "./pacote/src/output-engine-v2.mjs";
+import instrumento from "./pacote/instrumento-rh-ia-v1.json" with { type: "json" };
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
+const FRONT = path.resolve(AQUI, "..", "..", "frontend"); // screener/rhia → raiz → frontend
 
 function memStore() {
   const m = new Map();
@@ -177,13 +183,16 @@ test("rotuloRestricao / tomGovernanca: cor nunca é o único sinal", () => {
   assert.equal(tomGovernanca("qualquer").tom, "neutral");
 });
 
-test("escadaComAtual: 5 degraus na ordem pública; só o atual marcado", () => {
+test("escadaComAtual: 5 degraus na ordem pública; UM ÚNICO destaque, o atual", () => {
   assert.equal(ESCADA_PUBLICA.length, 5);
   assert.deepEqual([...ESCADA_PUBLICA], ["Operacional Ágil", "Gestor Tático", "Estrategista de Escala", "Arquiteto de Soluções", "Criador de Tecnologia"]);
-  const e = escadaComAtual("Estrategista de Escala", "Arquiteto de Soluções");
+  const e = escadaComAtual("Estrategista de Escala");
   assert.deepEqual(e.map((d) => d.atual), [false, false, true, false, false]);
-  assert.deepEqual(e.map((d) => d.referencia), [false, false, false, true, false]);
-  assert.equal(escadaComAtual("Gestor Tático", null).filter((d) => d.referencia).length, 0);
+  // A referência de atuação NÃO é marcada na escada (PROMPT §5.2: "destacando
+  // apenas o degrau atual"); ela é dita em prosa no bloco 3.
+  assert.deepEqual(Object.keys(e[0]), ["nome", "posicao", "atual"]);
+  assert.equal(escadaComAtual("Gestor Tático").filter((d) => d.atual).length, 1);
+  assert.equal(escadaComAtual(null).filter((d) => d.atual).length, 0);
 });
 
 test("formatarData: ISO → pt-BR sem Date", () => {
@@ -386,11 +395,15 @@ test("renderResultado (perfil rico): anatomia completa na ordem, sem vazamento",
     assert.ok(i > cursor, `fora de ordem ou ausente: "${marca}"`);
     cursor = i;
   }
-  // escada: 5 degraus, um só atual, referência marcada, aria-current
+  // escada: 5 degraus, UM só destaque (o atual), aria-current
   assert.equal((html.match(/rh-escada__degrau/g) || []).length, 5);
   assert.equal((html.match(/is-atual/g) || []).length, 1);
   assert.equal((html.match(/aria-current="step"/g) || []).length, 1);
-  assert.ok(html.includes("Degrau atual") && html.includes(">Referência<"));
+  assert.ok(html.includes("Degrau atual"));
+  assert.ok(!html.includes("is-ref") && !html.includes(">Referência<"), "a escada não pode ter um segundo destaque");
+  assert.equal((html.match(/rh-escada__tag/g) || []).length, 1, "só o degrau atual leva rótulo");
+  // a referência de atuação continua dita em prosa, no bloco 3
+  assert.ok(html.includes("Sua referência de atuação aponta para"));
   for (const nome of ESCADA_PUBLICA) assert.ok(html.includes(escapeHtml(nome)), nome);
   // evidência ampla; data; versão; cabeçalho de impressão; sem notas por dimensão
   assert.ok(html.includes(">ampla<"));
@@ -432,8 +445,27 @@ test("renderResultado (equilibrado, referência inconclusiva): sem sustentadores
   assert.ok(html.includes("Referência de posição inconclusiva"));
   assert.ok(html.includes("evolução parece homogênea"));
   assert.ok(html.includes("rh-gate--success") && html.includes("Sem restrição de escala"));
-  assert.equal((html.match(/is-ref/g) || []).length, 0, "referência inconclusiva não marca degrau");
+  assert.equal((html.match(/is-ref/g) || []).length, 0, "a escada nunca marca um segundo degrau");
   assert.ok(html.includes("Evolução equilibrada"));
+});
+
+test("escada: a ressalva do quinto degrau é exibida SEMPRE, não só a quem cai nele", () => {
+  // O nome "Criador de Tecnologia" está na escada para todo mundo; a restrição
+  // do PROMPT §3 (não exige tecnologia proprietária, modelo próprio ou agentes)
+  // é item do CHECKLIST-DE-ACEITE e por isso acompanha a escada sempre.
+  const baixo = publico(respostas({ porDimensao: Object.fromEntries(DIMS.map((d) => [d, "E1"])), gates: "E2" }));
+  const htmlBaixo = renderResultado(baixo);
+  assert.notEqual(baixo.positioning.stage, "Criador de Tecnologia");
+  assert.equal(baixo.positioning.clarification, undefined, "o motor só clarifica no quinto degrau");
+  assert.ok(htmlBaixo.includes(escapeHtml(NOTA_QUINTO_DEGRAU)), "ressalva ausente fora do quinto degrau");
+  assertSemVazamento(htmlBaixo, "ressalva sempre");
+
+  const alto = publico(respostas({ porDimensao: Object.fromEntries(DIMS.map((d) => [d, "E4"])), gates: "E4" }));
+  assert.equal(alto.positioning.stage, "Criador de Tecnologia");
+  const htmlAlto = renderResultado(alto);
+  assert.ok(htmlAlto.includes(escapeHtml(alto.positioning.clarification)), "no quinto degrau vale a palavra do motor");
+  assert.ok(!htmlAlto.includes(escapeHtml(NOTA_QUINTO_DEGRAU)), "sem duplicar a ressalva");
+  assertSemVazamento(htmlAlto, "quinto degrau");
 });
 
 test("renderResultado (evidência limitada com um NA por dimensão): sintetiza e rotula 'limitada'", () => {
@@ -467,13 +499,13 @@ test("renderResultado: entrada vazia não quebra (tela nunca branca)", () => {
 // ---------- autocontido / fronteira ----------
 
 test("rhia.mjs não importa nada (autocontido em frontend/) e a página carrega o trio tokens/screener/rhia", () => {
-  const src = fs.readFileSync(path.join(AQUI, "rhia.mjs"), "utf8");
+  const src = fs.readFileSync(path.join(FRONT, "rhia.mjs"), "utf8");
   assert.ok(!/^\s*import\s/m.test(src), "rhia.mjs não pode importar de fora de frontend/");
   assert.ok(!/from\s+["']\.\.\//.test(src));
-  const html = fs.readFileSync(path.join(AQUI, "rhia.html"), "utf8");
+  const html = fs.readFileSync(path.join(FRONT, "rhia.html"), "utf8");
   for (const s of ['href="tokens.css"', 'href="screener.css"', 'href="rhia.css"', 'src="rhia.mjs"', "SCREENER_RHIA_CONFIG", "<noscript>"]) assert.ok(html.includes(s), s);
   assert.ok(html.includes(`<title>${TITULO}</title>`));
-  const css = fs.readFileSync(path.join(AQUI, "rhia.css"), "utf8");
+  const css = fs.readFileSync(path.join(FRONT, "rhia.css"), "utf8");
   assert.ok(!/#[0-9a-f]{3,8}\b/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), "hex solto em rhia.css — use tokens");
   assert.ok(!/font-weight:\s*(700|800|900|bold)/.test(css), "bold não existe na Boomit");
   assert.ok(css.includes("@media print") && css.includes("break-inside: avoid") && css.includes("prefers-reduced-motion"));

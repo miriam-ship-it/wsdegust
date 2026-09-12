@@ -172,7 +172,7 @@ test("integração: o vínculo público dirige a edge rhia SEM credencial — GE
   const RHIA = fs.readFileSync(ARQ_RHIA_MIGR, "utf8");
   const HR = await import(pathToFileURL(ARQ_HANDLERS).href);
   const db = await base();
-  await db.exec(RHIA);  // tabelas + 6 RPC rhia (na ordem do ledger: antes da carga)
+  await db.exec(RHIA);  // tabelas + 7 RPC rhia (na ordem do ledger: antes da carga)
   await db.exec(CARGA); // carga pública
   const ctx = { q: (sql, params = []) => db.query(sql, params), now: () => new Date("2026-09-15T12:00:00Z"), previewKeyHash: null };
 

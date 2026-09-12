@@ -114,7 +114,19 @@ function mapErroSql(e) {
   if (m.includes("email_invalido")) return resp(400, { error: "email_invalido" });
   if (m.includes("lead_desativado")) return resp(409, { error: "lead_desativado" });
   if (m.includes("sessao_nao_submetida")) return resp(409, { error: "sessao_nao_submetida" });
-  return resp(409, { error: "conflito", detalhe: m });
+  // Ramo padrão: NADA do texto do Postgres sai para o navegador. A mensagem crua
+  // carrega nome de constraint, de tabela, de encoding — detalhe de implementação
+  // que a fronteira não entrega a entrada anônima. O diagnóstico fica no log.
+  return resp(409, { error: "conflito" });
+}
+
+/** Caracteres de controle (inclui NUL) — o Postgres nem aceita, e o texto do erro vazava. */
+const CONTROLE = /[\u0000-\u001f\u007f]/g;
+/** Nome do lead: opcional, sem caracteres de controle, aparado, no máximo 120 chars. */
+function limparNome(nome) {
+  if (typeof nome !== "string") return null;
+  const v = nome.replace(CONTROLE, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+  return v || null;
 }
 
 /** Respostas da RPC (lista) → mapa item_id → value. */
@@ -308,10 +320,18 @@ export async function postLeadRhia(ctx, { token, previewKey, nome, email, market
   if (rl) return rl;
   const th = await hashToken(token || "");
   const previewHash = await previaHash(previewKey);
+  // O texto do lead é aparado ANTES do banco: caractere de controle (NUL
+  // inclusive) faz o Postgres abortar a transação com um erro de encoding que
+  // não tem por que chegar ao navegador. Nome é limpo; e-mail com controle é
+  // simplesmente inválido (limpar poderia transformar lixo em e-mail aceito).
+  const nomeLimpo = limparNome(nome);
+  if (typeof email === "string" && email !== email.replace(CONTROLE, "")) {
+    return resp(400, { error: "email_invalido" });
+  }
   let r;
   try {
     r = await rpc(ctx, "screener_rhia_op_capturar_lead",
-      [th, previewHash, nome ?? null, email ?? null, marketing_opt_in === true]);
+      [th, previewHash, nomeLimpo, email ?? null, marketing_opt_in === true]);
   } catch (e) { return mapErroSql(e); }
   if (!r) return resp(404, { error: "sessao_nao_encontrada" });
   return resp(200, { ok: true });

@@ -36,7 +36,7 @@ Já em produção: `20260902143339` (tabelas), `20260902150000` (carga V1),
 |---|---|---|---|
 | 04 | `20260904120000_screener_rate_limit` | tabelas/funções de rate limit + job `pg_cron` (inativo na edge até o secret) | **Sim** — link público exige rate |
 | 05 | `20260905120000_screener_op_lead` | função de lead do **V1** (aditiva, inerte no V1) | Não, mas entra junto: é anterior no ledger |
-| 12 | `20260912120000_screener_rhia_tabelas_e_rpc` | 4 tabelas `screener_rhia_*` + 6 RPC + gate de lead | **Sim** |
+| 12 | `20260912120000_screener_rhia_tabelas_e_rpc` | 4 tabelas `screener_rhia_*` + 7 RPC + gate de lead | **Sim** |
 | 13 | `20260913120000_screener_rhia_carga_publica` | instrumento rhia (inativo) + vínculo público | **Sim** |
 
 > O ledger é sequencial: aplicar até a 13 aplica também 04, 05 e 12. A 05 é
@@ -131,7 +131,7 @@ select c.relname, r.rolname as owner, c.relrowsecurity
   from pg_class c join pg_roles r on r.oid = c.relowner
  where c.relname like 'screener_rhia_%' and c.relkind = 'r' order by 1;
 
--- 6 funções rhia, EXECUTE só para screener_runtime
+-- 7 funções rhia, EXECUTE só para screener_runtime
 select p.proname, p.prosecdef
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'public' and p.proname like 'screener_rhia_op_%' order by 1;
@@ -156,7 +156,7 @@ select event_slug, status, lead_capture_mode, session_retention_days, lead_reten
 select jobname, schedule, active from cron.job where jobname = 'boomit_screener_rate_gc_v1';
 ```
 
-Critério: 4 tabelas com dono `screener_owner` e RLS; 6 funções `prosecdef`,
+Critério: 4 tabelas com dono `screener_owner` e RLS; 7 funções `prosecdef`,
 EXECUTE só no runtime; instrumento com o checksum que o teste da carga imprime;
 vínculo público com credencial nula; job do cron ativo.
 

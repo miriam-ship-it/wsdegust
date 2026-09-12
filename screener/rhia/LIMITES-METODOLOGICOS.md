@@ -53,7 +53,7 @@ psicométrica validada.
 | Índice interno | 35% Liderança + 35% Processos + 30% IA | motor |
 | Cortes de degrau | P1 0–1999 · P2 2000–3999 · P3 4000–5999 · P4 6000–7999 · P5 8000–10000 | motor |
 | Referência de atuação | arredondar((alcance + autoridade) / 2); divergência ≥ 2 = inconclusiva | motor |
-| Sustentador / limitador | desvio ≥ 833 pontos-base do índice; amplitude total < 833 = nenhum extremo | motor |
+| Sustentador / limitador | amplitude total < 833 pontos-base = nenhum extremo; com amplitude ≥ 833, destaca as dimensões que se afastam ≥ 833 do índice — e, se nenhuma se afasta tanto, ainda assim destaca a mais extrema (ver §4) | motor |
 | Tensão | diferença ≥ 2500 entre dimensões pareadas; no máximo duas | motor |
 | Assinatura | limiar de 1500 entre eixos; equilíbrio com amplitude < 1000 | motor |
 | Gate de governança | pior resposta entre GOV01–GOV03; qualquer NA = insuficiente; nunca altera o degrau | motor |
@@ -73,6 +73,23 @@ registrada.
 - O JSON declara `assessment_unit = individual_in_role`; motor e documentos
   tratam a unidade como área. Seguimos motor e documentos; o campo fica
   gravado verbatim e sem efeito (DECISOES 2.6).
+- **Extremos abaixo do limiar.** O PROMPT §6 descreve sustentador/limitador
+  como desvio de pelo menos 833 pontos-base em relação ao índice. O motor
+  (`selectExtremes`, em `output-engine-v2.mjs`) faz um passo a mais: se a
+  amplitude entre dimensões chega a 833 mas nenhuma dimensão se afasta 833 do
+  índice, ele ainda destaca a mais extrema. Exemplo real: todas as dimensões em
+  E1 e um item de IA em E2 produzem índice 250, amplitude 833, e a devolutiva
+  traz "Adoção responsável de IA" como sustentador (desvio 583) e "Estratégia e
+  valor para o negócio" como limitador (desvio 250) — ambos abaixo dos 833.
+  **Seguimos o motor** (precedência 2 do PROMPT §1, "importar sem alterar
+  semântica"): a divergência é do pacote consigo mesmo, não uma escolha nossa,
+  e corrigi-la seria mudar o cálculo. Fica registrada para a revisão do
+  instrumento decidir qual das duas regras vale.
+- **Nomes de dimensão.** Cinco das seis dimensões têm nomes diferentes no JSON
+  (questionário) e no motor (devolutiva) — o participante lê "Inteligência de
+  talentos e força de trabalho" na pergunta e "Talento e capacidades" no
+  resultado. Nenhuma das duas fontes foi reescrita; a tabela completa e a
+  decisão estão em [DECISOES.md](./DECISOES.md), 2.6.1.
 
 ## 5. Agenda de validação pós-piloto
 

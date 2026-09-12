@@ -76,3 +76,60 @@ test("nenhum arquivo publicado contém o instrumento rhia (código, ids de item,
     }
   }
 });
+
+// -------------------------------------------------------------------------
+// REDE DE SEGURANÇA (o caso que já aconteceu): não basta o app não vazar — um
+// ARQUIVO DE TESTE dentro do publish dir também é publicado. `frontend/rhia.test.mjs`
+// carregava o motor privado e escrevia pontos-base e códigos de estágio; hoje
+// vive em `screener/rhia/frontend-rhia.test.mjs`. Os três testes abaixo impedem
+// a reincidência, por marcador, por import e por nome de arquivo.
+// -------------------------------------------------------------------------
+
+/** Internos que NUNCA podem estar num arquivo publicado, venha de onde vier. */
+const MARCADORES_INTERNOS = [
+  { re: /\b3333\b/, nome: "3333 (pontos-base)" },
+  { re: /\b6667\b/, nome: "6667 (pontos-base)" },
+  { re: /\b10000\b/, nome: "10000 (pontos-base)" },
+  { re: /\bP[1-5]\b/, nome: "código de estágio P1–P5" },
+  { re: /leadership_bp/, nome: "eixo interno leadership_bp" },
+  { re: /process_bp/, nome: "eixo interno process_bp" },
+  { re: /\bai_bp\b/, nome: "eixo interno ai_bp" },
+  { re: /weakestBp/, nome: "weakestBp" },
+];
+
+test("nenhum arquivo publicado contém pontos-base, códigos de estágio ou eixos internos", () => {
+  const publishDir = path.resolve(RAIZ, lerPublishDir());
+  const arquivos = arquivosDe(publishDir).filter((f) => EXT_TEXTO.has(path.extname(f).toLowerCase()));
+  for (const f of arquivos) {
+    const txt = fs.readFileSync(f, "utf8");
+    const rel = path.relative(RAIZ, f);
+    for (const m of MARCADORES_INTERNOS) {
+      assert.ok(!m.re.test(txt), `artefato publicado ${rel} contém ${m.nome}`);
+    }
+  }
+});
+
+test("nenhum arquivo publicado importa de fora do diretório publicado", () => {
+  const publishDir = path.resolve(RAIZ, lerPublishDir());
+  const arquivos = arquivosDe(publishDir).filter((f) => [".js", ".mjs", ".cjs", ".html"].includes(path.extname(f).toLowerCase()));
+  // `from "../…"`, `import("../…")`, `require("../…")` — qualquer caminho que
+  // saia do publish dir arrasta conteúdo privado para o artefato estático.
+  const fuga = /(from|import|require)\s*\(?\s*["'`]\.\.\//;
+  for (const f of arquivos) {
+    const txt = fs.readFileSync(f, "utf8");
+    assert.ok(!fuga.test(txt), `artefato publicado ${path.relative(RAIZ, f)} referencia caminho fora do publish dir`);
+  }
+});
+
+test("nenhum arquivo de teste NOVO dentro do diretório publicado", () => {
+  const publishDir = path.resolve(RAIZ, lerPublishDir());
+  // Exceção herdada e documentada: o teste do V1 já estava publicado antes desta
+  // fronteira e o V1 é intocável. Ele é autocontido (importa só ./screener.mjs) e
+  // os dois testes acima provam que não carrega marcador interno. Nenhum arquivo
+  // de teste NOVO pode entrar aqui — mova-o para junto do módulo que ele prova.
+  const HERDADOS = new Set(["screener.test.mjs"]);
+  const testes = arquivosDe(publishDir)
+    .map((f) => path.relative(publishDir, f).split(path.sep).join("/"))
+    .filter((rel) => /\.test\.[^./]+$/.test(rel) && !HERDADOS.has(rel));
+  assert.deepEqual(testes, [], `arquivo de teste dentro do publish dir: ${testes.join(", ")}`);
+});
