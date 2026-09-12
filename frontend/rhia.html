@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Diagnóstico Boomit — RH, Desenvolvimento e IA</title>
+<meta name="description" content="Uma leitura orientativa de como a sua área integra estratégia, dados, conhecimento sobre pessoas e adoção responsável de IA — em cerca de 8–10 minutos.">
+
+<!-- Compartilhamento (Open Graph + Twitter). og:image é 1200×630.
+     ⚠️ No PUBLISH, defina o DOMÍNIO real: og:url e og:image devem ser ABSOLUTOS
+     (ex.: https://dominio/og-image.png) — vários coletores (LinkedIn/Facebook)
+     não resolvem caminho relativo. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Boomit">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Diagnóstico Boomit — RH, Desenvolvimento e IA">
+<meta property="og:description" content="Uma leitura orientativa de como a sua área integra estratégia, dados, conhecimento sobre pessoas e adoção responsável de IA — em cerca de 8–10 minutos.">
+<meta property="og:image" content="og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Diagnóstico Boomit — RH, Desenvolvimento e IA">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Diagnóstico Boomit — RH, Desenvolvimento e IA">
+<meta name="twitter:description" content="Uma leitura orientativa de como a sua área integra estratégia, dados, conhecimento sobre pessoas e adoção responsável de IA — em cerca de 8–10 minutos.">
+<meta name="twitter:image" content="og-image.png">
+<!-- Favicon institucional: símbolo "B" da Boomit (kit de marca). Preto no tema
+     claro, creme (`-claro`) no escuro — como prescreve o manual da marca. -->
+<link rel="icon" type="image/png" href="favicon-boomit-preto.png">
+<link rel="icon" type="image/png" href="favicon-boomit-claro.png" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="favicon-boomit-preto.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Fonte: INTER (pesos 400/500/600, sem bold). A PP Mori é licenciada e não é
+     webfont pública; a decisão é a mesma do screener V1 (screener.css fixa a
+     Inter como --font-sans). -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="screener.css">
+<link rel="stylesheet" href="rhia.css">
+<script>
+  // Aplica o tema salvo antes da pintura, para não piscar.
+  try { var t = localStorage.getItem("screener:tema"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+
+  // Config PÚBLICA. A anon key é a chave publicável (identifica a aplicação, não
+  // o usuário) — pode ficar no HTML. O token de sessão nunca fica aqui: vive em
+  // memória/localStorage e só viaja no header x-session-token.
+  // Em desenvolvimento, scripts/dev-rhia.mjs injeta outro SCREENER_RHIA_CONFIG
+  // no fim do head (antes do fechamento), DEPOIS deste bloco — e por isso
+  // sobrescreve o valor de produção abaixo. (Nunca escreva a tag de fechamento
+  // do head dentro deste script: a injeção substitui a primeira ocorrência
+  // dela no HTML.)
+  window.SCREENER_RHIA_CONFIG = {
+    EDGE_URL: "https://klnpnjumogojspubyabi.supabase.co/functions/v1/screener",
+    ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsbnBuanVtb2dvanNwdWJ5YWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODI1NjcsImV4cCI6MjA5NjE1ODU2N30.D3L-wybr8jf0Esi3HcJC2kMrmqrBgKfQ3KIo8dV0DUI"
+  };
+
+  // Nunca tela branca: se o módulo não arrancar em 8s (rede, navegador sem
+  // suporte a módulos ES, erro de carga), mostra uma mensagem útil na página.
+  setTimeout(function () {
+    if (window.__rhiaPronto) return;
+    var el = document.getElementById("sc-app");
+    if (el && el.querySelector(".rh-boot")) {
+      el.innerHTML = '<div class="sc-shell"><div class="sc-card" role="alert"><h1 class="sc-title">Não foi possível iniciar o diagnóstico</h1><p class="sc-lead">A página não conseguiu carregar a aplicação. Verifique a conexão e recarregue. Se persistir, tente um navegador atualizado ou avise quem enviou o link.</p></div></div>';
+    }
+  }, 8000);
+</script>
+</head>
+<body>
+  <main id="sc-app" aria-live="polite">
+    <div class="sc-shell rh-boot"><div class="sc-loading"><span class="sc-spin" aria-hidden="true"></span> Carregando o diagnóstico…</div></div>
+  </main>
+  <noscript><div class="sc-shell"><div class="sc-card" role="alert"><h1 class="sc-title">Este diagnóstico precisa de JavaScript</h1><p class="sc-lead">Ative o JavaScript no navegador e recarregue a página para responder.</p></div></div></noscript>
+  <script type="module" src="rhia.mjs"></script>
+</body>
+</html>

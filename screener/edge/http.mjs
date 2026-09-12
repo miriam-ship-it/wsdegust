@@ -14,6 +14,12 @@ const METODOS = {
   "/submit": ["POST"],
   "/result": ["GET"],
   "/lead": ["POST"],
+  "/rhia/start": ["GET", "POST"],
+  "/rhia/session": ["GET"],
+  "/rhia/response": ["PUT"],
+  "/rhia/submit": ["POST"],
+  "/rhia/result": ["GET"],
+  "/rhia/lead": ["POST"],
 };
 /** Métodos da rota (sem OPTIONS), ou null se a rota não existe. */
 export function metodosDaRota(rota) { return METODOS[rota] ? METODOS[rota].slice() : null; }

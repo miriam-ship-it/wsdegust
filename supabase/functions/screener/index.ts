@@ -16,6 +16,7 @@
 // autorização é do próprio handler (credencial/token/estado/vigência/RPC).
 import postgres from "npm:postgres@3";
 import * as H from "../../../screener/edge/handlers.mjs";
+import * as HR from "../../../screener/edge/handlers-rhia.mjs";
 import {
   metodosDaRota, allowDaRota, parseAllowlist, avaliarOrigem, corsHeaders,
   preflightHeaders, headersSolicitadosPermitidos, lerCorpoJson,
@@ -97,6 +98,13 @@ Deno.serve(async (req: Request) => {
     else if (req.method === "POST" && rota === "/submit") r = await H.postSubmit(ctx, a);
     else if (req.method === "GET" && rota === "/result") r = await H.getResult(ctx, a);
     else if (req.method === "POST" && rota === "/lead") r = await H.postLead(ctx, a);
+    else if (req.method === "GET" && rota === "/rhia/start") r = await HR.getStartRhia(ctx, a);
+    else if (req.method === "POST" && rota === "/rhia/start") r = await HR.postStartRhia(ctx, a);
+    else if (req.method === "GET" && rota === "/rhia/session") r = await HR.getSessionRhia(ctx, a);
+    else if (req.method === "PUT" && rota === "/rhia/response") r = await HR.putResponseRhia(ctx, a);
+    else if (req.method === "POST" && rota === "/rhia/submit") r = await HR.postSubmitRhia(ctx, a);
+    else if (req.method === "GET" && rota === "/rhia/result") r = await HR.getResultRhia(ctx, a);
+    else if (req.method === "POST" && rota === "/rhia/lead") r = await HR.postLeadRhia(ctx, a);
     else return json(404, { error: "rota_desconhecida" }, cors);
     return json(r.status, r.body, cors);
   } catch (e) {

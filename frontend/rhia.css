@@ -1,0 +1,225 @@
+/* =============================================================
+   DIAGNÓSTICO BOOMIT — RH, Desenvolvimento e IA ("rhia"). Estilo.
+
+   Carregado DEPOIS de tokens.css e screener.css: reaproveita a base sc-* da
+   casa (shell, cabeçalho, botões, cartão, opções, progresso, revisão, notas,
+   erro) e acrescenta só o que este instrumento pede, com prefixo rh-*.
+
+   DECISÕES DE UI (rastreadas às skills Boomit Design / Boomit UI):
+   1. Tokens — só tokens semânticos de tokens.css (--bg-*, --text-*, --border-*,
+      --action-*, --status-*). Nenhum hex. Os únicos tokens "de escala" usados
+      são os oficiais do manual, e só na impressão (ver 8).
+   2. Tipografia — Inter (o head carrega 400/500/600; screener.css fixa a
+      --font-sans). Sem bold: títulos em 600, rótulos/números em 500, corpo 400.
+      Linha de leitura da devolutiva limitada a ~65ch (Modo 3, relatório).
+   3. Hierarquia sem cor — título é título por tamanho e peso; cartões são
+      superfície branca com borda sutil, sem sombra em repouso. O verde só na
+      ação de marca (enviar/ver leitura) e no traço de foco; o preto na ação
+      principal. Nenhuma seção da devolutiva é colorida "para destacar".
+   4. Estados semânticos — o gate de governança usa os tokens de estado
+      (danger para crítico, warning para atenção/insuficiente, neutral para
+      monitorado, success para estabelecido) SEMPRE com ícone + rótulo + texto:
+      cor nunca é o único sinal. Crítico/insuficiente ganham borda 2px e
+      escala maior (prioridade visual), não um bloco chapado.
+   5. Escada — componente novo, monocromático: cinco degraus como colunas de
+      altura crescente (a metáfora da escada), o atual em destaque por borda
+      forte, superfície e peso 500 mais o rótulo textual "Degrau atual"; a
+      referência, por borda tracejada e rótulo. Sem verde chapado, sem medalha,
+      sem número grande. Abaixo de 40rem vira lista vertical.
+   6. Rota NIST — lista ordenada com ícone de ciclo e frase explícita "funções
+      complementares e recorrentes, não estágios"; nada de setas de progresso.
+   7. Plano 30–60–90 — tabela com divisor (sem zebra), cabeçalho 500; em tela
+      estreita cada linha vira cartão com o rótulo da coluna (data-col), como
+      manda o padrão de tabela da casa.
+   8. Impressão — @media print: fundo branco (o app troca para o tema claro em
+      beforeprint, então os tokens semânticos já são os claros), sem sombra,
+      sem botões/controles, cartões com break-inside: avoid, cabeçalho com data
+      e versão (.rh-print-head) e disclaimer sempre presente. Cores oficiais
+      (--boomit-preto / --boomit-apoio-02) só como rede de segurança de texto e
+      borda no papel.
+   9. A11y — anel de foco de 2px/offset 2px (herdado de tokens.css) em tudo que
+      é clicável; alvo mínimo 44px (2.75rem) em botões e opções; radiogroup +
+      fieldset/legend no contexto; erro de campo abaixo, com ícone e
+      aria-describedby; prefers-reduced-motion desliga animações; 320px sem
+      overflow horizontal (grids colapsam, tabela vira cartão).
+   10. Movimento — só a entrada suave da tela (200ms, ease da casa); nada de
+      bounce; progresso com transição de largura.
+   ============================================================= */
+
+.rh-shell { max-width: 46rem; }
+.rh-k { font-weight: var(--weight-medium); color: var(--text-primary); }
+
+/* --- Abertura ------------------------------------------------------------- */
+.rh-hero .sc-hero__lead { max-width: 38rem; }
+.rh-hero__fatos { list-style: none; margin: var(--space-8) auto 0; padding: 0; max-width: 34rem; display: grid; gap: var(--space-3); text-align: left; }
+.rh-hero__fatos li { display: flex; gap: var(--space-3); align-items: flex-start; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+.rh-hero__fatos svg { flex: none; width: 1.1rem; height: 1.1rem; margin-top: 1px; color: var(--text-tertiary); }
+.rh-hero .sc-note { text-align: left; max-width: 34rem; margin-left: auto; margin-right: auto; }
+
+/* --- Contexto (3 itens numa tela) ---------------------------------------- */
+.rh-ctx-card { margin-top: var(--space-5); }
+.rh-ctx { border: 0; margin: var(--space-8) 0 0; padding: 0; min-width: 0; }
+.rh-ctx__prompt { padding: 0; margin: 0 0 var(--space-4); font-size: var(--text-lg); line-height: var(--leading-lg); font-weight: var(--weight-medium); text-wrap: balance; }
+.rh-ctx__opts .sc-opt { min-height: 2.75rem; }
+.rh-texto { margin-top: var(--space-4); }
+.rh-field__erro { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--status-danger-fg); }
+.rh-field__erro svg { flex: none; width: 1rem; height: 1rem; margin-top: 2px; }
+.sc-btn[aria-disabled="true"] { background: var(--action-disabled-bg); color: var(--action-disabled-fg); cursor: not-allowed; }
+.rh-note--warning { background: var(--status-warning-bg); color: var(--status-warning-fg); border: 1px solid var(--status-warning-border); }
+.rh-progress__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+.sc-opt { position: relative; }
+
+/* --- Revisão -------------------------------------------------------------- */
+.rh-rev__texto { color: var(--text-primary); }
+.rh-tela--revisao .sc-rev__linha .sc-btn { min-height: 2.75rem; }
+
+/* --- Portão de lead ------------------------------------------------------- */
+.rh-gate-head { padding: var(--space-2) 0 var(--space-5); }
+
+/* =========================================================================
+   DEVOLUTIVA (documento, não dashboard)
+   ========================================================================= */
+.rh-result { max-width: 65ch; margin: 0 auto; }
+.rh-result__head { padding: var(--space-8) 0 var(--space-2); }
+.rh-evid { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: baseline; margin: var(--space-6) 0 0; }
+.rh-evid__k { font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-evid__v { font-size: var(--text-lg); font-weight: var(--weight-medium); }
+.rh-evid__t { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+.rh-lente { margin-top: var(--space-6); border-left: 2px solid var(--bg-brand); background: var(--bg-surface-warm); border-radius: 0 var(--radius-md) var(--radius-md) 0; padding: var(--space-4) var(--space-5); }
+.rh-lente__k { display: block; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-lente__t { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+
+.rh-sec { margin-top: var(--space-12); }
+.rh-sec__head { margin-bottom: var(--space-5); }
+.rh-sec__title { font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: var(--weight-semibold); margin: 0; text-wrap: balance; }
+.rh-sec__sub { margin: var(--space-1) 0 0; font-size: var(--text-sm); color: var(--text-tertiary); }
+.rh-prosa { margin: 0 0 var(--space-3); font-size: var(--text-base); line-height: var(--leading-lg); color: var(--text-secondary); }
+.rh-prosa:last-child { margin-bottom: 0; }
+
+.rh-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-6); }
+.rh-card--quiet { background: var(--bg-muted); }
+.rh-card--info { display: flex; gap: var(--space-4); background: var(--status-info-bg); border-color: var(--status-info-border); color: var(--status-info-fg); }
+.rh-card__ic { flex: none; width: 1.25rem; height: 1.25rem; margin-top: 2px; }
+.rh-card__ic svg { width: 100%; height: 100%; }
+.rh-card__t { margin: 0; font-size: var(--text-lg); line-height: var(--leading-lg); font-weight: var(--weight-medium); }
+.rh-card__p { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
+.rh-card--info .rh-card__p { color: inherit; }
+.rh-lista { display: grid; gap: var(--space-3); }
+@media (max-width: 30rem) { .rh-card { padding: var(--space-5); } }
+
+/* --- Escada de cinco referências ------------------------------------------ */
+.rh-escada { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); align-items: end; }
+.rh-escada__degrau { display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-1); min-width: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-muted); padding: var(--space-3); color: var(--text-tertiary); }
+.rh-escada__degrau:nth-child(1) { min-height: 5.5rem; }
+.rh-escada__degrau:nth-child(2) { min-height: 6.5rem; }
+.rh-escada__degrau:nth-child(3) { min-height: 7.5rem; }
+.rh-escada__degrau:nth-child(4) { min-height: 8.5rem; }
+.rh-escada__degrau:nth-child(5) { min-height: 9.5rem; }
+.rh-escada__num { font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.rh-escada__nome { font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
+.rh-escada__tag { display: inline-block; margin-top: var(--space-1); font-size: var(--text-xs); letter-spacing: 0.03em; text-transform: uppercase; font-weight: var(--weight-medium); color: var(--text-primary); }
+.rh-escada__tag--ref { color: var(--text-secondary); }
+.rh-escada__degrau.is-atual { background: var(--bg-surface); border: 2px solid var(--border-strong); color: var(--text-primary); }
+.rh-escada__degrau.is-atual .rh-escada__nome { font-weight: var(--weight-medium); }
+.rh-escada__degrau.is-ref:not(.is-atual) { border-style: dashed; border-color: var(--border-default); color: var(--text-secondary); }
+.rh-escada__nota { margin-top: var(--space-3); }
+@media (max-width: 40rem) {
+  .rh-escada { grid-template-columns: 1fr; align-items: stretch; }
+  .rh-escada__degrau { flex-direction: row; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+  .rh-escada__degrau:nth-child(n) { min-height: 2.75rem; }
+  .rh-escada__num { width: 1.5rem; flex: none; }
+  .rh-escada__tag { margin: 0 0 0 auto; }
+}
+.rh-degrau { margin-top: var(--space-6); }
+.rh-degrau__nome { margin: 0; font-size: var(--text-3xl); line-height: var(--leading-3xl); font-weight: var(--weight-semibold); text-wrap: balance; }
+.rh-degrau__headline { margin: var(--space-2) 0 var(--space-4); font-size: var(--text-lg); line-height: var(--leading-lg); font-weight: var(--weight-medium); color: var(--text-primary); }
+
+/* --- Sustentadores / limitadores ------------------------------------------ */
+.rh-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+@media (max-width: 40rem) { .rh-cols { grid-template-columns: 1fr; } }
+.rh-col { display: grid; gap: var(--space-3); align-content: start; }
+.rh-col__t { margin: 0 0 var(--space-1); font-size: var(--text-sm); letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-evc { border: 1px solid var(--border-subtle); border-left: 3px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface); padding: var(--space-4) var(--space-5); }
+.rh-evc--lim { border-left-color: var(--border-strong); }
+.rh-evc__n { font-size: var(--text-base); font-weight: var(--weight-medium); }
+.rh-evc__p { margin: var(--space-1) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+.rh-evc__a { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+
+/* --- Gate de governança --------------------------------------------------- */
+.rh-gate { display: flex; gap: var(--space-4); align-items: flex-start; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-surface); padding: var(--space-5) var(--space-6); }
+.rh-gate__ic { flex: none; width: 1.5rem; height: 1.5rem; margin-top: 2px; }
+.rh-gate__ic svg { width: 100%; height: 100%; }
+.rh-gate__body { min-width: 0; }
+.rh-gate__k { margin: 0; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; font-weight: var(--weight-medium); opacity: 0.85; }
+.rh-gate__v { margin: var(--space-1) 0 0; font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: var(--weight-semibold); }
+.rh-gate__t { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-lg); }
+.rh-gate__r { margin: var(--space-3) 0 0; padding-top: var(--space-3); border-top: 1px solid currentColor; font-size: var(--text-sm); line-height: var(--leading-sm); }
+.rh-gate__rk { font-weight: var(--weight-medium); }
+.rh-gate--danger { background: var(--status-danger-bg); color: var(--status-danger-fg); border-color: var(--status-danger-border); }
+.rh-gate--warning { background: var(--status-warning-bg); color: var(--status-warning-fg); border-color: var(--status-warning-border); }
+.rh-gate--success { background: var(--status-success-bg); color: var(--status-success-fg); border-color: var(--status-success-border); }
+.rh-gate--neutral { background: var(--status-neutral-bg); color: var(--status-neutral-fg); border-color: var(--status-neutral-border); }
+.rh-gate--prioridade { border-width: 2px; padding: var(--space-6) var(--space-6); }
+.rh-gate--prioridade .rh-gate__v { font-size: var(--text-2xl); line-height: var(--leading-2xl); }
+.rh-gate--prioridade .rh-gate__ic { width: 2rem; height: 2rem; }
+@media (max-width: 30rem) { .rh-gate { padding: var(--space-4) var(--space-5); } }
+
+/* --- Rota NIST como ciclo ------------------------------------------------- */
+.rh-ciclo { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.rh-ciclo__f { display: flex; gap: var(--space-3); align-items: flex-start; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); padding: var(--space-4) var(--space-5); }
+.rh-ciclo__ic { flex: none; width: 1.25rem; height: 1.25rem; margin-top: 2px; color: var(--text-brand); }
+.rh-ciclo__ic svg { width: 100%; height: 100%; }
+.rh-ciclo__n { font-size: var(--text-base); font-weight: var(--weight-medium); }
+.rh-ciclo__t { margin: var(--space-1) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+
+/* --- Plano 30–60–90 (tabela; vira cartão em tela estreita) ---------------- */
+.rh-tabela-wrap { overflow-x: auto; }
+.rh-tabela { width: 100%; border-collapse: collapse; font-size: var(--text-sm); line-height: var(--leading-sm); }
+.rh-tabela th, .rh-tabela td { text-align: left; vertical-align: top; padding: var(--space-3) var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+.rh-tabela thead th { font-weight: var(--weight-medium); color: var(--text-secondary); border-bottom-color: var(--border-default); }
+.rh-tabela tbody th { font-weight: var(--weight-medium); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rh-tabela td { color: var(--text-secondary); }
+@media (max-width: 40rem) {
+  .rh-tabela thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .rh-tabela, .rh-tabela tbody, .rh-tabela tr, .rh-tabela th, .rh-tabela td { display: block; }
+  .rh-tabela tr { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
+  .rh-tabela th, .rh-tabela td { border: 0; padding: var(--space-1) 0; white-space: normal; }
+  .rh-tabela td::before { content: attr(data-col); display: block; font-size: var(--text-xs); letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); margin-top: var(--space-2); }
+}
+
+/* --- Indicadores / perguntas / disclaimer --------------------------------- */
+.rh-bullets, .rh-perguntas { margin: 0; padding-left: var(--space-5); display: grid; gap: var(--space-2); }
+.rh-bullets li, .rh-perguntas li { font-size: var(--text-base); line-height: var(--leading-lg); color: var(--text-secondary); }
+.rh-perguntas li::marker { font-weight: var(--weight-medium); color: var(--text-primary); }
+.rh-disclaimer { margin-top: var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface-warm); padding: var(--space-4) var(--space-5); font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
+
+/* --- CTAs ------------------------------------------------------------------ */
+.rh-ctas { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: center; margin-top: var(--space-12); }
+.rh-sec--lead { margin-top: var(--space-12); }
+
+/* --- Cabeçalho de impressão (só no papel) --------------------------------- */
+.rh-print-head { display: none; }
+
+/* --- Movimento ------------------------------------------------------------- */
+@keyframes rh-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rh-ctx-card, .rh-result { animation: rh-fade var(--duration-base) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  .rh-ctx-card, .rh-result { animation: none; }
+}
+
+/* =========================================================================
+   IMPRESSÃO — o app troca para o tema claro em beforeprint; aqui só limpamos.
+   ========================================================================= */
+@media print {
+  html, body { background: var(--bg-surface); color: var(--boomit-preto); }
+  .sc-shell, .rh-shell { max-width: none; padding: 0; }
+  .sc-head, .sc-theme, .rh-ctas, .sc-btn, .sc-note, .rh-sec--lead, .sc-nav, .sc-footbar { display: none !important; }
+  .rh-result { max-width: none; animation: none; }
+  .rh-print-head { display: block; font-size: var(--text-xs); color: var(--boomit-preto); border-bottom: 1px solid var(--boomit-apoio-02); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
+  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada__degrau, .rh-tabela tr, .rh-disclaimer, .rh-lente { break-inside: avoid; page-break-inside: avoid; }
+  .rh-sec { margin-top: var(--space-8); }
+  .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada__degrau, .rh-disclaimer, .rh-lente { box-shadow: none; }
+  .rh-escada__degrau.is-atual { border-color: var(--boomit-preto); }
+  .rh-tabela-wrap { overflow: visible; }
+  a[href]::after { content: ""; }
+}

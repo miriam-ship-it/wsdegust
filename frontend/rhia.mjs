@@ -1,0 +1,1098 @@
+// =============================================================
+// DIAGNÓSTICO BOOMIT — RH, Desenvolvimento e IA ("rhia") — frontend.
+//
+// Fluxo: abertura → contexto (3 itens numa tela) → questões (uma por tela) →
+// revisão (30 respostas em 3 grupos) → portão de lead (quando o vínculo exige)
+// → resultado (anatomia do PROMPT §5 / ARQUITETURA §10).
+//
+// FRONTEIRA: o navegador NUNCA vê pontos-base, pesos, escala (E1–E4), códigos
+// de dimensão ou o motor. As 30 questões chegam pela edge (GET /rhia/start) e o
+// resultado chega como modelo PÚBLICO já calculado no servidor. Este módulo não
+// embute nem enunciado, nem id de item: o campo condicional de texto livre é
+// tratado pelo `conditional_field` que a apresentação traz. A fronteira é
+// provada em screener/rhia/fronteira-rhia.test.mjs.
+//
+// SEGREDO: o token de sessão viaja SÓ no header `x-session-token`; uma eventual
+// credencial de prévia, SÓ em `x-preview-key`. Nunca em URL, query ou HTML.
+//
+// RETOMADA: a chave "rhia:v1:<evento>" em localStorage guarda apenas
+// { token, pos, tela }. As respostas ficam no servidor e voltam por
+// GET /rhia/session. Se o armazenamento falhar, o preenchimento continua em
+// memória e a página avisa que não será retomado depois.
+// =============================================================
+
+export const EVENTO_PADRAO = "boomit-degustacao-rh-ia";
+const PREFIXO_ARMAZENAMENTO = "rhia:v1:";
+const CHAVE_TEMA = "screener:tema";
+export const TITULO = "Diagnóstico Boomit — RH, Desenvolvimento e IA";
+
+/** Os cinco degraus públicos, na ordem (referência conhecida do público). */
+export const ESCADA_PUBLICA = Object.freeze([
+  "Operacional Ágil",
+  "Gestor Tático",
+  "Estrategista de Escala",
+  "Arquiteto de Soluções",
+  "Criador de Tecnologia",
+]);
+
+/** Eventos de analytics permitidos — nada além destes, nunca texto livre. */
+export const EVENTOS_ANALYTICS = Object.freeze([
+  "assessment_started", "context_completed", "question_answered", "assessment_completed",
+  "result_viewed", "pdf_requested", "reassessment_clicked",
+]);
+
+// ---------- lógica pura (sem DOM, sem rede) ----------
+
+/** Lê o slug do evento da query string, com fallback para o padrão. */
+export function lerEvento(search, padrao = EVENTO_PADRAO) {
+  const p = new URLSearchParams(search || "");
+  const v = (p.get("evento") || "").trim();
+  return v || padrao;
+}
+
+/**
+ * Cabeçalhos de uma requisição à edge. A credencial só em `x-preview-key`; o
+ * token só em `x-session-token`. `content-type` só quando há corpo.
+ */
+export function montarHeaders({ anonKey, previewKey, token, temCorpo } = {}) {
+  const h = { apikey: anonKey, authorization: `Bearer ${anonKey}` };
+  if (temCorpo) h["content-type"] = "application/json";
+  if (previewKey) h["x-preview-key"] = previewKey;
+  if (token) h["x-session-token"] = token;
+  return h;
+}
+
+/** Progresso do preenchimento. */
+export function progresso(respondidas, total) {
+  const done = Math.max(0, Math.min(respondidas | 0, total | 0));
+  const t = total | 0;
+  return { respondidas: done, total: t, restante: Math.max(0, t - done), pct: t ? Math.round((done / t) * 100) : 0 };
+}
+
+/** Escapa texto para inserção segura como conteúdo HTML. */
+export function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+
+/** Validação leve de e-mail (o servidor revalida e normaliza). */
+export function validarEmail(s) {
+  return typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+}
+
+/**
+ * Campo condicional de texto livre, lido da apresentação (nunca por id fixo).
+ * Devolve { itemId, id, opcao, min, max, prompt } ou null.
+ */
+export function campoCondicional(items) {
+  const it = (items || []).find((i) => i && i.conditional_field);
+  if (!it) return null;
+  const cf = it.conditional_field;
+  return {
+    itemId: it.id,
+    id: cf.id,
+    opcao: cf.show_when && cf.show_when.option_id,
+    min: Number.isFinite(cf.min_length) ? cf.min_length : 2,
+    max: Number.isFinite(cf.max_length) ? cf.max_length : 120,
+    prompt: cf.prompt || "",
+  };
+}
+
+const CONTROLE = /[\u0000-\u001f\u007f]/;
+
+/**
+ * Validação LOCAL do texto livre: trim, min–max caracteres, sem caracteres de
+ * controle. Espelha a regra do servidor. Retorna { ok, erro, valor }.
+ */
+export function validarTextoOutro(texto, cf) {
+  const min = (cf && cf.min) || 2, max = (cf && cf.max) || 120;
+  const valor = typeof texto === "string" ? texto.trim() : "";
+  if (!valor.length) return { ok: false, erro: "vazio", valor };
+  if (valor.length < min) return { ok: false, erro: "curto", valor };
+  if (valor.length > max) return { ok: false, erro: "longo", valor };
+  if (CONTROLE.test(valor)) return { ok: false, erro: "controle", valor };
+  return { ok: true, erro: null, valor };
+}
+
+/** Mensagem de usuário para um erro de validarTextoOutro. */
+export function mensagemTextoOutro(erro, cf) {
+  const min = (cf && cf.min) || 2, max = (cf && cf.max) || 120;
+  return {
+    vazio: "Descreva o seu papel para continuar.",
+    curto: `Use pelo menos ${min} caracteres.`,
+    longo: `Use no máximo ${max} caracteres.`,
+    controle: "O texto contém caracteres não permitidos.",
+  }[erro] || "";
+}
+
+/**
+ * Texto local após trocar a opção do item que abre o campo: ao sair da opção
+ * que o exibe, o campo é ocultado E limpo (clear_when_hidden).
+ */
+export function textoAposTrocarOpcao(opcao, cf, textoAtual) {
+  if (!cf) return "";
+  return opcao === cf.opcao ? (textoAtual || "") : "";
+}
+
+/** Se o texto livre é exigido para o conjunto de respostas dado. */
+export function textoExigido(respostas, cf) {
+  return !!(cf && respostas && respostas[cf.itemId] === cf.opcao);
+}
+
+/** Agrupa os itens (já ordenados) pelos grupos públicos, na ordem dos grupos. */
+export function agruparPorGrupo(items, groups) {
+  return (groups || []).map((g) => ({ code: g.code, name: g.name, items: (items || []).filter((it) => it.group === g.code) }));
+}
+
+/** Ids dos itens do instrumento (sem o texto condicional). */
+function idsDosItens(items) { return (items || []).map((it) => it.id); }
+
+/** Item_ids (dos 30) ainda sem resposta. */
+export function itensFaltantes(items, respostas) {
+  return idsDosItens(items).filter((id) => !(respostas && respostas[id]));
+}
+
+/** Índice (na lista dada) do primeiro item sem resposta; length se completo. */
+export function primeiraNaoRespondida(items, respostas) {
+  const i = (items || []).findIndex((it) => !(respostas && respostas[it.id]));
+  return i === -1 ? (items || []).length : i;
+}
+
+/**
+ * Contexto completo: os itens de contexto respondidos e, quando a opção que
+ * abre o texto está marcada, texto válido. `texto` é o rascunho local.
+ */
+export function contextoCompleto(itensContexto, respostas, texto, cf) {
+  const faltam = itensFaltantes(itensContexto, respostas);
+  const exige = textoExigido(respostas, cf);
+  const v = exige ? validarTextoOutro(texto, cf) : { ok: true, erro: null };
+  return { ok: faltam.length === 0 && v.ok, faltam, textoErro: exige ? v.erro : null };
+}
+
+/**
+ * Submissão completa: os 30 itens respondidos e, se exigido, o texto livre
+ * válido JÁ GRAVADO no servidor (respostas[cf.id]).
+ */
+export function submissaoCompleta(items, respostas, cf) {
+  const faltam = itensFaltantes(items, respostas);
+  const exige = textoExigido(respostas, cf);
+  const textoOk = !exige || validarTextoOutro(respostas[cf.id], cf).ok;
+  return { ok: faltam.length === 0 && textoOk, faltam, textoFalta: exige && !textoOk };
+}
+
+/** Modo de captura de lead efetivo: usa o do vínculo; null → opcional. */
+export function leadModoEfetivo(leadCaptureMode) {
+  const validos = ["none", "optional_after_submit", "required_before_result"];
+  return validos.includes(leadCaptureMode) ? leadCaptureMode : "optional_after_submit";
+}
+
+/** Qualidade da evidência (evidence.status) → rótulo pt-BR. */
+export function rotuloEvidencia(status) {
+  return { BROAD: "ampla", ADEQUATE: "adequada", LIMITED: "limitada", INSUFFICIENT: "insuficiente" }[status] || "não informada";
+}
+
+/** Frase da qualidade da evidência. */
+export function fraseEvidencia(status) {
+  const r = rotuloEvidencia(status);
+  const base = `As respostas oferecem evidência ${r} para compor uma hipótese sobre a área observada.`;
+  if (status === "LIMITED") return `${base} Parte dos itens ficou sem resposta aplicável; leia com mais cautela e confronte com outras fontes.`;
+  return `${base} Esta leitura deve ser confrontada com indicadores, decisões registradas e a perspectiva de outras pessoas.`;
+}
+
+/** Restrição de escala (route.restriction) → texto explícito. */
+export function rotuloRestricao(restriction) {
+  return {
+    NO_SCALE: { label: "Escala bloqueada", texto: "Não ampliar o uso de IA até conter o risco e definir controles mínimos." },
+    CONTROLLED_EXPERIMENTS: { label: "Somente experimentos controlados", texto: "Avançar apenas em ambiente controlado, com finalidade, supervisão humana e registro de decisão explícitos." },
+    NONE: { label: "Sem restrição de escala", texto: "A governança observada não impõe restrição à ampliação; o monitoramento continua necessário." },
+  }[restriction] || { label: "Restrição não informada", texto: "" };
+}
+
+/**
+ * Tom visual do gate de governança. Cor nunca é o único sinal: o rótulo e o
+ * ícone acompanham. CRITICAL e INSUFFICIENT têm prioridade visual.
+ */
+export function tomGovernanca(id) {
+  return {
+    CRITICAL: { tom: "danger", prioridade: true, icone: "aviso" },
+    INSUFFICIENT: { tom: "warning", prioridade: true, icone: "info" },
+    ATTENTION: { tom: "warning", prioridade: false, icone: "aviso" },
+    MONITORED: { tom: "neutral", prioridade: false, icone: "info" },
+    ESTABLISHED: { tom: "success", prioridade: false, icone: "check" },
+  }[id] || { tom: "neutral", prioridade: false, icone: "info" };
+}
+
+/** Escada de 5 degraus com o atual (e a referência, quando válida) marcados. */
+export function escadaComAtual(atual, referencia) {
+  return ESCADA_PUBLICA.map((nome, i) => ({ nome, posicao: i + 1, atual: nome === atual, referencia: !!referencia && nome === referencia }));
+}
+
+/** "YYYY-MM-DD" → "DD/MM/YYYY" (sem Date: não depende de fuso). */
+export function formatarData(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+
+/** Mensagem de usuário para uma falha da edge (tarja/inline). */
+export function mensagemErro(status, body) {
+  const e = body && body.error;
+  if (status === 400 && (e === "opcao_invalida" || e === "texto_invalido")) return "Esta resposta não foi aceita. Escolha uma alternativa válida e tente de novo.";
+  if (status === 400 && e === "submissao_incompleta") return "Ainda faltam respostas. Responda todos os itens antes de enviar.";
+  if (status === 400 && e === "email_invalido") return "Informe um e-mail válido.";
+  if (status === 403 && e === "lead_required") return "Deixe seu contato para ver o resultado.";
+  if (status === 403 || e === "indisponivel" || e === "fora_de_vigencia") return "Este evento não está aberto para respostas no momento.";
+  if (status === 404) return "Não localizamos este evento ou esta sessão. Confira o link recebido.";
+  if (status === 409 && e === "aviso_desatualizado") return "O aviso de privacidade foi atualizado. Recarregue a página para ver a versão vigente.";
+  if (status === 409) return "O instrumento foi atualizado desde o início desta sessão. Recomece para responder à versão vigente.";
+  if (status === 410) return "Esta sessão expirou. Comece uma nova para continuar.";
+  if (status === 413) return "O envio ficou grande demais. Recarregue a página e tente novamente.";
+  if (status === 429) return "Muitas tentativas em pouco tempo. Aguarde um instante e tente de novo.";
+  return "Não foi possível concluir agora. Tente novamente em instantes.";
+}
+
+/** Descreve um erro TERMINAL para a tela dedicada. Genérico e sem PII. */
+export function descreverErro(status, body) {
+  const e = body && body.error;
+  if (status === 410) return { titulo: "Sua sessão expirou", mensagem: "As respostas ficam guardadas por tempo limitado. Comece uma nova sessão para continuar.", recuperavel: false, icone: "relogio", tom: "warning" };
+  if (status === 403 || e === "indisponivel" || e === "fora_de_vigencia") return { titulo: "Evento indisponível", mensagem: "Este evento não está aberto para respostas no momento.", recuperavel: false, icone: "aviso", tom: "neutral" };
+  if (status === 404) return { titulo: "Sessão não encontrada", mensagem: "Não localizamos esta sessão ou este evento. Confira o link e comece de novo.", recuperavel: false, icone: "aviso", tom: "neutral" };
+  if (status === 409) return { titulo: "Instrumento atualizado", mensagem: "O diagnóstico mudou desde o início desta sessão. Comece de novo para responder à versão vigente.", recuperavel: false, icone: "info", tom: "neutral" };
+  if (status === 429) return { titulo: "Muitas tentativas em pouco tempo", mensagem: "Aguarde um instante e tente novamente.", recuperavel: true, icone: "relogio", tom: "warning" };
+  return { titulo: "Algo não saiu como esperado", mensagem: "Não foi possível concluir agora. Tente novamente em instantes.", recuperavel: true, icone: "aviso", tom: "neutral" };
+}
+
+// ---------- persistência versionada (localStorage; degrada com elegância) ----------
+
+export function chaveArmazenamento(evento) {
+  return PREFIXO_ARMAZENAMENTO + (evento || EVENTO_PADRAO);
+}
+/** Guarda só { token, pos, tela }. Devolve false se o armazenamento falhar. */
+export function guardarSessao(evento, dados, store) {
+  try {
+    const s = store || globalThis.localStorage;
+    const min = { token: dados.token, pos: dados.pos | 0, tela: dados.tela || null };
+    s.setItem(chaveArmazenamento(evento), JSON.stringify(min));
+    return true;
+  } catch { return false; }
+}
+export function lerSessao(evento, store) {
+  try {
+    const s = store || globalThis.localStorage;
+    const v = s.getItem(chaveArmazenamento(evento));
+    if (!v) return null;
+    const d = JSON.parse(v);
+    if (!d || typeof d.token !== "string" || !d.token) return null;
+    return { token: d.token, pos: Number.isFinite(d.pos) ? d.pos : 0, tela: typeof d.tela === "string" ? d.tela : null };
+  } catch { return null; }
+}
+export function limparSessao(evento, store) {
+  try { (store || globalThis.localStorage).removeItem(chaveArmazenamento(evento)); } catch { /* ignora */ }
+}
+
+// ---------- rotas por hash ----------
+
+/** Hash de cada tela (telas transitórias não tocam a URL). */
+export const HASH_DA_TELA = Object.freeze({
+  abertura: "abertura", contexto: "contexto", questoes: "questoes", revisao: "revisao",
+  lead_gate: "resultado", resultado: "resultado", insuficiente: "resultado", erro: "erro",
+});
+
+/**
+ * Tela permitida para um hash, dado o estado. URL direta de #resultado sem
+ * sessão → abertura; #revisao sem sessão → abertura; sessão aberta só anda
+ * entre contexto/questões/revisão; sessão submetida só vê resultado/revisão.
+ */
+export function telaDoHash(hash, { temSessao = false, submitido = false, contextoOk = false } = {}) {
+  const h = String(hash || "").replace(/^#/, "");
+  if (!temSessao) return "abertura";
+  if (submitido) return h === "revisao" ? "revisao" : "resultado";
+  if (h === "contexto") return "contexto";
+  if (h === "questoes" || h === "revisao") return contextoOk ? h : "contexto";
+  return contextoOk ? "questoes" : "contexto";
+}
+
+// ---------- analytics (adaptador opcional; no-op se ausente) ----------
+
+/**
+ * Rastreador: chama `adaptador.track(evento, dados)` (ou o adaptador como
+ * função). Só eventos da lista; `question_answered` leva {id, option} e nunca
+ * o texto livre. Falhas do adaptador são engolidas.
+ */
+export function criarRastreador(adaptador, cf) {
+  return function rastrear(evento, dados) {
+    if (!EVENTOS_ANALYTICS.includes(evento)) return false;
+    if (evento === "question_answered" && cf && dados && dados.id === cf.id) return false;
+    const fn = typeof adaptador === "function" ? adaptador : (adaptador && typeof adaptador.track === "function" ? adaptador.track.bind(adaptador) : null);
+    if (!fn) return false;
+    try { fn(evento, evento === "question_answered" ? { id: dados.id, option: dados.option } : undefined); return true; } catch { return false; }
+  };
+}
+
+// ---------- cliente HTTP da edge (injetável) ----------
+
+export function criarCliente({ edgeUrl, anonKey, transporte } = {}) {
+  const fetchImpl = transporte || ((...a) => globalThis.fetch(...a));
+  async function chamar(metodo, rota, { query, corpo, previewKey, token } = {}) {
+    const url = new URL(String(edgeUrl).replace(/\/$/, "") + rota);
+    if (query) for (const [k, v] of Object.entries(query)) if (v != null) url.searchParams.set(k, v);
+    const headers = montarHeaders({ anonKey, previewKey, token, temCorpo: corpo != null });
+    let resp;
+    try {
+      resp = await fetchImpl(url.toString(), { method: metodo, headers, body: corpo != null ? JSON.stringify(corpo) : undefined });
+    } catch { return { status: 0, body: null }; }
+    let body = null;
+    try { body = await resp.json(); } catch { body = null; }
+    return { status: resp.status, body };
+  }
+  return {
+    apresentacao: (evento, previewKey) => chamar("GET", "/rhia/start", { query: { event_slug: evento }, previewKey }),
+    iniciar: (evento, previewKey, avisoVersao) => chamar("POST", "/rhia/start", { corpo: { event_slug: evento, privacy_ack: true, privacy_notice_version: avisoVersao }, previewKey }),
+    retomar: (previewKey, token) => chamar("GET", "/rhia/session", { previewKey, token }),
+    salvar: (previewKey, token, item_id, value) => chamar("PUT", "/rhia/response", { corpo: { item_id, value }, previewKey, token }),
+    enviar: (previewKey, token) => chamar("POST", "/rhia/submit", { corpo: {}, previewKey, token }),
+    resultado: (previewKey, token) => chamar("GET", "/rhia/result", { previewKey, token }),
+    lead: (previewKey, token, dados) => chamar("POST", "/rhia/lead", { corpo: dados, previewKey, token }),
+  };
+}
+
+// ---------- ícones (inline) ----------
+const ICONE = {
+  aviso: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+  sol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  lua: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>',
+  seta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  volta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+  relogio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  imprimir: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M6 14h12v7H6z"/></svg>',
+  ciclo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>',
+};
+
+const LOGO = `<img class="sc-logo" src="logo-boomit.png" alt="Boomit" width="1464" height="236">`;
+
+// =============================================================
+// Render puro da tela de RESULTADO (testável sem DOM)
+// =============================================================
+
+function secao(id, titulo, subtitulo, corpo, extra = "") {
+  return `<section class="rh-sec ${extra}" aria-labelledby="rh-sec-${id}">
+    <div class="rh-sec__head"><h2 class="rh-sec__title" id="rh-sec-${id}">${escapeHtml(titulo)}</h2>${subtitulo ? `<p class="rh-sec__sub">${escapeHtml(subtitulo)}</p>` : ""}</div>
+    ${corpo}
+  </section>`;
+}
+
+function cabecalhoImpressao(pub, instrumentVersion) {
+  const data = formatarData(pub.emitido_em);
+  const partes = [TITULO, data ? `Emitido em ${data}` : "", instrumentVersion ? `Instrumento ${instrumentVersion}` : "", pub.version ? `Devolutiva ${pub.version}` : ""].filter(Boolean);
+  return `<div class="rh-print-head" aria-hidden="true">${partes.map(escapeHtml).join(" · ")}</div>`;
+}
+
+function escadaHtml(pos, ref) {
+  const degraus = escadaComAtual(pos && pos.stage, ref && ref.status === "VALID" ? ref.stage : null);
+  const li = degraus.map((d) => `<li class="rh-escada__degrau ${d.atual ? "is-atual" : ""} ${d.referencia ? "is-ref" : ""}" ${d.atual ? 'aria-current="step"' : ""}>
+      <span class="rh-escada__num" aria-hidden="true">${d.posicao}</span>
+      <span class="rh-escada__nome">${escapeHtml(d.nome)}</span>
+      ${d.atual ? `<span class="rh-escada__tag">Degrau atual</span>` : ""}
+      ${d.referencia && !d.atual ? `<span class="rh-escada__tag rh-escada__tag--ref">Referência</span>` : ""}
+      ${d.referencia && d.atual ? `<span class="rh-escada__tag rh-escada__tag--ref">Também sua referência</span>` : ""}
+    </li>`).join("");
+  return `<ol class="rh-escada" aria-label="Escada de cinco referências, do primeiro ao quinto degrau">${li}</ol>
+    <p class="sc-help sc-muted rh-escada__nota">Cinco referências de atuação, não um ranking de pessoas nem uma sequência obrigatória.</p>`;
+}
+
+function gateHtml(gov, restriction) {
+  const g = gov || {};
+  const t = tomGovernanca(g.id);
+  const r = rotuloRestricao(restriction);
+  return `<div class="rh-gate rh-gate--${t.tom} ${t.prioridade ? "rh-gate--prioridade" : ""}">
+      <div class="rh-gate__ic">${ICONE[t.icone] || ICONE.info}</div>
+      <div class="rh-gate__body">
+        <p class="rh-gate__k">Gate de governança${t.prioridade ? " · condição que domina a decisão" : ""}</p>
+        <p class="rh-gate__v">${escapeHtml(g.label || "Não informado")}</p>
+        <p class="rh-gate__t">${escapeHtml(g.text || "")}</p>
+        ${restriction ? `<p class="rh-gate__r"><span class="rh-gate__rk">${escapeHtml(r.label)}.</span> ${escapeHtml(r.texto)}</p>` : ""}
+      </div>
+    </div>`;
+}
+
+/**
+ * Tela de resultado como string. Recebe o modelo PÚBLICO (paraPublico) e
+ * opções de apresentação. Puro: sem estado, sem DOM. Os CTAs saem com
+ * data-acao para a delegação de eventos do app.
+ */
+export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } = {}) {
+  const p = pub || {};
+  const pos = p.positioning || {}, ref = p.reference || {}, gap = p.gap || {}, sig = p.signature || {};
+  const sup = p.supporters || [], lim = p.limiters || [], ten = p.tensions || [];
+  const data = formatarData(p.emitido_em);
+
+  // 1. Sua leitura orientativa + qualidade da evidência (+ lente do papel)
+  const s1 = `<header class="rh-result__head">
+      <p class="sc-eyebrow">Devolutiva</p>
+      <h1 class="sc-title sc-title--lg">Sua leitura orientativa</h1>
+      <p class="sc-lead">Hipótese orientativa a partir de evidências comportamentais autodeclaradas sobre a área que você tomou como referência. Não é avaliação de pessoa nem diagnóstico da empresa.</p>
+      <p class="rh-evid"><span class="rh-evid__k">Qualidade da evidência</span><span class="rh-evid__v">${escapeHtml(rotuloEvidencia(p.evidence && p.evidence.status))}</span></p>
+      <p class="rh-evid__t">${escapeHtml(fraseEvidencia(p.evidence && p.evidence.status))}</p>
+      ${data ? `<p class="sc-help sc-muted">Emitido em ${escapeHtml(data)}.</p>` : ""}
+    </header>
+    ${p.roleLens ? `<aside class="rh-lente" aria-label="Lente do seu papel"><span class="rh-lente__k">Lente do seu papel</span><p class="rh-lente__t">${escapeHtml(p.roleLens)}</p></aside>` : ""}`;
+
+  // 2. Escada + degrau atual
+  const s2 = secao("escada", "Onde as práticas se situam", "Cinco referências; só o degrau atual está em destaque.",
+    escadaHtml(pos, ref) +
+    `<div class="rh-degrau">
+      <h3 class="rh-degrau__nome">${escapeHtml(pos.stage || "")}</h3>
+      <p class="rh-degrau__headline">${escapeHtml(pos.headline || "")}</p>
+      <p class="rh-prosa">${escapeHtml(pos.reading || "")}</p>
+      ${pos.next ? `<p class="rh-prosa"><span class="rh-k">Próximo movimento.</span> ${escapeHtml(pos.next)}</p>` : ""}
+      ${pos.clarification ? `<p class="sc-help sc-muted">${escapeHtml(pos.clarification)}</p>` : ""}
+    </div>`);
+
+  // 3. Referência de atuação e distância (ou inconclusiva)
+  const refOk = ref.status === "VALID" && ref.stage;
+  const s3 = secao("referencia", "Referência de atuação e distância", "Alcance e autoridade informados compõem a referência; o papel não a altera.",
+    refOk
+      ? `<p class="rh-prosa">Sua referência de atuação aponta para <span class="rh-k">${escapeHtml(ref.stage)}</span>.</p>
+         <div class="rh-card"><h3 class="rh-card__t">${escapeHtml(gap.label || "")}</h3><p class="rh-card__p">${escapeHtml(gap.text || "")}</p></div>`
+      : `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div><h3 class="rh-card__t">${escapeHtml(gap.label || "Referência de posição inconclusiva")}</h3><p class="rh-card__p">${escapeHtml(gap.text || "")}</p></div></div>`);
+
+  // 4. Assinatura
+  const s4 = secao("assinatura", "Assinatura de posicionamento", "Como liderança, processos e IA se relacionam — sem notas.",
+    `<div class="rh-card"><h3 class="rh-card__t">${escapeHtml(sig.label || "")}</h3><p class="rh-card__p">${escapeHtml(sig.text || "")}</p></div>`);
+
+  // 5. Sustentadores / limitadores
+  const colSup = sup.length ? `<div class="rh-col"><h3 class="rh-col__t">O que sustenta o avanço</h3>${sup.map((x) => `<div class="rh-evc"><span class="rh-evc__n">${escapeHtml(x.name)}</span><p class="rh-evc__p">${escapeHtml(x.evidence || "")}</p></div>`).join("")}</div>` : "";
+  const colLim = lim.length ? `<div class="rh-col"><h3 class="rh-col__t">O que limita o avanço</h3>${lim.map((x) => `<div class="rh-evc rh-evc--lim"><span class="rh-evc__n">${escapeHtml(x.name)}</span><p class="rh-evc__p">${escapeHtml(x.risk || "")}</p>${x.action ? `<p class="rh-evc__a"><span class="rh-k">Próximo movimento.</span> ${escapeHtml(x.action)}</p>` : ""}</div>`).join("")}</div>` : "";
+  const s5 = secao("forcas", "Sustentadores e limitadores", "Leitura qualitativa: o que se destaca acima ou abaixo do conjunto.",
+    (colSup || colLim) ? `<div class="rh-cols">${colSup}${colLim}</div>` : `<div class="rh-card rh-card--quiet"><p class="rh-card__p">As respostas não diferenciam uma dimensão das demais: a evolução parece homogênea. Não há sustentador nem limitador a destacar.</p></div>`);
+
+  // 6. Tensões (oculta se vazia)
+  const s6 = ten.length ? secao("tensoes", ten.length === 1 ? "Tensão relevante" : "Tensões relevantes", "Assimetrias entre frentes que merecem verificação.",
+    `<div class="rh-lista">${ten.map((t) => `<div class="rh-card"><h3 class="rh-card__t">${escapeHtml(t.label)}</h3><p class="rh-card__p">${escapeHtml(t.text || "")}</p></div>`).join("")}</div>`) : "";
+
+  // 7. Gate de governança (sempre visível)
+  const s7 = secao("governanca", "Governança", "Condição de avanço, à parte do posicionamento: não soma nem subtrai degraus.", gateHtml(p.governance, p.restriction), "rh-sec--gate");
+
+  // 8. Rota NIST como ciclo
+  const nist = p.nistRoute || [];
+  const s8 = secao("nist", "Rota de ação — NIST AI RMF", "Funções complementares e recorrentes, não estágios.",
+    `<ol class="rh-ciclo" aria-label="Ciclo de funções">${nist.map((f) => `<li class="rh-ciclo__f"><span class="rh-ciclo__ic">${ICONE.ciclo}</span><div><span class="rh-ciclo__n">${escapeHtml(f.function)}</span><p class="rh-ciclo__t">${escapeHtml(f.instruction || "")}</p></div></li>`).join("")}</ol>
+     <p class="sc-help sc-muted">Essas funções são complementares e recorrentes, não estágios: o ciclo se repete a cada decisão.</p>`);
+
+  // 9. Plano 30–60–90
+  const plano = p.actionPlan || [];
+  const s9 = secao("plano", "Plano 30–60–90 dias", "Cada etapa com ação e evidência verificável de conclusão.",
+    `<div class="rh-tabela-wrap"><table class="rh-tabela"><thead><tr><th scope="col">Horizonte</th><th scope="col">Ação</th><th scope="col">Evidência de conclusão</th></tr></thead>
+      <tbody>${plano.map((e) => `<tr><th scope="row" data-col="Horizonte">${escapeHtml(e.horizon)}</th><td data-col="Ação">${escapeHtml(e.action)}</td><td data-col="Evidência de conclusão">${escapeHtml(e.evidence)}</td></tr>`).join("")}</tbody></table></div>`);
+
+  // 10. Indicadores
+  const ind = (p.indicators || []).slice(0, 3);
+  const s10 = secao("indicadores", "Indicadores para começar", "Até três, ligados às prioridades desta leitura.",
+    `<ul class="rh-bullets">${ind.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`);
+
+  // 11. Perguntas executivas
+  const q = (p.executiveQuestions || []).slice(0, 3);
+  const s11 = secao("perguntas", "Perguntas para a conversa executiva", null,
+    `<ol class="rh-perguntas">${q.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ol>`);
+
+  // 12. Reavaliação + disclaimer integral
+  const s12 = secao("reavaliacao", "Reavaliação e limite da leitura", null,
+    `<p class="rh-prosa">${escapeHtml(p.reassessment || "")}</p>
+     <div class="rh-disclaimer"><span class="rh-k">Limite da leitura.</span> ${escapeHtml(p.disclaimer || "")}</div>`);
+
+  // 13. CTAs
+  const s13 = `<div class="rh-ctas">
+      <button class="sc-btn sc-btn--primary" type="button" data-acao="imprimir">${ICONE.imprimir} Imprimir ou salvar PDF</button>
+      <button class="sc-btn sc-btn--ghost" type="button" data-acao="rever">Rever respostas</button>
+      <button class="sc-btn sc-btn--ghost" type="button" data-acao="recomecar">Recomeçar</button>
+    </div>`;
+
+  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
+}
+
+/** Tela própria para status INSUFFICIENT: mensagem do motor + gate + CTAs. */
+export function renderInsuficiente(pub, { instrumentVersion = "" } = {}) {
+  const p = pub || {};
+  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}
+    <header class="rh-result__head">
+      <p class="sc-eyebrow">Devolutiva</p>
+      <h1 class="sc-title sc-title--lg">Evidência insuficiente para uma leitura</h1>
+      <p class="sc-lead">${escapeHtml(p.missingMessage || "Não há evidência suficiente para compor uma hipótese de posicionamento.")}</p>
+      <p class="rh-evid"><span class="rh-evid__k">Qualidade da evidência</span><span class="rh-evid__v">${escapeHtml(rotuloEvidencia(p.evidence && p.evidence.status))}</span></p>
+      <p class="sc-help sc-muted">Muitas respostas “não se aplica” numa mesma dimensão impedem a síntese. A sessão está fechada: reveja as respostas ou recomece pensando na mesma área do início ao fim.</p>
+    </header>
+    ${secao("governanca", "Governança", "Condição de avanço, à parte do posicionamento.", gateHtml(p.governance, null), "rh-sec--gate")}
+    ${secao("reavaliacao", "Limite da leitura", null, `<div class="rh-disclaimer">${escapeHtml(p.disclaimer || "")}</div>`)}
+    <div class="rh-ctas">
+      <button class="sc-btn sc-btn--primary" type="button" data-acao="rever">Rever respostas</button>
+      <button class="sc-btn sc-btn--ghost" type="button" data-acao="recomecar">Recomeçar</button>
+    </div>
+  </article>`;
+}
+
+// =============================================================
+// Arranque no navegador
+// =============================================================
+
+export function iniciarApp(cfg) {
+  const doc = globalThis.document;
+  const raiz = doc.getElementById("sc-app");
+  const loc = globalThis.location || { search: "", hash: "" };
+  const evento = lerEvento(loc.search);
+  const cliente = criarCliente({ edgeUrl: cfg.EDGE_URL, anonKey: cfg.ANON_KEY, transporte: cfg.transporte });
+  const store = cfg.store || (() => { try { return globalThis.localStorage; } catch { return null; } })();
+
+  const st = {
+    tela: "carregando",
+    token: null, previewKey: null, avisoVersao: "v1",
+    branding: {}, instrument: null, groups: [], itens: [], contexto: [], flat: [], cf: null,
+    respostas: {}, textoOutro: "", textoErro: null, pos: 0,
+    submitido: false, resultado: null, modoLeitura: false,
+    leadMode: "optional_after_submit", leadEnviado: false, leadEnviando: false, leadErro: null,
+    salvando: 0, salvoRecente: false, erroTopo: null, tentandoEnviar: false,
+    erro: null, storageOk: true, ignorarHash: false,
+  };
+  let rastrear = criarRastreador(globalThis.SCREENER_RHIA_ANALYTICS, null);
+
+  // --- tema ---
+  function temaAtual() {
+    try { return doc.documentElement.getAttribute("data-theme") || (globalThis.matchMedia && globalThis.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); }
+    catch { return "light"; }
+  }
+  function alternarTema() {
+    const proximo = temaAtual() === "dark" ? "light" : "dark";
+    doc.documentElement.setAttribute("data-theme", proximo);
+    try { globalThis.localStorage.setItem(CHAVE_TEMA, proximo); } catch { /* ok */ }
+    pintar();
+  }
+
+  // --- navegação / hash ---
+  function scrollTopo() { try { globalThis.scrollTo(0, 0); } catch { /* ok */ } }
+  function sincronizarHash(tela) {
+    const h = HASH_DA_TELA[tela]; if (!h) return;
+    try { if (loc.hash !== "#" + h) { st.ignorarHash = true; loc.hash = h; } } catch { /* ok */ }
+  }
+  function irPara(tela) { st.tela = tela; st.erroTopo = null; pintar(); sincronizarHash(tela); scrollTopo(); }
+  function irParaErro(status, body, retry) {
+    st.erro = { ...descreverErro(status, body), retry: retry || null };
+    st.erroTopo = null; irPara("erro");
+  }
+  const persistir = () => { const ok = guardarSessao(evento, { token: st.token, pos: st.pos, tela: st.tela }, store); if (!ok) st.storageOk = false; };
+  const contextoOk = () => contextoCompleto(st.contexto, st.respostas, st.textoOutro, st.cf).ok;
+
+  // --- rede ---
+  function aplicarApresentacao(body) {
+    st.instrument = body.instrument; st.groups = body.groups || []; st.itens = body.items || [];
+    st.contexto = st.itens.filter((it) => it.group === "contexto");
+    st.flat = st.itens.filter((it) => it.group !== "contexto");
+    st.cf = campoCondicional(st.itens);
+    rastrear = criarRastreador(globalThis.SCREENER_RHIA_ANALYTICS, st.cf);
+    if (body.branding) st.branding = body.branding;
+    if (body.privacy_notice_version) st.avisoVersao = body.privacy_notice_version;
+    if ("lead_capture_mode" in body) st.leadMode = leadModoEfetivo(body.lead_capture_mode);
+  }
+  async function carregarApresentacao() {
+    st.tela = "carregando"; pintar();
+    const r = await cliente.apresentacao(evento, st.previewKey);
+    if (r.status !== 200) return irParaErro(r.status, r.body, carregarApresentacao);
+    aplicarApresentacao(r.body);
+    irPara("abertura");
+  }
+  async function comecar() {
+    st.tentandoEnviar = true; pintar();
+    const r = await cliente.iniciar(evento, st.previewKey, st.avisoVersao);
+    st.tentandoEnviar = false;
+    if (r.status !== 201) { st.erroTopo = mensagemErro(r.status, r.body); return pintar(); }
+    st.token = r.body.token; aplicarApresentacao(r.body);
+    st.respostas = {}; st.textoOutro = ""; st.textoErro = null; st.pos = 0; st.submitido = false; st.resultado = null; st.leadEnviado = false; st.modoLeitura = false;
+    st.tela = "contexto"; persistir();
+    rastrear("assessment_started");
+    irPara("contexto");
+  }
+  async function retomar(salva) {
+    st.token = salva.token; st.tela = "carregando"; pintar();
+    const r = await cliente.retomar(st.previewKey, st.token);
+    if (r.status === 410) { limparSessao(evento, store); st.token = null; return irParaErro(410, r.body); }
+    if (r.status !== 200) { limparSessao(evento, store); st.token = null; return carregarApresentacao(); }
+    aplicarApresentacao(r.body);
+    st.respostas = r.body.answered || {};
+    st.textoOutro = (st.cf && st.respostas[st.cf.id]) || "";
+    st.submitido = !!r.body.submitted;
+    if (r.body.lead_capture_mode !== undefined) st.leadMode = leadModoEfetivo(r.body.lead_capture_mode);
+    if (st.submitido) return carregarResultado();
+    const nova = primeiraNaoRespondida(st.flat, st.respostas);
+    st.pos = Math.min(Number.isFinite(salva.pos) ? salva.pos : nova, Math.max(0, st.flat.length - 1));
+    const hashAtual = String(loc.hash || "").replace(/^#/, "");
+    const alvo = telaDoHash(hashAtual || salva.tela || "", { temSessao: true, submitido: false, contextoOk: contextoOk() });
+    persistir(); irPara(alvo);
+  }
+  // `repintar: false` = atualização leve (sem trocar o DOM). Necessário para o
+  // texto livre: o blur do campo dispara `change` no MEIO de um clique numa
+  // alternativa; se o DOM fosse trocado ali, o clique se perderia.
+  async function salvarResposta(item_id, value, { repintar = true } = {}) {
+    st.respostas[item_id] = value; st.salvando++; st.salvoRecente = false;
+    if (repintar) pintar(); else refrescarLeve();
+    const r = await cliente.salvar(st.previewKey, st.token, item_id, value);
+    st.salvando--;
+    if (r.status === 410 || r.status === 403 || r.status === 404 || r.status === 409) return irParaErro(r.status, r.body);
+    if (r.status !== 200) { st.erroTopo = mensagemErro(r.status, r.body); return pintar(); }
+    st.salvoRecente = true; st.erroTopo = null; rastrear("question_answered", { id: item_id, option: value });
+    if (repintar) pintar(); else refrescarLeve();
+  }
+  // Texto livre: sai para o servidor só quando válido (o servidor recusa 2–120 inválido).
+  async function salvarTextoOutro() {
+    const v = validarTextoOutro(st.textoOutro, st.cf);
+    st.textoErro = v.ok ? null : v.erro;
+    if (!v.ok || !st.cf) { refrescarLeve(); return false; }
+    if (st.respostas[st.cf.id] === v.valor) { refrescarLeve(); return true; }
+    await salvarResposta(st.cf.id, v.valor, { repintar: false });
+    return !st.erroTopo;
+  }
+  // Atualização leve da tela de contexto: status do autosave, erro inline do
+  // texto e estado do botão Avançar — sem recriar o DOM.
+  function refrescarLeve() {
+    try {
+      const save = raiz.querySelector(".sc-save"); if (save) save.outerHTML = autosaveHtml();
+      const btn = raiz.querySelector('[data-acao="concluir-contexto"]');
+      if (btn) { if (contextoOk()) btn.removeAttribute("aria-disabled"); else btn.setAttribute("aria-disabled", "true"); }
+      const campo = raiz.querySelector("#rh-texto-outro"); if (!campo) return;
+      let el = raiz.querySelector("#rh-texto-erro");
+      const msg = st.textoErro ? mensagemTextoOutro(st.textoErro, st.cf) : "";
+      if (msg) {
+        if (!el) { el = doc.createElement("p"); el.className = "rh-field__erro"; el.id = "rh-texto-erro"; el.setAttribute("role", "alert"); campo.parentNode.appendChild(el); }
+        el.innerHTML = `${ICONE.info}<span>${escapeHtml(msg)}</span>`;
+        campo.setAttribute("aria-invalid", "true"); campo.setAttribute("aria-describedby", "rh-texto-ajuda rh-texto-erro");
+      } else {
+        if (el) el.remove();
+        campo.removeAttribute("aria-invalid"); campo.setAttribute("aria-describedby", "rh-texto-ajuda");
+      }
+    } catch { /* ok */ }
+  }
+  function mostrarResultado(body) {
+    st.resultado = body; st.submitido = true;
+    rastrear("result_viewed");
+    irPara(body && body.status === "INSUFFICIENT" ? "insuficiente" : "resultado");
+  }
+  async function carregarResultado() {
+    st.tela = "carregando"; pintar();
+    const r = await cliente.resultado(st.previewKey, st.token);
+    if (r.status === 200) return mostrarResultado(r.body);
+    if (r.status === 403 && r.body && r.body.error === "lead_required") { st.leadMode = "required_before_result"; return irPara("lead_gate"); }
+    return irParaErro(r.status, r.body, carregarResultado);
+  }
+  async function enviar() {
+    st.tentandoEnviar = true; pintar();
+    const r = await cliente.enviar(st.previewKey, st.token);
+    st.tentandoEnviar = false;
+    if (r.status === 400) { st.erroTopo = mensagemErro(r.status, r.body); return pintar(); }
+    if (r.status !== 200) return irParaErro(r.status, r.body, enviar);
+    st.submitido = true; persistir();
+    rastrear("assessment_completed");
+    if (r.body && r.body.lead_required) { st.leadMode = "required_before_result"; return irPara("lead_gate"); }
+    mostrarResultado(r.body);
+  }
+  async function enviarLead(nome, email, optIn) {
+    if (!validarEmail(email)) { st.leadErro = "Informe um e-mail válido."; return pintar(); }
+    st.leadEnviando = true; st.leadErro = null; pintar();
+    const r = await cliente.lead(st.previewKey, st.token, { nome: (nome || "").trim() || null, email: email.trim(), marketing_opt_in: !!optIn });
+    st.leadEnviando = false;
+    if (r.status !== 200) { st.leadErro = mensagemErro(r.status, r.body); return pintar(); }
+    st.leadEnviado = true; st.leadErro = null;
+    if (st.tela === "lead_gate") return carregarResultado();
+    pintar();
+  }
+  async function reverRespostas() {
+    st.tela = "carregando"; pintar();
+    const r = await cliente.retomar(st.previewKey, st.token);
+    if (r.status !== 200) return irParaErro(r.status, r.body, reverRespostas);
+    aplicarApresentacao(r.body); st.respostas = r.body.answered || {}; st.modoLeitura = true;
+    irPara("revisao");
+  }
+  function recomecar(confirmar = true) {
+    if (confirmar && st.token) {
+      let ok = true;
+      try { ok = globalThis.confirm("Recomeçar apaga o vínculo deste navegador com a sessão atual e inicia um novo preenchimento do zero. Continuar?"); } catch { ok = true; }
+      if (!ok) return;
+      rastrear("reassessment_clicked");
+    }
+    limparSessao(evento, store);
+    Object.assign(st, { token: null, respostas: {}, textoOutro: "", textoErro: null, pos: 0, resultado: null, submitido: false, modoLeitura: false, leadEnviado: false, leadErro: null, erro: null, erroTopo: null });
+    if (st.itens.length) irPara("abertura"); else carregarApresentacao();
+  }
+
+  // --- navegação do questionário ---
+  function concluirContexto() {
+    const c = contextoCompleto(st.contexto, st.respostas, st.textoOutro, st.cf);
+    if (!c.ok) { st.textoErro = c.textoErro; st.erroTopo = c.faltam.length ? "Responda os três itens de contexto para continuar." : null; pintar(); focar("#rh-texto-outro"); return; }
+    if (textoExigido(st.respostas, st.cf)) {
+      salvarTextoOutro().then((ok) => { if (!ok) return pintar(); st.pos = 0; persistir(); rastrear("context_completed"); irPara("questoes"); });
+      return;
+    }
+    st.pos = 0; persistir(); rastrear("context_completed"); irPara("questoes");
+  }
+  function avancar() {
+    if (st.pos >= st.flat.length - 1) { st.pos = st.flat.length - 1; persistir(); return irPara("revisao"); }
+    st.pos += 1; persistir(); pintar(); scrollTopo();
+  }
+  function voltar() {
+    if (st.pos <= 0) return irPara("contexto");
+    st.pos -= 1; persistir(); pintar(); scrollTopo();
+  }
+  function editarItem(id) {
+    const i = st.flat.findIndex((it) => it.id === id);
+    if (i === -1) return irPara("contexto");
+    st.pos = i; persistir(); irPara("questoes");
+  }
+  function focar(sel) { try { const el = raiz.querySelector(sel); if (el) el.focus(); } catch { /* ok */ } }
+
+  // ---------- render: comuns ----------
+  function cabecalho(compacto) {
+    const ic = temaAtual() === "dark" ? ICONE.sol : ICONE.lua;
+    const sub = compacto ? "" : `<span class="sc-brand__divisor"></span><span class="sc-brand__sub">RH, Desenvolvimento e IA</span>`;
+    return `<header class="sc-head">
+      <div class="sc-brand">${LOGO}${sub}</div>
+      <button class="sc-theme" type="button" data-acao="tema" aria-label="Alternar tema claro e escuro">${ic}</button>
+    </header>`;
+  }
+  const noteTopo = () => st.erroTopo ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.erroTopo)}</span></div>` : "";
+  const avisoStorage = () => st.storageOk ? "" : `<div class="sc-note rh-note--warning" role="status">${ICONE.aviso}<span>Este navegador não permite guardar o progresso; se você atualizar a página, o preenchimento recomeça.</span></div>`;
+  function autosaveHtml() {
+    if (st.salvando > 0) return `<span class="sc-save sc-save--ativo" role="status">Salvando…</span>`;
+    if (st.salvoRecente) return `<span class="sc-save sc-save--ok" role="status">${ICONE.check} Resposta salva</span>`;
+    return `<span class="sc-save" role="status">Salvo automaticamente</span>`;
+  }
+  function progressoHtml(rotulo, contagem) {
+    const prog = progresso(Object.keys(st.respostas).filter((k) => !st.cf || k !== st.cf.id).length, st.itens.length);
+    return `<div class="sc-progress">
+      <div class="sc-progress__row"><span class="sc-progress__label">${rotulo}</span><span class="sc-progress__count">${contagem}</span></div>
+      <div class="sc-track" role="progressbar" aria-label="Progresso do preenchimento" aria-valuemin="0" aria-valuemax="${prog.total}" aria-valuenow="${prog.respondidas}"><div class="sc-track__fill" style="width:${prog.pct}%"></div></div>
+      <p class="rh-progress__txt">${prog.respondidas} de ${prog.total} respondidas</p>
+    </div>`;
+  }
+  function opcoesHtml(it, escolhido, comNumero) {
+    const naUltima = it.kind !== "context";
+    return it.options.map((op, i) => {
+      const na = naUltima && i === it.options.length - 1;
+      const checked = escolhido === op.id ? "checked" : "";
+      return `<label class="sc-opt ${na ? "sc-opt--na" : ""} ${checked ? "is-checked" : ""}">
+        <input type="radio" name="it_${escapeHtml(it.id)}" value="${escapeHtml(op.id)}" ${checked} data-acao="resposta" data-item="${escapeHtml(it.id)}" data-opcao="${escapeHtml(op.id)}">
+        <span class="sc-opt__dot" aria-hidden="true"></span>
+        <span class="sc-opt__txt">${escapeHtml(op.label)}</span>
+        ${comNumero ? `<span class="sc-opt__num" aria-hidden="true">${i + 1}</span>` : ""}
+      </label>`;
+    }).join("");
+  }
+
+  // ---------- render: abertura ----------
+  function telaAbertura() {
+    const ins = st.instrument || {};
+    const retomavel = !!st.token && !st.submitido;
+    return `<div class="sc-hero rh-hero">
+      <div class="sc-hero__logo">${LOGO}</div>
+      <p class="sc-eyebrow">Diagnóstico</p>
+      <h1 class="sc-hero__title">${escapeHtml(TITULO)}</h1>
+      <p class="sc-hero__lead">${escapeHtml(ins.purpose || "")}</p>
+      <ul class="rh-hero__fatos" aria-label="Antes de começar">
+        <li>${ICONE.relogio}<span>Leva cerca de ${escapeHtml(ins.estimated_minutes || "8–10")} minutos.</span></li>
+        <li>${ICONE.info}<span>O resultado é uma hipótese orientativa baseada em autorrelato — não é diagnóstico conclusivo nem avaliação de pessoa.</span></li>
+        <li>${ICONE.check}<span>Responda pensando na mesma área do início ao fim.</span></li>
+      </ul>
+      ${noteTopo()}
+      <div class="sc-actions">
+        ${retomavel ? `<button class="sc-btn sc-btn--primary" type="button" data-acao="continuar">Continuar de onde parei ${ICONE.seta}</button>` : `<button class="sc-btn sc-btn--primary" type="button" data-acao="comecar" ${st.tentandoEnviar ? "disabled" : ""}>${st.tentandoEnviar ? "Iniciando…" : `Começar leitura ${ICONE.seta}`}</button>`}
+      </div>
+      <p class="sc-hero__foot">${escapeHtml(ins.disclaimer || "")}</p>
+    </div>`;
+  }
+
+  // ---------- render: contexto (3 itens numa tela) ----------
+  function telaContexto() {
+    const cf = st.cf;
+    const campos = st.contexto.map((it) => {
+      const escolhido = st.respostas[it.id];
+      let texto = "";
+      if (cf && it.id === cf.itemId && escolhido === cf.opcao) {
+        const erro = st.textoErro ? mensagemTextoOutro(st.textoErro, cf) : "";
+        texto = `<div class="sc-field rh-texto">
+          <label class="sc-label" for="rh-texto-outro">${escapeHtml(cf.prompt)}</label>
+          <input class="sc-input" id="rh-texto-outro" type="text" autocomplete="organization-title" maxlength="${cf.max}" value="${escapeHtml(st.textoOutro)}" data-acao="texto-outro" aria-describedby="rh-texto-ajuda${erro ? " rh-texto-erro" : ""}" ${erro ? 'aria-invalid="true"' : ""} required>
+          <p class="sc-help" id="rh-texto-ajuda">Entre ${cf.min} e ${cf.max} caracteres. Guardado ao sair do campo.</p>
+          ${erro ? `<p class="rh-field__erro" id="rh-texto-erro" role="alert">${ICONE.info}<span>${escapeHtml(erro)}</span></p>` : ""}
+        </div>`;
+      }
+      return `<fieldset class="rh-ctx">
+        <legend class="rh-ctx__prompt">${escapeHtml(it.prompt)}</legend>
+        <div class="sc-opts rh-ctx__opts" role="radiogroup" aria-label="Alternativas">${opcoesHtml(it, escolhido, false)}</div>
+        ${texto}
+      </fieldset>`;
+    }).join("");
+    const c = contextoCompleto(st.contexto, st.respostas, st.textoOutro, st.cf);
+    return `${progressoHtml("Contexto", `Itens 1 a ${st.contexto.length} de ${st.itens.length}`)}
+      ${avisoStorage()}${noteTopo()}
+      <div class="sc-card rh-ctx-card">
+        <p class="sc-eyebrow">Contexto</p>
+        <h1 class="sc-title">Seu papel, alcance e autoridade</h1>
+        <p class="sc-lead">Seu papel muda só a lente do texto final; alcance e autoridade compõem a referência com a qual as práticas serão comparadas.</p>
+        ${campos}
+      </div>
+      <div class="sc-nav">
+        <button class="sc-btn sc-btn--ghost" type="button" data-acao="voltar-abertura">${ICONE.volta} Voltar</button>
+        ${autosaveHtml()}
+        <button class="sc-btn sc-btn--primary" type="button" data-acao="concluir-contexto" ${c.ok ? "" : 'aria-disabled="true"'}>Avançar ${ICONE.seta}</button>
+      </div>`;
+  }
+
+  // ---------- render: questões (uma por tela) ----------
+  function telaQuestoes() {
+    const it = st.flat[st.pos]; if (!it) return carregando();
+    const grupo = (st.groups.find((g) => g.code === it.group) || {}).name || "";
+    const dim = it.dimension_name ? ` · ${escapeHtml(it.dimension_name)}` : "";
+    const escolhido = st.respostas[it.id];
+    const ultimo = st.pos === st.flat.length - 1;
+    return `${progressoHtml(`${escapeHtml(grupo)}${dim}`, `Pergunta ${it.order} de ${st.itens.length}`)}
+      ${avisoStorage()}${noteTopo()}
+      <article class="sc-item" id="sc-questao" tabindex="-1" aria-label="Pergunta ${it.order} de ${st.itens.length}">
+        <p class="sc-item__prompt">${escapeHtml(it.prompt)}</p>
+        <div class="sc-opts" role="radiogroup" aria-label="Alternativas">${opcoesHtml(it, escolhido, true)}</div>
+      </article>
+      <p class="sc-kbd">Use <kbd>1</kbd>–<kbd>${it.options.length}</kbd> para escolher · <kbd>Enter</kbd> avança · <kbd>←</kbd> volta</p>
+      <div class="sc-nav">
+        <button class="sc-btn sc-btn--ghost" type="button" data-acao="voltar-nav">${ICONE.volta} Voltar</button>
+        ${autosaveHtml()}
+        <button class="sc-btn sc-btn--primary" type="button" data-acao="avancar-nav" ${escolhido ? "" : "disabled"}>${ultimo ? "Revisar" : "Avançar"} ${ICONE.seta}</button>
+      </div>`;
+  }
+
+  // ---------- render: revisão ----------
+  function telaRevisao() {
+    const leitura = st.modoLeitura || st.submitido;
+    const comp = submissaoCompleta(st.itens, st.respostas, st.cf);
+    const grupos = agruparPorGrupo(st.itens, st.groups).map((g) => {
+      const linhas = g.items.map((it) => {
+        const val = st.respostas[it.id];
+        const op = it.options.find((o) => o.id === val);
+        let txt = op ? escapeHtml(op.label) : `<span class="sc-rev__vazio">Sem resposta</span>`;
+        if (op && st.cf && it.id === st.cf.itemId && val === st.cf.opcao) {
+          const t = st.respostas[st.cf.id];
+          txt += t ? ` — <span class="rh-rev__texto">${escapeHtml(t)}</span>` : ` — <span class="sc-rev__vazio">descrição do papel pendente</span>`;
+        }
+        const editar = leitura ? "" : `<button class="sc-btn sc-btn--ghost sc-btn--sm" type="button" data-acao="editar" data-item="${escapeHtml(it.id)}" aria-label="Editar a pergunta ${it.order}">Editar</button>`;
+        return `<div class="sc-rev__linha ${op ? "" : "is-vazio"}">
+          <div class="sc-rev__q"><span class="sc-rev__n">${it.order}</span><span>${escapeHtml(it.prompt)}</span></div>
+          <div class="sc-rev__a">${txt}</div>
+          ${editar}
+        </div>`;
+      }).join("");
+      return `<section class="sc-rev__bloco" aria-label="${escapeHtml(g.name)}"><h2 class="sc-rev__bnome">${escapeHtml(g.name)}</h2>${linhas}</section>`;
+    }).join("");
+    const titulo = leitura ? "Suas respostas" : (comp.ok ? "Confira antes de enviar" : `Faltam ${comp.faltam.length + (comp.textoFalta ? 1 : 0)} ${comp.faltam.length + (comp.textoFalta ? 1 : 0) === 1 ? "resposta" : "respostas"}`);
+    const lead = leitura ? "A sessão está fechada: as respostas ficam como registro e não podem ser alteradas." : (comp.ok ? "Ao enviar, a leitura é calculada e a sessão é fechada — não dá para alterar respostas depois. Nenhuma nota aparece aqui." : "Responda os itens marcados como “Sem resposta” para poder enviar.");
+    const rodape = leitura
+      ? `<div class="sc-footbar"><button class="sc-btn sc-btn--primary" type="button" data-acao="voltar-resultado">${ICONE.volta} Voltar ao resultado</button></div>`
+      : `<div class="sc-footbar">
+          <button class="sc-btn sc-btn--ghost" type="button" data-acao="voltar-item">${ICONE.volta} Voltar ao questionário</button>
+          <button class="sc-btn sc-btn--brand" type="button" data-acao="enviar" ${comp.ok && !st.tentandoEnviar ? "" : "disabled"}>${st.tentandoEnviar ? "Enviando…" : "Confirmar e enviar"}</button>
+        </div>`;
+    return `<div class="sc-rev">
+      <p class="sc-eyebrow">Revisão</p>
+      <h1 class="sc-title sc-title--lg">${titulo}</h1>
+      <p class="sc-lead">${lead}</p>
+      ${avisoStorage()}${noteTopo()}
+      ${grupos}
+      ${rodape}
+    </div>`;
+  }
+
+  // ---------- render: portão de lead ----------
+  function formLeadHtml(titulo, subtitulo) {
+    if (st.leadEnviado) return `<div class="sc-note sc-note--ok" role="status">${ICONE.check}<span>Contato registrado. A Boomit pode falar com você sobre esta leitura.</span></div>`;
+    const erro = st.leadErro ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.leadErro)}</span></div>` : "";
+    return `<form class="sc-leadform" data-acao="lead" novalidate>
+      <p class="sc-eyebrow">${escapeHtml(titulo)}</p>
+      ${subtitulo ? `<p class="sc-leadform__sub">${escapeHtml(subtitulo)}</p>` : ""}
+      ${erro}
+      <div class="sc-field"><label class="sc-label" for="sc-lead-nome">Nome <span class="sc-muted">(opcional)</span></label>
+        <input class="sc-input" id="sc-lead-nome" name="nome" type="text" autocomplete="name" placeholder="Seu nome"></div>
+      <div class="sc-field"><label class="sc-label" for="sc-lead-email">E-mail</label>
+        <input class="sc-input" id="sc-lead-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="voce@empresa.com" required ${st.leadErro ? 'aria-invalid="true"' : ""}></div>
+      <label class="sc-ack"><input type="checkbox" id="sc-lead-opt"><span>Aceito receber contato da Boomit sobre este diagnóstico.</span></label>
+      <div class="sc-actions"><button class="sc-btn sc-btn--brand sc-btn--block" type="submit" ${st.leadEnviando ? "disabled" : ""}>${st.leadEnviando ? "Enviando…" : "Ver minha leitura"}</button></div>
+    </form>`;
+  }
+  function telaLeadGate() {
+    return `<div class="sc-card">
+      <div class="rh-gate-head"><p class="sc-eyebrow">Antes do resultado</p><h1 class="sc-title">Sua leitura está pronta</h1><p class="sc-lead">Deixe seu contato para ver o resultado. O e-mail fica guardado à parte das respostas.</p></div>
+      ${formLeadHtml("Para acessar a devolutiva", null)}
+    </div>`;
+  }
+
+  // ---------- render: resultado ----------
+  function telaResultado() {
+    const leadHtml = (st.leadMode === "optional_after_submit")
+      ? `<section class="rh-sec rh-sec--lead"><div class="sc-card sc-card--lead">${formLeadHtml("Vamos conversar?", "Se quiser aprofundar esta leitura com a Boomit, deixe seu contato.")}</div></section>` : "";
+    const version = st.instrument && st.instrument.version;
+    return renderResultado(st.resultado, { instrumentVersion: version, leadHtml });
+  }
+  function telaInsuficiente() {
+    return renderInsuficiente(st.resultado, { instrumentVersion: st.instrument && st.instrument.version });
+  }
+
+  function telaErro() {
+    const d = st.erro || {};
+    const ic = ICONE[d.icone] || ICONE.aviso;
+    const tom = d.tom || "neutral";
+    const retry = (d.recuperavel && d.retry)
+      ? `<button class="sc-btn sc-btn--primary" type="button" data-acao="retry">Tentar novamente</button>` : "";
+    return `<div class="sc-erro">
+      <div class="sc-erro__card">
+        <img class="sc-erro__grafismo" src="grafismo-boomit.png" alt="" aria-hidden="true" width="900" height="900">
+        <div class="sc-erro__corpo">
+          <div class="sc-erro__ic sc-erro__ic--${tom}" aria-hidden="true">${ic}</div>
+          <h1 class="sc-title">${escapeHtml(d.titulo || "Algo não saiu como esperado")}</h1>
+          <p class="sc-lead">${escapeHtml(d.mensagem || "")}</p>
+          <div class="sc-actions">
+            ${retry}
+            <button class="sc-btn ${retry ? "sc-btn--ghost" : "sc-btn--primary"}" type="button" data-acao="recomecar-sem-confirmar">Começar de novo</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function carregando() { return `<div class="sc-loading"><span class="sc-spin" aria-hidden="true"></span> Carregando…</div>`; }
+
+  function corpo() {
+    switch (st.tela) {
+      case "abertura": return telaAbertura();
+      case "contexto": return telaContexto();
+      case "questoes": return telaQuestoes();
+      case "revisao": return telaRevisao();
+      case "lead_gate": return telaLeadGate();
+      case "resultado": return telaResultado();
+      case "insuficiente": return telaInsuficiente();
+      case "erro": return telaErro();
+      default: return carregando();
+    }
+  }
+  function pintar() {
+    const compacto = st.tela === "questoes" || st.tela === "contexto";
+    raiz.innerHTML = `<div class="sc-shell rh-shell rh-tela--${st.tela}">` + cabecalho(compacto) + corpo() + `</div>`;
+    if (st.tela === "questoes") {
+      const q = raiz.querySelector("#sc-questao");
+      if (q) { try { q.focus({ preventScroll: true }); } catch { /* ok */ } }
+    }
+  }
+
+  // --- eventos ---
+  raiz.addEventListener("click", (ev) => {
+    const alvo = ev.target.closest("[data-acao]"); if (!alvo) return;
+    const acao = alvo.getAttribute("data-acao");
+    if (alvo.getAttribute("aria-disabled") === "true") { if (acao === "concluir-contexto") concluirContexto(); return; }
+    const fns = {
+      tema: alternarTema, comecar, continuar: () => irPara(contextoOk() ? "questoes" : "contexto"),
+      "voltar-abertura": () => irPara("abertura"), "concluir-contexto": concluirContexto,
+      "voltar-nav": voltar, "avancar-nav": avancar, "voltar-item": () => irPara("questoes"),
+      enviar, recomecar: () => recomecar(true), "recomecar-sem-confirmar": () => recomecar(false),
+      rever: reverRespostas, "voltar-resultado": () => { st.modoLeitura = false; irPara(st.resultado && st.resultado.status === "INSUFFICIENT" ? "insuficiente" : "resultado"); },
+      imprimir: () => { rastrear("pdf_requested"); try { globalThis.print(); } catch { /* ok */ } },
+      retry: () => { const f = st.erro && st.erro.retry; if (f) f(); },
+    };
+    if (acao === "editar") return editarItem(alvo.getAttribute("data-item"));
+    if (fns[acao]) return fns[acao]();
+  });
+  raiz.addEventListener("change", (ev) => {
+    const alvo = ev.target; if (!alvo.getAttribute) return;
+    const acao = alvo.getAttribute("data-acao");
+    if (acao === "resposta") {
+      const item = alvo.getAttribute("data-item"), opcao = alvo.getAttribute("data-opcao");
+      if (st.cf && item === st.cf.itemId) {
+        // Trocar a opção que abre o texto: oculta E limpa o rascunho local.
+        st.textoOutro = textoAposTrocarOpcao(opcao, st.cf, st.textoOutro); st.textoErro = null;
+        salvarResposta(item, opcao).then(() => { if (opcao === st.cf.opcao) focar("#rh-texto-outro"); });
+        return;
+      }
+      return salvarResposta(item, opcao);
+    }
+    if (acao === "texto-outro") {
+      // change = ao sair do campo: valida e envia se válido, SEM recriar o DOM
+      // (o blur pode estar no meio de um clique numa alternativa).
+      st.textoOutro = alvo.value;
+      salvarTextoOutro().then(refrescarLeve);
+    }
+  });
+  raiz.addEventListener("input", (ev) => {
+    const alvo = ev.target; if (!alvo.getAttribute) return;
+    if (alvo.getAttribute("data-acao") === "texto-outro") { st.textoOutro = alvo.value; if (st.textoErro) st.textoErro = null; refrescarLeve(); }
+  });
+  raiz.addEventListener("submit", (ev) => {
+    const form = ev.target; if (!form.getAttribute) return;
+    if (form.getAttribute("data-acao") === "lead") {
+      ev.preventDefault();
+      const nome = form.querySelector("#sc-lead-nome"); const email = form.querySelector("#sc-lead-email"); const opt = form.querySelector("#sc-lead-opt");
+      enviarLead(nome && nome.value, email && email.value, opt && opt.checked);
+    }
+  });
+
+  // Teclado nas questões: 1–9 escolhe; Enter/→ avança (se respondida); ← volta.
+  doc.addEventListener("keydown", (ev) => {
+    if (st.tela !== "questoes") return;
+    const t = ev.target;
+    if (t && t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && t.type !== "radio") return;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const it = st.flat[st.pos]; if (!it) return;
+    if (ev.key >= "1" && ev.key <= "9") {
+      const idx = Number(ev.key) - 1;
+      if (idx < it.options.length) { ev.preventDefault(); salvarResposta(it.id, it.options[idx].id); }
+    } else if (ev.key === "Enter" || ev.key === "ArrowRight") {
+      if (st.respostas[it.id]) { ev.preventDefault(); avancar(); }
+    } else if (ev.key === "ArrowLeft") {
+      ev.preventDefault(); voltar();
+    }
+  });
+
+  // Impressão sempre no tema claro (fundo branco no papel): troca em beforeprint
+  // e restaura em afterprint. Vale para o botão e para Ctrl+P.
+  if (globalThis.addEventListener) {
+    let temaAntes = null;
+    globalThis.addEventListener("beforeprint", () => { temaAntes = doc.documentElement.getAttribute("data-theme"); doc.documentElement.setAttribute("data-theme", "light"); });
+    globalThis.addEventListener("afterprint", () => { if (temaAntes) doc.documentElement.setAttribute("data-theme", temaAntes); else doc.documentElement.removeAttribute("data-theme"); });
+  }
+
+  // Hash: URL direta só chega onde o estado permite.
+  globalThis.addEventListener && globalThis.addEventListener("hashchange", () => {
+    if (st.ignorarHash) { st.ignorarHash = false; return; }
+    if (st.tela === "carregando") return;
+    const alvo = telaDoHash(loc.hash, { temSessao: !!st.token, submitido: st.submitido, contextoOk: contextoOk() });
+    if (HASH_DA_TELA[alvo] === HASH_DA_TELA[st.tela]) return sincronizarHash(st.tela);
+    if (alvo === "resultado") return st.resultado ? irPara(st.resultado.status === "INSUFFICIENT" ? "insuficiente" : "resultado") : carregarResultado();
+    if (alvo === "revisao" && st.submitido) return reverRespostas();
+    irPara(alvo);
+  });
+
+  // --- arranque ---
+  (function bootstrap() {
+    try { const t = globalThis.localStorage.getItem(CHAVE_TEMA); if (t) doc.documentElement.setAttribute("data-theme", t); } catch { /* ok */ }
+    if (!store) st.storageOk = false;
+    const salva = lerSessao(evento, store);
+    if (salva && salva.token) retomar(salva);
+    else carregarApresentacao();
+  })();
+
+  return { st, pintar };
+}
+
+// Arranque automático no navegador (pulável no harness; nunca em node --test).
+if (typeof globalThis.document !== "undefined") {
+  const cfg = globalThis.SCREENER_RHIA_CONFIG;
+  const raiz = globalThis.document.getElementById("sc-app");
+  const falhar = (msg) => { if (raiz) raiz.innerHTML = `<div class="sc-shell"><div class="sc-card" role="alert"><h1 class="sc-title">Não foi possível iniciar o diagnóstico</h1><p class="sc-lead">${escapeHtml(msg)}</p></div></div>`; };
+  if (!cfg || !cfg.EDGE_URL || !cfg.ANON_KEY) {
+    falhar("A configuração da página está incompleta (endereço da API ausente). Recarregue a página; se persistir, avise quem enviou o link.");
+  } else if (cfg.autostart !== false) {
+    const start = () => { try { iniciarApp(cfg); globalThis.__rhiaPronto = true; } catch (e) { falhar("Ocorreu uma falha ao carregar a aplicação. Recarregue a página ou tente outro navegador."); } };
+    if (globalThis.document.readyState === "loading") globalThis.document.addEventListener("DOMContentLoaded", start);
+    else start();
+  }
+}
