@@ -1,0 +1,11 @@
+# O pacote aprovado do Diagnóstico RH + IA é conferido BYTE A BYTE contra
+# MANIFESTO-SHA256.txt (screener/rhia/pacote-integro.test.mjs). Sem isto, um
+# clone em Windows com core.autocrlf=true converteria os arquivos para CRLF e o
+# guard acusaria "o pacote foi alterado" sem que nada tivesse mudado.
+# `-text` desliga qualquer conversão de fim de linha: o checkout entrega
+# exatamente os bytes do blob.
+screener/rhia/pacote/** -text
+
+# Binários do pacote e da marca, explicitamente.
+*.docx binary
+*.png  binary
