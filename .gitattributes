@@ -1,11 +1,18 @@
-# O pacote aprovado do Diagnóstico RH + IA é conferido BYTE A BYTE contra
-# MANIFESTO-SHA256.txt (screener/rhia/pacote-integro.test.mjs). Sem isto, um
-# clone em Windows com core.autocrlf=true converteria os arquivos para CRLF e o
-# guard acusaria "o pacote foi alterado" sem que nada tivesse mudado.
-# `-text` desliga qualquer conversão de fim de linha: o checkout entrega
-# exatamente os bytes do blob.
+# Fim de linha determinístico no checkout.
+#
+# Vários testes desta casa comparam ARQUIVOS byte a byte: o guard de integridade
+# do pacote (screener/rhia/pacote-integro.test.mjs, contra MANIFESTO-SHA256.txt)
+# e o teste de drift da carga gerada (screener/loader/gerar-carga-rhia.test.mjs,
+# que exige LF e ausência de BOM). Sem esta política, um clone em Windows com
+# core.autocrlf=true (padrão do Git for Windows) converte tudo para CRLF e esses
+# testes reprovam numa máquina limpa, sem que nada tenha sido alterado —
+# verificado num clone real antes desta correção.
+* text=auto eol=lf
+
+# O pacote aprovado é conferido byte a byte: nenhuma conversão, em hipótese
+# alguma. `-text` entrega exatamente os bytes do blob.
 screener/rhia/pacote/** -text
 
-# Binários do pacote e da marca, explicitamente.
+# Binários, explicitamente.
 *.docx binary
 *.png  binary
