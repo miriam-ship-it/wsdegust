@@ -104,8 +104,10 @@ test("GET /rhia/start: 200 com apresentação pública (30 itens na ordem, sem e
   assert.equal(g.body.status, "public_pilot");
   assert.deepEqual(g.body.branding, {});
   assert.equal(g.body.privacy_notice_version, "v1");
-  // caminho legado (get_binding) não traz lead_capture_mode → null (documentado no handler)
-  assert.equal(g.body.lead_capture_mode, null);
+  // O frontend precisa saber, já na abertura, se há portão antes do resultado.
+  // Por isso o rhia tem a sua própria screener_rhia_op_get_binding, que projeta
+  // lead_capture_mode (a do V1, em produção, não projeta e não foi alterada).
+  assert.equal(g.body.lead_capture_mode, "optional_after_submit");
   // CTX01 leva o campo condicional; NA sempre disponível nos pontuados
   const ctx01 = g.body.items.find((it) => it.id === "CTX01");
   assert.equal(ctx01.conditional_field.id, "CTX01_OTHER_TEXT");

@@ -54,9 +54,10 @@ async function checarRateToken(ctx, operation, token) {
   return checarRate(ctx, operation, key);
 }
 /**
- * Resolve o vínculo. Com rate ativo: screener_op_preview_authorize (traz
- * lead_capture_mode). Sem: screener_op_get_binding (legado; NÃO traz
- * lead_capture_mode — ver `modoLead`).
+ * Resolve o vínculo. Com rate ativo: screener_op_preview_authorize (genérica do
+ * V1). Sem rate: screener_rhia_op_get_binding — própria do rhia justamente para
+ * projetar lead_capture_mode, que a get_binding do V1 (em produção) não traz e
+ * que não pode ser alterada.
  * @returns {{binding?:object, erro?:{status:number,body:object}}}
  */
 async function resolverBinding(ctx, event_slug, previewHash, ipHmac) {
@@ -70,7 +71,7 @@ async function resolverBinding(ctx, event_slug, previewHash, ipHmac) {
     if (r.status === "invalid") return { erro: resp(404, { error: "nao_encontrado" }) };
     return { erro: resp(503, { error: "indisponivel_temporario" }) }; // bad_key
   }
-  const b = await rpc(ctx, "screener_op_get_binding", [event_slug, previewHash]);
+  const b = await rpc(ctx, "screener_rhia_op_get_binding", [event_slug, previewHash]);
   if (!b) return { erro: resp(404, { error: "nao_encontrado" }) };
   return { binding: b };
 }
@@ -80,11 +81,12 @@ function noticeVigente(binding) {
   return (binding.branding && binding.branding.privacy_notice_version) || NOTICE_VIGENTE;
 }
 /**
- * lead_capture_mode do vínculo, ou null quando a função que o devolveu não traz o
- * campo (screener_op_get_binding, caminho sem rate). Em GET/POST /start o valor é
- * só informativo: o portão real é decidido no servidor (RPC rhia get_result e o
- * binding de resume, que sempre trazem o campo). O frontend trata null como
- * "optional_after_submit" e descobre o modo efetivo na resposta do submit.
+ * lead_capture_mode do vínculo. As duas funções que resolvem o vínculo trazem o
+ * campo: screener_rhia_op_get_binding (própria do rhia) e screener_op_preview_authorize
+ * (caminho com rate). Fica null só se um vínculo antigo não tiver o campo — o
+ * frontend então assume "optional_after_submit". Em todo caso o valor aqui é
+ * informativo: quem decide o portão é o servidor (a RPC get_result retém o
+ * resultado até haver lead), nunca o navegador.
  */
 const modoLead = (binding) => (binding && typeof binding.lead_capture_mode === "string" ? binding.lead_capture_mode : null);
 function sessaoValida(sess, now) {

@@ -7,10 +7,8 @@ As de UI são rastreadas às skills **Boomit Design** (`boomit-design-system`) e
 (`pacote/PROMPT-CLAUDE-CONSTRUIR-V2.md`, `pacote/ARQUITETURA-DEVOLUTIVA-V2.md`)
 e a casa apontam para lados diferentes, a decisão diz qual venceu e por quê.
 
-As decisões de UI que dependem do frontend em construção estão marcadas com
-`<!-- preencher: decisões do frontend -->`. A lista comentada no topo de
-`frontend/rhia.css` é a fonte primária dessas entradas; este arquivo é o espelho
-legível.
+A lista comentada no topo de `frontend/rhia.css` é a fonte primária das decisões
+de interface; este arquivo é o espelho legível, com o porquê de cada uma.
 
 ---
 
@@ -29,7 +27,13 @@ legível.
   o preto, na ação principal. "Se três coisas na tela estão verdes, nenhuma é
   importante" (Boomit Design).
 
-<!-- preencher: decisões do frontend -->
+**O que foi feito.** `frontend/rhia.css` é carregado depois de `tokens.css` e
+`screener.css`: reaproveita a base `sc-*` da casa (shell, cabeçalho, botões, cartão,
+opções, progresso, revisão, notas, erro) e acrescenta só o que este instrumento pede,
+com prefixo `rh-*`. Todas as cores vêm de tokens semânticos (`--bg-*`, `--text-*`,
+`--border-*`, `--action-*`, `--status-*`); não há nenhum hex escrito no componente.
+As únicas cores oficiais citadas diretamente aparecem no bloco de impressão, como rede
+de segurança para papel (ver 1.6).
 
 ### 1.2 Tipografia
 
@@ -46,7 +50,10 @@ legível.
   legibilidade vem de um bloco por ideia, com espaço generoso entre seções, não
   de reduzir o conteúdo aprovado.
 
-<!-- preencher: decisões do frontend -->
+**O que foi feito.** Inter nos pesos 400/500/600 (o `<head>` carrega só esses;
+`screener.css` já fixa `--font-sans`). **Não há bold**: títulos em 600, rótulos e
+números em 500, corpo em 400. A devolutiva é tratada como documento — coluna única
+com linha de leitura limitada a ~65ch, como manda o Modo 3 (relatório de devolutiva).
 
 ### 1.3 Hierarquia sem cor
 
@@ -62,7 +69,11 @@ legível.
   nem nota por dimensão em lugar nenhum do DOM público — exigência do pacote
   (PROMPT §3, ARQUITETURA §10) que coincide com a estética da casa.
 
-<!-- preencher: decisões do frontend -->
+**O que foi feito.** Um título é título por tamanho e peso, não por cor. Cartões são
+superfície branca com borda sutil e **sem sombra em repouso**. O verde da marca aparece
+só na ação de marca (enviar o contato, ver a leitura) e no traço de foco; o preto, na
+ação principal. Nenhuma seção da devolutiva é colorida para “destacar” — a ordem e o
+espaço fazem esse trabalho.
 
 ### 1.4 Estados semânticos
 
@@ -88,7 +99,12 @@ legível.
   `--text-danger` e confirmação nativa `confirm()` com texto claro — não um
   botão vermelho na tela (Boomit UI, botões).
 
-<!-- preencher: decisões do frontend -->
+**O que foi feito.** O gate de governança usa os tokens de estado — `danger` para
+condição crítica, `warning` para atenção e para informação insuficiente, neutro para
+controles monitorados, `success` para governança estabelecida — **sempre com ícone +
+rótulo + texto**: cor nunca é o único sinal. Crítico e insuficiente ganham borda de 2px
+e escala maior (a prioridade visual que o método exige), não um bloco chapado de cor.
+A restrição (`NO_SCALE`, `CONTROLLED_EXPERIMENTS`) é dita por extenso, não inferida do tom.
 
 ### 1.5 Escada de cinco referências
 
@@ -106,7 +122,12 @@ legível.
 - **Impressão:** a escada preserva o destaque por borda e peso, que sobrevive ao
   preto e branco.
 
-<!-- preencher: decisões do frontend -->
+**O que foi feito.** Componente novo e monocromático: cinco degraus como colunas de
+altura crescente (a metáfora da escada). O degrau atual é marcado por borda forte,
+superfície própria, peso 500 e o rótulo textual **“Degrau atual”**; a referência de
+atuação, por borda tracejada e rótulo próprio. Sem verde chapado, sem número grande,
+sem medalha — a leitura não pode soar premiação. Abaixo de 40rem a escada vira lista
+vertical, preservando a ordem.
 
 ### 1.6 Impressão
 
@@ -117,7 +138,12 @@ legível.
 - O CTA "Imprimir / salvar PDF" chama `window.print()`; não há geração de PDF
   no servidor.
 
-<!-- preencher: decisões do frontend -->
+**O que foi feito.** `@media print`: fundo branco (o app troca para o tema claro em
+`beforeprint`, então os tokens semânticos já resolvem para os valores claros), sem
+sombra, sem botões nem controles, cartões e tabela com `break-inside: avoid`, cabeçalho
+de impressão com **data de emissão e versão do instrumento** (`.rh-print-head`) e o
+disclaimer sempre presente. As cores oficiais do manual entram aqui apenas como rede de
+segurança de texto e borda no papel.
 
 ### 1.7 Acessibilidade (WCAG 2.2 AA)
 
@@ -133,7 +159,12 @@ legível.
 - Borda de campo em `--border-strong` (WCAG 1.4.11 exige 3:1 no limite do
   controle).
 
-<!-- preencher: decisões do frontend -->
+**O que foi feito.** Anel de foco de 2px com offset 2px (herdado de `tokens.css`) em
+tudo que é clicável; alvo mínimo de 44px (2.75rem) em botões e opções; `radiogroup` com
+`fieldset`/`legend` na tela de contexto; erro de campo abaixo do campo, com ícone e
+`aria-describedby`; `prefers-reduced-motion` desliga as animações; **320px sem overflow
+horizontal** — os grids colapsam e a tabela do plano vira cartão com o rótulo da coluna.
+Verificado no navegador a 320px: nenhum elemento ultrapassa a largura do documento.
 
 ### 1.8 Tom de voz
 

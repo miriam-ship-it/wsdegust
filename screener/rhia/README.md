@@ -88,6 +88,7 @@ Na raiz do repositório:
 | `npm run preview` | Só o estático de `frontend/`, em `http://localhost:4601` (sem edge; serve para conferir layout e impressão). |
 | `npm test` | Testes estáticos: núcleo rhia, frontend rhia, gerador de carga rhia, edge, motor V1, frontend V1, loader V1. |
 | `npm run test:behavioral` | Testes de comportamento contra pglite (`screener/loader/behavioral/*.behavioral.test.mjs`) — exigem `npm ci` dentro de `screener/loader/behavioral` uma vez. |
+| `npm run test:dev` | Sobe o dev server numa porta livre e percorre o fluxo inteiro por HTTP real (30 respostas, portão de lead, resultado). |
 | `npm run build` | `npm test` + a prova de fronteira (`screener/rhia/fronteira-rhia.test.mjs`). Não há bundling: o Netlify publica `frontend/` como está (`netlify.toml`). |
 
 Testes por pasta, sem o `package.json`:

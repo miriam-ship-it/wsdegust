@@ -390,6 +390,25 @@ begin
   return jsonb_build_object('status', 'ok');
 end $$;
 
+-- 2g. get_binding — igual à do V1, mas projetando lead_capture_mode, de que o
+--     frontend precisa já na abertura para saber se há portão antes do resultado.
+--     Função NOVA: não altera screener_op_get_binding, que está em produção.
+create or replace function public.screener_rhia_op_get_binding(p_event_slug text, p_preview_hash text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v public.screener_event_bindings%rowtype;
+begin
+  select * into v from public.screener_event_bindings where event_slug = p_event_slug and is_current;
+  if not found then return null; end if;
+  if v.status = 'internal_preview' and not public.screener_priv_previa_ok(
+       v.preview_credential_hash, v.preview_expires_at, v.preview_revoked_at, p_preview_hash) then
+    return null;
+  end if;
+  return jsonb_build_object('id', v.id, 'event_slug', v.event_slug, 'status', v.status,
+    'starts_at', v.starts_at, 'ends_at', v.ends_at, 'branding', v.branding,
+    'lead_capture_mode', v.lead_capture_mode,
+    'instrument_code', v.instrument_code, 'instrument_version', v.instrument_version);
+end $$;
+
 -- 3) PROPRIEDADE -> screener_owner (LISTA FECHADA, assinaturas completas) --------
 alter table    public.screener_rhia_sessions         owner to screener_owner;
 alter table    public.screener_rhia_responses        owner to screener_owner;
@@ -403,6 +422,7 @@ alter function public.screener_rhia_op_save_response(text, text, text, text) own
 alter function public.screener_rhia_op_finalize(text, text, jsonb, text, text, text, text, text) owner to screener_owner;
 alter function public.screener_rhia_op_get_result(text, text) owner to screener_owner;
 alter function public.screener_rhia_op_capturar_lead(text, text, text, text, boolean) owner to screener_owner;
+alter function public.screener_rhia_op_get_binding(text, text) owner to screener_owner;
 
 -- 4) PRIVILÉGIOS — EXECUTE só para screener_runtime; zero privilégio de tabela ----
 revoke all on table public.screener_rhia_sessions, public.screener_rhia_responses,
@@ -416,12 +436,14 @@ revoke all on function public.screener_rhia_op_save_response(text, text, text, t
 revoke all on function public.screener_rhia_op_finalize(text, text, jsonb, text, text, text, text, text) from public, anon, authenticated, service_role;
 revoke all on function public.screener_rhia_op_get_result(text, text)                                    from public, anon, authenticated, service_role;
 revoke all on function public.screener_rhia_op_capturar_lead(text, text, text, text, boolean)            from public, anon, authenticated, service_role;
+revoke all on function public.screener_rhia_op_get_binding(text, text)                                   from public, anon, authenticated, service_role;
 grant execute on function public.screener_rhia_op_start(text, text, text, timestamptz, timestamptz, text)   to screener_runtime;
 grant execute on function public.screener_rhia_op_resume(text, text)                                        to screener_runtime;
 grant execute on function public.screener_rhia_op_save_response(text, text, text, text)                     to screener_runtime;
 grant execute on function public.screener_rhia_op_finalize(text, text, jsonb, text, text, text, text, text) to screener_runtime;
 grant execute on function public.screener_rhia_op_get_result(text, text)                                    to screener_runtime;
 grant execute on function public.screener_rhia_op_capturar_lead(text, text, text, text, boolean)            to screener_runtime;
+grant execute on function public.screener_rhia_op_get_binding(text, text)                                   to screener_runtime;
 
 -- 5) fecha a fronteira: revoga o CREATE transitório do owner e a membership temporária
 do $$
