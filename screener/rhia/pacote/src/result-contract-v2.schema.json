@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boomit.example/schemas/rh-ia-result-v2.json",
+  "title": "Boomit RH + IA — Contrato de resultado v2",
+  "type": "object",
+  "required": ["public", "internal"],
+  "properties": {
+    "public": {
+      "type": "object",
+      "required": ["version", "status", "evidence", "governance", "disclaimer"],
+      "properties": {
+        "version": { "const": "2.0.0-pilot" },
+        "status": { "enum": ["ORIENTATIVE_HYPOTHESIS", "INSUFFICIENT"] },
+        "evidence": {
+          "type": "object",
+          "required": ["status", "validItems"],
+          "properties": {
+            "status": { "enum": ["BROAD", "ADEQUATE", "LIMITED", "INSUFFICIENT"] },
+            "validItems": { "type": "integer", "minimum": 0, "maximum": 24 }
+          }
+        },
+        "positioning": {
+          "type": "object",
+          "properties": {
+            "stage": { "enum": ["Operacional Ágil", "Gestor Tático", "Estrategista de Escala", "Arquiteto de Soluções", "Criador de Tecnologia"] },
+            "headline": { "type": "string" },
+            "reading": { "type": "string" },
+            "next": { "type": "string" },
+            "clarification": { "type": "string" }
+          },
+          "required": ["stage", "headline", "reading", "next"]
+        },
+        "reference": { "type": "object" },
+        "gap": { "type": "object" },
+        "signature": { "type": "object" },
+        "supporters": { "type": "array", "maxItems": 2 },
+        "limiters": { "type": "array", "maxItems": 2 },
+        "tensions": { "type": "array", "maxItems": 2 },
+        "governance": { "type": "object", "required": ["id", "label", "text"] },
+        "roleLens": { "type": "string" },
+        "nistRoute": { "type": "array", "minItems": 2, "maxItems": 4 },
+        "restriction": { "enum": ["NONE", "CONTROLLED_EXPERIMENTS", "NO_SCALE"] },
+        "actionPlan": { "type": "array", "minItems": 3, "maxItems": 3 },
+        "indicators": { "type": "array", "maxItems": 3 },
+        "executiveQuestions": { "type": "array", "maxItems": 3 },
+        "reassessment": { "type": "string" },
+        "disclaimer": { "type": "string" }
+      }
+    },
+    "internal": {
+      "type": "object",
+      "required": ["generatedAt", "instrumentVersion", "answers"],
+      "properties": {
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "instrumentVersion": { "type": "string" },
+        "answers": { "type": "object" }
+      }
+    }
+  }
+}
