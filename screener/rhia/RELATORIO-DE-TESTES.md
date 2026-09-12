@@ -34,6 +34,12 @@ frontend V1), que continuam verdes.
 
 As três suítes do rhia somam **55 testes**, todos verdes:
 
+| Suíte | Testes |
+|---|---:|
+| `rhia-rpc.behavioral.test.mjs` | 19 |
+| `edge-rhia.behavioral.test.mjs` | 28 |
+| `carga-rhia.behavioral.test.mjs` | 8 |
+
 - `rhia-rpc.behavioral.test.mjs` — as 7 funções `SECURITY DEFINER`: fluxo completo
   com `CTX01=OTHER` (31 linhas de resposta), canônico do SQL idêntico ao da edge,
   `respostas_mudaram`, idempotência, imutabilidade do snapshot, validação contra a
