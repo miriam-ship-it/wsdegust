@@ -388,11 +388,34 @@ const LOGO = `<img class="sc-logo" src="logo-boomit.png" alt="Boomit" width="146
 // Render puro da tela de RESULTADO (testável sem DOM)
 // =============================================================
 
-function secao(id, titulo, subtitulo, corpo, extra = "") {
+function secao(id, titulo, subtitulo, corpo, extra = "", n = 0) {
+  // O numeral não é ornamento: a devolutiva TEM ordem de leitura (a escada
+  // situa, a referência compara, a governança condiciona, o plano executa) e
+  // o mapa no início promete exatamente esta sequência. Fica fora da árvore
+  // de acessibilidade porque o <h2> já carrega o nome da seção.
+  const num = n ? `<span class="rh-sec__n" aria-hidden="true">${String(n).padStart(2, "0")}</span>` : "";
   return `<section class="rh-sec ${extra}" aria-labelledby="rh-sec-${id}">
-    <div class="rh-sec__head"><h2 class="rh-sec__title" id="rh-sec-${id}">${escapeHtml(titulo)}</h2>${subtitulo ? `<p class="rh-sec__sub">${escapeHtml(subtitulo)}</p>` : ""}</div>
+    <div class="rh-sec__head">${num}<h2 class="rh-sec__title" id="rh-sec-${id}">${escapeHtml(titulo)}</h2>${subtitulo ? `<p class="rh-sec__sub">${escapeHtml(subtitulo)}</p>` : ""}</div>
     ${corpo}
   </section>`;
+}
+
+/**
+ * Mapa de leitura: o que vem pela frente, na ordem. Montado a partir das
+ * seções REALMENTE renderizadas (tensões, por exemplo, somem quando não há
+ * assimetria a relatar) — um índice que promete uma seção inexistente é pior
+ * do que não existir.
+ */
+function mapaHtml(mapa) {
+  if (mapa.length < 2) return "";
+  const li = mapa.map((s, i) => `<li class="rh-mapa__i">
+      <span class="rh-mapa__n" aria-hidden="true">${String(i + 1).padStart(2, "0")}</span>
+      <span class="rh-mapa__t">${escapeHtml(s.titulo)}</span>
+    </li>`).join("");
+  return `<nav class="rh-mapa" aria-label="O que esta leitura traz">
+      <p class="rh-mapa__k">O que esta leitura traz</p>
+      <ol class="rh-mapa__l">${li}</ol>
+    </nav>`;
 }
 
 function cabecalhoImpressao(pub, instrumentVersion) {
@@ -404,9 +427,12 @@ function cabecalhoImpressao(pub, instrumentVersion) {
 function escadaHtml(pos) {
   const degraus = escadaComAtual(pos && pos.stage);
   const li = degraus.map((d) => `<li class="rh-escada__degrau ${d.atual ? "is-atual" : ""}" ${d.atual ? 'aria-current="step"' : ""}>
-      <span class="rh-escada__num" aria-hidden="true">${d.posicao}</span>
-      <span class="rh-escada__nome">${escapeHtml(d.nome)}</span>
-      ${d.atual ? `<span class="rh-escada__tag">Degrau atual</span>` : ""}
+      <span class="rh-escada__rot">
+        <span class="rh-escada__num">Degrau ${d.posicao}</span>
+        <span class="rh-escada__nome">${escapeHtml(d.nome)}</span>
+        ${d.atual ? `<span class="rh-escada__tag">Degrau atual</span>` : ""}
+      </span>
+      <span class="rh-escada__face" aria-hidden="true"></span>
     </li>`).join("");
   // A ressalva do quinto degrau vale para quem LÊ a escada, não só para quem
   // cai nele: o nome "Criador de Tecnologia" sugere propriedade de tecnologia,
@@ -414,9 +440,13 @@ function escadaHtml(pos) {
   // Quando o motor manda a clarificação (o respondente está no quinto degrau),
   // usamos a palavra dele; caso contrário, a mesma ressalva em terceira pessoa.
   const nota = (pos && pos.clarification) || NOTA_QUINTO_DEGRAU;
-  return `<ol class="rh-escada" aria-label="Escada de cinco referências, do primeiro ao quinto degrau">${li}</ol>
-    <p class="sc-help sc-muted rh-escada__nota">Cinco referências de atuação, não um ranking de pessoas nem uma sequência obrigatória.</p>
-    <p class="sc-help sc-muted rh-escada__nota">${escapeHtml(nota)}</p>`;
+  return `<figure class="rh-escada-fig">
+      <ol class="rh-escada" aria-label="Escada de cinco referências, do primeiro ao quinto degrau">${li}</ol>
+      <figcaption class="rh-escada__cap">
+        <p class="rh-escada__nota">Cinco referências de atuação, não um ranking de pessoas nem uma sequência obrigatória.</p>
+        <p class="rh-escada__nota">${escapeHtml(nota)}</p>
+      </figcaption>
+    </figure>`;
 }
 
 function gateHtml(gov, restriction) {
@@ -445,21 +475,37 @@ export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } =
   const sup = p.supporters || [], lim = p.limiters || [], ten = p.tensions || [];
   const data = formatarData(p.emitido_em);
 
-  // 1. Sua leitura orientativa + qualidade da evidência (+ lente do papel)
-  const s1 = `<header class="rh-result__head">
+  // Índice das seções REALMENTE renderizadas, na ordem em que são montadas.
+  // Alimenta o mapa de leitura da capa e o numeral de cada seção.
+  const mapa = [];
+  const sec = (id, titulo, sub, corpo, extra = "") => {
+    mapa.push({ id, titulo });
+    return secao(id, titulo, sub, corpo, extra, mapa.length);
+  };
+
+  // 0. Capa — abre acolhendo e só então delimita o que o documento é. A ordem
+  // importa: abrir pela ressalva ("não é avaliação de pessoa") faz o leitor
+  // receber uma negativa antes de receber a leitura que ele pediu. A ressalva
+  // continua inteira, uma frase abaixo, e integral no bloco final.
+  const s1 = `<header class="rh-capa">
       <p class="sc-eyebrow">Devolutiva</p>
-      <h1 class="sc-title sc-title--lg">Sua leitura orientativa</h1>
-      <p class="sc-lead">Hipótese orientativa a partir de evidências comportamentais autodeclaradas sobre a área que você tomou como referência. Não é avaliação de pessoa nem diagnóstico da empresa.</p>
-      <p class="rh-evid"><span class="rh-evid__k">Qualidade da evidência</span><span class="rh-evid__v">${escapeHtml(rotuloEvidencia(p.evidence && p.evidence.status))}</span></p>
+      <h1 class="sc-title sc-title--lg rh-capa__t">Sua leitura orientativa</h1>
+      <p class="sc-lead rh-capa__lead">Obrigada pelos minutos que você dedicou a responder. O que vem a seguir é uma leitura da área que você tomou como referência, construída a partir das suas próprias respostas.</p>
+      <p class="rh-capa__nota">É uma hipótese orientativa sobre práticas observáveis. Não é avaliação da sua pessoa nem diagnóstico da empresa.</p>
+      <dl class="rh-evid">
+        <dt class="rh-evid__k">Qualidade da evidência</dt>
+        <dd class="rh-evid__v">${escapeHtml(rotuloEvidencia(p.evidence && p.evidence.status))}</dd>
+      </dl>
       <p class="rh-evid__t">${escapeHtml(fraseEvidencia(p.evidence && p.evidence.status))}</p>
-      ${data ? `<p class="sc-help sc-muted">Emitido em ${escapeHtml(data)}.</p>` : ""}
+      ${data ? `<p class="rh-capa__data">Emitido em ${escapeHtml(data)}</p>` : ""}
     </header>
     ${p.roleLens ? `<aside class="rh-lente" aria-label="Lente do seu papel"><span class="rh-lente__k">Lente do seu papel</span><p class="rh-lente__t">${escapeHtml(p.roleLens)}</p></aside>` : ""}`;
 
   // 2. Escada + degrau atual
-  const s2 = secao("escada", "Onde as práticas se situam", "Cinco referências; só o degrau atual está em destaque.",
+  const s2 = sec("escada", "Onde as práticas se situam", "Cinco referências; só o degrau atual está em destaque.",
     escadaHtml(pos) +
     `<div class="rh-degrau">
+      <p class="rh-degrau__k">Seu degrau</p>
       <h3 class="rh-degrau__nome">${escapeHtml(pos.stage || "")}</h3>
       <p class="rh-degrau__headline">${escapeHtml(pos.headline || "")}</p>
       <p class="rh-prosa">${escapeHtml(pos.reading || "")}</p>
@@ -468,75 +514,81 @@ export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } =
 
   // 3. Referência de atuação e distância (ou inconclusiva)
   const refOk = ref.status === "VALID" && ref.stage;
-  const s3 = secao("referencia", "Referência de atuação e distância", "Alcance e autoridade informados compõem a referência; o papel não a altera.",
+  const s3 = sec("referencia", "Referência de atuação e distância", "Alcance e autoridade informados compõem a referência; o papel não a altera.",
     refOk
       ? `<p class="rh-prosa">Sua referência de atuação aponta para <span class="rh-k">${escapeHtml(ref.stage)}</span>.</p>
          <div class="rh-card"><h3 class="rh-card__t">${escapeHtml(gap.label || "")}</h3><p class="rh-card__p">${escapeHtml(gap.text || "")}</p></div>`
       : `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div><h3 class="rh-card__t">${escapeHtml(gap.label || "Referência de posição inconclusiva")}</h3><p class="rh-card__p">${escapeHtml(gap.text || "")}</p></div></div>`);
 
   // 4. Assinatura
-  const s4 = secao("assinatura", "Assinatura de posicionamento", "Como liderança, processos e IA se relacionam — sem notas.",
-    `<div class="rh-card"><h3 class="rh-card__t">${escapeHtml(sig.label || "")}</h3><p class="rh-card__p">${escapeHtml(sig.text || "")}</p></div>`);
+  const s4 = sec("assinatura", "Assinatura de posicionamento", "Como liderança, processos e IA se relacionam — sem notas.",
+    `<blockquote class="rh-cite"><h3 class="rh-cite__t">${escapeHtml(sig.label || "")}</h3><p class="rh-cite__p">${escapeHtml(sig.text || "")}</p></blockquote>`);
 
   // 5. Sustentadores / limitadores
   const colSup = sup.length ? `<div class="rh-col"><h3 class="rh-col__t">O que sustenta o avanço</h3>${sup.map((x) => `<div class="rh-evc"><span class="rh-evc__n">${escapeHtml(x.name)}</span><p class="rh-evc__p">${escapeHtml(x.evidence || "")}</p></div>`).join("")}</div>` : "";
   const colLim = lim.length ? `<div class="rh-col"><h3 class="rh-col__t">O que limita o avanço</h3>${lim.map((x) => `<div class="rh-evc rh-evc--lim"><span class="rh-evc__n">${escapeHtml(x.name)}</span><p class="rh-evc__p">${escapeHtml(x.risk || "")}</p>${x.action ? `<p class="rh-evc__a"><span class="rh-k">Próximo movimento.</span> ${escapeHtml(x.action)}</p>` : ""}</div>`).join("")}</div>` : "";
-  const s5 = secao("forcas", "Sustentadores e limitadores", "Leitura qualitativa: o que se destaca acima ou abaixo do conjunto.",
+  const s5 = sec("forcas", "Sustentadores e limitadores", "Leitura qualitativa: o que se destaca acima ou abaixo do conjunto.",
     (colSup || colLim) ? `<div class="rh-cols">${colSup}${colLim}</div>` : `<div class="rh-card rh-card--quiet"><p class="rh-card__p">As respostas não diferenciam uma dimensão das demais: a evolução parece homogênea. Não há sustentador nem limitador a destacar.</p></div>`);
 
   // 6. Tensões (oculta se vazia)
-  const s6 = ten.length ? secao("tensoes", ten.length === 1 ? "Tensão relevante" : "Tensões relevantes", "Assimetrias entre frentes que merecem verificação.",
+  const s6 = ten.length ? sec("tensoes", ten.length === 1 ? "Tensão relevante" : "Tensões relevantes", "Assimetrias entre frentes que merecem verificação.",
     `<div class="rh-lista">${ten.map((t) => `<div class="rh-card"><h3 class="rh-card__t">${escapeHtml(t.label)}</h3><p class="rh-card__p">${escapeHtml(t.text || "")}</p></div>`).join("")}</div>`) : "";
 
   // 7. Gate de governança (sempre visível)
-  const s7 = secao("governanca", "Governança", "Condição de avanço, à parte do posicionamento: não soma nem subtrai degraus.", gateHtml(p.governance, p.restriction), "rh-sec--gate");
+  const s7 = sec("governanca", "Governança", "Condição de avanço, à parte do posicionamento: não soma nem subtrai degraus.", gateHtml(p.governance, p.restriction), "rh-sec--gate");
 
   // 8. Rota NIST como ciclo
   const nist = p.nistRoute || [];
-  const s8 = secao("nist", "Rota de ação — NIST AI RMF", "Funções complementares e recorrentes, não estágios.",
+  const s8 = sec("nist", "Rota de ação — NIST AI RMF", "Funções complementares e recorrentes, não estágios.",
     `<ol class="rh-ciclo" aria-label="Ciclo de funções">${nist.map((f) => `<li class="rh-ciclo__f"><span class="rh-ciclo__ic">${ICONE.ciclo}</span><div><span class="rh-ciclo__n">${escapeHtml(f.function)}</span><p class="rh-ciclo__t">${escapeHtml(f.instruction || "")}</p></div></li>`).join("")}</ol>
      <p class="sc-help sc-muted">Essas funções são complementares e recorrentes, não estágios: o ciclo se repete a cada decisão.</p>`);
 
   // 9. Plano 30–60–90
   const plano = p.actionPlan || [];
-  const s9 = secao("plano", "Plano 30–60–90 dias", "Cada etapa com ação e evidência verificável de conclusão.",
+  const s9 = sec("plano", "Plano 30–60–90 dias", "Cada etapa com ação e evidência verificável de conclusão.",
     `<div class="rh-tabela-wrap"><table class="rh-tabela"><thead><tr><th scope="col">Horizonte</th><th scope="col">Ação</th><th scope="col">Evidência de conclusão</th></tr></thead>
       <tbody>${plano.map((e) => `<tr><th scope="row" data-col="Horizonte">${escapeHtml(e.horizon)}</th><td data-col="Ação">${escapeHtml(e.action)}</td><td data-col="Evidência de conclusão">${escapeHtml(e.evidence)}</td></tr>`).join("")}</tbody></table></div>`);
 
   // 10. Indicadores
   const ind = (p.indicators || []).slice(0, 3);
-  const s10 = secao("indicadores", "Indicadores para começar", "Até três, ligados às prioridades desta leitura.",
+  const s10 = sec("indicadores", "Indicadores para começar", "Até três, ligados às prioridades desta leitura.",
     `<ul class="rh-bullets">${ind.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`);
 
   // 11. Perguntas executivas
   const q = (p.executiveQuestions || []).slice(0, 3);
-  const s11 = secao("perguntas", "Perguntas para a conversa executiva", null,
+  const s11 = sec("perguntas", "Perguntas para a conversa executiva", null,
     `<ol class="rh-perguntas">${q.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ol>`);
 
   // 12. Reavaliação + disclaimer integral
-  const s12 = secao("reavaliacao", "Reavaliação e limite da leitura", null,
+  const s12 = sec("reavaliacao", "Reavaliação e limite da leitura", null,
     `<p class="rh-prosa">${escapeHtml(p.reassessment || "")}</p>
      <div class="rh-disclaimer"><span class="rh-k">Limite da leitura.</span> ${escapeHtml(p.disclaimer || "")}</div>`);
 
-  // 13. CTAs
-  const s13 = `<div class="rh-ctas">
+  // 13. Colofão + CTAs. O colofão é o que um documento sério carrega no pé:
+  // de onde a leitura saiu e em que versão — sem isso, a devolutiva não é
+  // auditável seis meses depois.
+  const colofao = [data ? `Emitido em ${data}` : "", instrumentVersion ? `Instrumento ${instrumentVersion}` : "", p.version ? `Devolutiva ${p.version}` : ""].filter(Boolean);
+  const s13 = `${colofao.length ? `<p class="rh-colofao">${colofao.map(escapeHtml).join(" · ")}</p>` : ""}
+    <div class="rh-ctas">
       <button class="sc-btn sc-btn--primary" type="button" data-acao="imprimir">${ICONE.imprimir} Imprimir ou salvar PDF</button>
       <button class="sc-btn sc-btn--ghost" type="button" data-acao="rever">Rever respostas</button>
       <button class="sc-btn sc-btn--ghost" type="button" data-acao="recomecar">Recomeçar</button>
     </div>`;
 
-  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
+  // O mapa só pode ser montado depois das seções (ele lista as que existem),
+  // mas é impresso logo após a capa.
+  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${mapaHtml(mapa)}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
 }
 
 /** Tela própria para status INSUFFICIENT: mensagem do motor + gate + CTAs. */
 export function renderInsuficiente(pub, { instrumentVersion = "" } = {}) {
   const p = pub || {};
   return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}
-    <header class="rh-result__head">
+    <header class="rh-capa">
       <p class="sc-eyebrow">Devolutiva</p>
-      <h1 class="sc-title sc-title--lg">Evidência insuficiente para uma leitura</h1>
-      <p class="sc-lead">${escapeHtml(p.missingMessage || "Não há evidência suficiente para compor uma hipótese de posicionamento.")}</p>
-      <p class="rh-evid"><span class="rh-evid__k">Qualidade da evidência</span><span class="rh-evid__v">${escapeHtml(rotuloEvidencia(p.evidence && p.evidence.status))}</span></p>
+      <h1 class="sc-title sc-title--lg rh-capa__t">Evidência insuficiente para uma leitura</h1>
+      <p class="sc-lead rh-capa__lead">${escapeHtml(p.missingMessage || "Não há evidência suficiente para compor uma hipótese de posicionamento.")}</p>
+      <dl class="rh-evid"><dt class="rh-evid__k">Qualidade da evidência</dt><dd class="rh-evid__v">${escapeHtml(rotuloEvidencia(p.evidence && p.evidence.status))}</dd></dl>
       <p class="sc-help sc-muted">Muitas respostas “não se aplica” numa mesma dimensão impedem a síntese. A sessão está fechada: reveja as respostas ou recomece pensando na mesma área do início ao fim.</p>
     </header>
     ${secao("governanca", "Governança", "Condição de avanço, à parte do posicionamento.", gateHtml(p.governance, null), "rh-sec--gate")}

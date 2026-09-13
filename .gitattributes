@@ -16,3 +16,4 @@ screener/rhia/pacote/** -text
 # Binários, explicitamente.
 *.docx binary
 *.png  binary
+*.pdf  binary

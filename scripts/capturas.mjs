@@ -55,6 +55,18 @@ async function avaliar(cdp, expressao) {
   return r.result.value;
 }
 
+/** Imprime a página em PDF (A4, com fundos) — o mesmo caminho do botão. */
+async function imprimir(cdp, arquivo) {
+  const { data } = await cdp.enviar("Page.printToPDF", {
+    printBackground: true, paperWidth: 8.27, paperHeight: 11.69,
+    marginTop: 0.6, marginBottom: 0.6, marginLeft: 0.6, marginRight: 0.6,
+    preferCSSPageSize: false,
+  });
+  fs.writeFileSync(path.join(DESTINO, arquivo), Buffer.from(data, "base64"));
+  const kb = Math.round(fs.statSync(path.join(DESTINO, arquivo)).size / 1024);
+  console.log(`  ${arquivo} (${kb} KB)`);
+}
+
 async function capturar(cdp, arquivo) {
   const { data } = await cdp.enviar("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
   fs.writeFileSync(path.join(DESTINO, arquivo), Buffer.from(data, "base64"));
@@ -140,6 +152,22 @@ async function percorrer(cdp, base, sufixo, { largura, altura, mobile }) {
   `);
   await dormir(1000);
   await capturar(cdp, `resultado-${sufixo}.png`);
+
+  // O papel. É a única saída que nenhum teste automatizado cobre, e é a que o
+  // participante leva para a reunião: sai aqui como PDF, no fluxo de verdade.
+  if (!mobile) await imprimir(cdp, "devolutiva-impressa.pdf");
+
+  // A mesma devolutiva no tema escuro. O botão de tema só troca o atributo no
+  // <html>, sem repintar a tela: a sessão e o resultado continuam de pé.
+  await avaliar(cdp, `
+    const b = document.querySelector('[data-acao="tema"]');
+    if (!b) throw new Error("sem botão de tema");
+    b.click();
+    await new Promise(r => setTimeout(r, 400));
+    return document.documentElement.getAttribute("data-theme");
+  `);
+  await dormir(400);
+  await capturar(cdp, `resultado-${sufixo}-escuro.png`);
 }
 
 const navegador = acharNavegador();

@@ -21,14 +21,19 @@
       monitorado, success para estabelecido) SEMPRE com ícone + rótulo + texto:
       cor nunca é o único sinal. Crítico/insuficiente ganham borda 2px e
       escala maior (prioridade visual), não um bloco chapado.
-   5. Escada — componente novo, monocromático: cinco degraus como colunas de
-      altura crescente (a metáfora da escada), com UM ÚNICO destaque — o degrau
-      atual, por borda forte, superfície e peso 500 mais o rótulo textual
-      "Degrau atual". A referência de atuação não é marcada aqui (ela é dita em
-      prosa no bloco 3): dois destaques na mesma escada leriam como "onde você
-      deveria estar". Sem verde chapado, sem medalha, sem número grande. Abaixo
-      de 40rem vira lista vertical. Nota fixa sob a escada: o quinto degrau não
-      exige tecnologia proprietária, modelo próprio nem agentes.
+   5. Escada — o gráfico da devolutiva. Cinco degraus subindo da esquerda para
+      a direita, nome acima do bloco, tamanho crescendo com a posição —
+      estrutura inspirada na escada do deck do curso. O 3D, o degradê e a
+      sombra do deck NÃO vieram: a skill os proíbe em gráfico. No lugar do
+      degradê, a rampa SEQUENCIAL sancionada (família moss, claro → escuro),
+      chapada. UM ÚNICO destaque: o degrau atual sai da rampa, recebe o preto
+      oficial, faixa quente atrás da coluna e a etiqueta contornada "Degrau
+      atual" — nunca só por cor (etiqueta + posição + aria-current). A
+      referência de atuação não é marcada aqui (é dita em prosa no bloco 3):
+      dois destaques leriam como "onde você deveria estar". Abaixo de 40rem a
+      escada gira e a altura vira largura de barra. Nota fixa sob a escada: o
+      quinto degrau não exige tecnologia proprietária, modelo próprio nem
+      agentes.
    6. Rota NIST — lista ordenada com ícone de ciclo e frase explícita "funções
       complementares e recorrentes, não estágios"; nada de setas de progresso.
    7. Plano 30–60–90 — tabela com divisor (sem zebra), cabeçalho 500; em tela
@@ -49,6 +54,15 @@
       overflow horizontal (grids colapsam, tabela vira cartão).
    10. Movimento — só a entrada suave da tela (200ms, ease da casa); nada de
       bounce; progresso com transição de largura.
+   11. Devolutiva como DOCUMENTO (Modo 3 da skill): capa em superfície quente
+      com respiro largo, mapa de leitura em duas colunas logo abaixo, seções
+      numeradas (o numeral é informação — a ordem de leitura é real), a
+      assinatura como citação com filete, e colofão com data e versões no pé.
+      O "encantador" pedido veio de escala, respiro e hierarquia tipográfica —
+      não de cor, ornamento ou métrica nova.
+   12. Escalas cruas — a rampa da escada (--moss-*) é a ÚNICA exceção à regra
+      "só tokens semânticos", confinada a variáveis locais de .rh-escada-fig.
+      A skill prevê exatamente este caso: série de gráfico.
    ============================================================= */
 
 .rh-shell { max-width: 46rem; }
@@ -90,19 +104,44 @@
    DEVOLUTIVA (documento, não dashboard)
    ========================================================================= */
 .rh-result { max-width: 65ch; margin: 0 auto; }
-.rh-result__head { padding: var(--space-8) 0 var(--space-2); }
-.rh-evid { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: baseline; margin: var(--space-6) 0 0; }
-.rh-evid__k { font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
-.rh-evid__v { font-size: var(--text-lg); font-weight: var(--weight-medium); }
-.rh-evid__t { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
-.rh-lente { margin-top: var(--space-6); border-left: 2px solid var(--bg-brand); background: var(--bg-surface-warm); border-radius: 0 var(--radius-md) var(--radius-md) 0; padding: var(--space-4) var(--space-5); }
-.rh-lente__k { display: block; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
-.rh-lente__t { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
 
-.rh-sec { margin-top: var(--space-12); }
-.rh-sec__head { margin-bottom: var(--space-5); }
+/* --- Capa ------------------------------------------------------------------
+   O documento abre como documento: respiro generoso, título grande, o que a
+   leitura é dita em prosa acolhedora e só então a ressalva metodológica. A
+   superfície quente separa a capa do miolo sem usar cor de marca. */
+.rh-capa { background: var(--bg-surface-warm); border-radius: var(--radius-xl); padding: var(--space-12) var(--space-10) var(--space-10); margin-top: var(--space-6); }
+.rh-capa__t { margin-top: var(--space-2); text-wrap: balance; }
+.rh-capa__lead { max-width: 34rem; }
+.rh-capa__nota { margin: var(--space-4) 0 0; max-width: 34rem; font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-tertiary); }
+.rh-capa__data { margin: var(--space-6) 0 0; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-evid { margin: var(--space-8) 0 0; padding-top: var(--space-5); border-top: 1px solid var(--border-subtle); }
+.rh-evid__k { font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-evid__v { margin: var(--space-1) 0 0; font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: var(--weight-medium); }
+.rh-evid dd { margin-inline-start: 0; }
+.rh-evid__t { margin: var(--space-2) 0 0; max-width: 34rem; font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
+@media (max-width: 40rem) { .rh-capa { padding: var(--space-8) var(--space-5); border-radius: var(--radius-lg); } }
+
+.rh-lente { margin-top: var(--space-6); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-left: 2px solid var(--bg-brand); border-radius: 0 var(--radius-md) var(--radius-md) 0; padding: var(--space-4) var(--space-5); }
+.rh-lente__k { display: block; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-lente__t { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
+
+/* --- Mapa de leitura -------------------------------------------------------
+   Duas colunas de itens numerados: diz de cara o tamanho e a ordem do que
+   vem. Não são links — a tela é roteada por hash, e um âncora mudaria a rota. */
+.rh-mapa { margin-top: var(--space-10); padding-top: var(--space-6); border-top: 1px solid var(--border-subtle); }
+.rh-mapa__k { margin: 0 0 var(--space-4); font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-mapa__l { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-6); }
+.rh-mapa__i { display: flex; gap: var(--space-3); align-items: baseline; min-width: 0; font-size: var(--text-sm); line-height: var(--leading-sm); }
+.rh-mapa__n { flex: none; color: var(--text-tertiary); font-variant-numeric: tabular-nums; font-size: var(--text-xs); }
+.rh-mapa__t { color: var(--text-secondary); min-width: 0; }
+@media (max-width: 40rem) { .rh-mapa__l { grid-template-columns: 1fr; } }
+
+/* --- Seções ---------------------------------------------------------------- */
+.rh-sec { margin-top: var(--space-16); }
+.rh-sec__head { margin-bottom: var(--space-6); }
+.rh-sec__n { display: block; margin-bottom: var(--space-2); font-size: var(--text-xs); letter-spacing: var(--tracking-display); color: var(--text-tertiary); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
 .rh-sec__title { font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: var(--weight-semibold); margin: 0; text-wrap: balance; }
-.rh-sec__sub { margin: var(--space-1) 0 0; font-size: var(--text-sm); color: var(--text-tertiary); }
+.rh-sec__sub { margin: var(--space-2) 0 0; max-width: 42rem; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-tertiary); }
 .rh-prosa { margin: 0 0 var(--space-3); font-size: var(--text-base); line-height: var(--leading-lg); color: var(--text-secondary); }
 .rh-prosa:last-child { margin-bottom: 0; }
 
@@ -117,30 +156,82 @@
 .rh-lista { display: grid; gap: var(--space-3); }
 @media (max-width: 30rem) { .rh-card { padding: var(--space-5); } }
 
-/* --- Escada de cinco referências ------------------------------------------ */
-.rh-escada { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); align-items: end; }
-.rh-escada__degrau { display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-1); min-width: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-muted); padding: var(--space-3); color: var(--text-tertiary); }
-.rh-escada__degrau:nth-child(1) { min-height: 5.5rem; }
-.rh-escada__degrau:nth-child(2) { min-height: 6.5rem; }
-.rh-escada__degrau:nth-child(3) { min-height: 7.5rem; }
-.rh-escada__degrau:nth-child(4) { min-height: 8.5rem; }
-.rh-escada__degrau:nth-child(5) { min-height: 9.5rem; }
-.rh-escada__num { font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
-.rh-escada__nome { font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
-.rh-escada__tag { display: inline-block; margin-top: var(--space-1); font-size: var(--text-xs); letter-spacing: 0.03em; text-transform: uppercase; font-weight: var(--weight-medium); color: var(--text-primary); }
-.rh-escada__degrau.is-atual { background: var(--bg-surface); border: 2px solid var(--border-strong); color: var(--text-primary); }
-.rh-escada__degrau.is-atual .rh-escada__nome { font-weight: var(--weight-medium); }
-.rh-escada__nota { margin-top: var(--space-3); }
-@media (max-width: 40rem) {
-  .rh-escada { grid-template-columns: 1fr; align-items: stretch; }
-  .rh-escada__degrau { flex-direction: row; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
-  .rh-escada__degrau:nth-child(n) { min-height: 2.75rem; }
-  .rh-escada__num { width: 1.5rem; flex: none; }
-  .rh-escada__tag { margin: 0 0 0 auto; }
+/* --- Escada de cinco referências (o gráfico da devolutiva) -----------------
+   Inspirada na escada do deck do curso: cinco degraus subindo da esquerda para
+   a direita, cada um com o nome acima do bloco. Três coisas do deck NÃO vieram,
+   porque o design system da casa as proíbe em gráfico: o 3D isométrico, o
+   degradê e a sombra. No lugar do degradê, a rampa SEQUENCIAL sancionada
+   (família moss, do claro ao escuro) — cinco preenchimentos chapados.
+   O degrau atual não entra na rampa: recebe o preto oficial, a faixa quente
+   atrás da coluna e a etiqueta "Degrau atual". Continua UM único destaque, e
+   nunca só por cor (etiqueta + posição + `aria-current`). A referência de
+   atuação segue fora daqui, em prosa, no bloco seguinte. */
+.rh-escada-fig {
+  margin: 0;
+  /* Rampa sequencial do gráfico. São escalas cruas de propósito: é a única
+     exceção prevista pelo design system (série de gráfico), não tem token
+     semântico equivalente e está confinada a este componente. */
+  --rh-passo-1: var(--moss-200); --rh-passo-2: var(--moss-300); --rh-passo-3: var(--moss-400);
+  --rh-passo-4: var(--moss-500); --rh-passo-5: var(--moss-600);
+  --rh-passo-atual: var(--boomit-preto);
 }
-.rh-degrau { margin-top: var(--space-6); }
-.rh-degrau__nome { margin: 0; font-size: var(--text-3xl); line-height: var(--leading-3xl); font-weight: var(--weight-semibold); text-wrap: balance; }
-.rh-degrau__headline { margin: var(--space-2) 0 var(--space-4); font-size: var(--text-lg); line-height: var(--leading-lg); font-weight: var(--weight-medium); color: var(--text-primary); }
+/* No escuro a rampa sobe em vez de descer: o canvas é o preto oficial, e um
+   moss-800 sobre ele seria um degrau invisível. Começa no moss-700 e clareia. */
+[data-theme="dark"] .rh-escada-fig {
+  --rh-passo-1: var(--moss-700); --rh-passo-2: var(--moss-600); --rh-passo-3: var(--moss-500);
+  --rh-passo-4: var(--moss-400); --rh-passo-5: var(--moss-300);
+  --rh-passo-atual: var(--boomit-apoio-03);
+}
+.rh-escada { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); align-items: end; border-bottom: 1px solid var(--border-default); }
+.rh-escada__degrau { display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-3); min-width: 0; padding: var(--space-4) var(--space-2) 0; }
+.rh-escada__rot { display: block; min-width: 0; }
+.rh-escada__num { display: block; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+.rh-escada__nome { display: block; margin-top: var(--space-1); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); overflow-wrap: anywhere; text-wrap: balance; }
+/* Etiqueta contornada, não chapada: sobre o degrau atual o bloco já é preto, e
+   uma pílula preta encostada nele vira uma mancha só. Também não quebra em
+   duas linhas — "Degrau atual" numa linha é o que identifica a coluna. */
+.rh-escada__tag { display: inline-block; margin-top: var(--space-2); padding: 2px var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-full); color: var(--text-primary); font-size: var(--text-xs); line-height: var(--leading-xs); letter-spacing: 0.03em; text-transform: uppercase; font-weight: var(--weight-medium); white-space: nowrap; }
+.rh-escada__face { display: block; border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--rh-passo-1); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.rh-escada__degrau:nth-child(1) .rh-escada__face { height: 2.5rem;  background: var(--rh-passo-1); }
+.rh-escada__degrau:nth-child(2) .rh-escada__face { height: 3.75rem; background: var(--rh-passo-2); }
+.rh-escada__degrau:nth-child(3) .rh-escada__face { height: 5rem;    background: var(--rh-passo-3); }
+.rh-escada__degrau:nth-child(4) .rh-escada__face { height: 6.25rem; background: var(--rh-passo-4); }
+.rh-escada__degrau:nth-child(5) .rh-escada__face { height: 7.5rem;  background: var(--rh-passo-5); }
+.rh-escada__degrau.is-atual { background: var(--bg-surface-warm); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.rh-escada__degrau.is-atual .rh-escada__num { color: var(--text-secondary); }
+.rh-escada__degrau.is-atual .rh-escada__nome { color: var(--text-primary); font-weight: var(--weight-medium); }
+.rh-escada__degrau.is-atual:nth-child(n) .rh-escada__face { background: var(--rh-passo-atual); }
+.rh-escada__cap { margin-top: var(--space-4); display: grid; gap: var(--space-2); }
+.rh-escada__nota { margin: 0; font-size: var(--text-xs); line-height: var(--leading-sm); color: var(--text-tertiary); }
+
+/* Abaixo de 40rem cinco colunas não cabem sem picotar os nomes: a escada gira,
+   e a altura do degrau vira a largura da barra. A leitura de ascensão fica. */
+@media (max-width: 40rem) {
+  .rh-escada { grid-template-columns: 1fr; align-items: stretch; gap: 0; border-bottom: 0; }
+  .rh-escada__degrau { flex-direction: column; align-items: stretch; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+  .rh-escada__degrau:last-child { border-bottom: 0; }
+  .rh-escada__degrau:nth-child(n) .rh-escada__face { height: 0.5rem; border-radius: var(--radius-full); }
+  .rh-escada__degrau:nth-child(1) .rh-escada__face { width: 20%; }
+  .rh-escada__degrau:nth-child(2) .rh-escada__face { width: 40%; }
+  .rh-escada__degrau:nth-child(3) .rh-escada__face { width: 60%; }
+  .rh-escada__degrau:nth-child(4) .rh-escada__face { width: 80%; }
+  .rh-escada__degrau:nth-child(5) .rh-escada__face { width: 100%; }
+  .rh-escada__degrau.is-atual { border-radius: var(--radius-md); }
+  .rh-escada__nome { font-size: var(--text-base); }
+}
+
+/* --- O degrau atual, por extenso ------------------------------------------ */
+.rh-degrau { margin-top: var(--space-10); padding-top: var(--space-8); border-top: 1px solid var(--border-subtle); }
+.rh-degrau__k { margin: 0; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-degrau__nome { margin: var(--space-2) 0 0; font-size: var(--text-3xl); line-height: var(--leading-3xl); font-weight: var(--weight-semibold); text-wrap: balance; }
+.rh-degrau__headline { margin: var(--space-3) 0 var(--space-5); font-size: var(--text-lg); line-height: var(--leading-lg); font-weight: var(--weight-medium); color: var(--text-primary); text-wrap: balance; }
+
+/* --- Assinatura como citação ----------------------------------------------
+   É a frase mais densa do documento; ganha escala de citação em vez de virar
+   mais um cartão igual aos outros. Filete à esquerda, sem aspas decorativas. */
+.rh-cite { margin: 0; border-left: 2px solid var(--border-strong); padding: var(--space-2) 0 var(--space-2) var(--space-6); }
+.rh-cite__t { margin: 0; font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: var(--weight-medium); text-wrap: balance; }
+.rh-cite__p { margin: var(--space-3) 0 0; font-size: var(--text-base); line-height: var(--leading-lg); color: var(--text-secondary); }
 
 /* --- Sustentadores / limitadores ------------------------------------------ */
 .rh-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
@@ -201,7 +292,9 @@
 .rh-perguntas li::marker { font-weight: var(--weight-medium); color: var(--text-primary); }
 .rh-disclaimer { margin-top: var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface-warm); padding: var(--space-4) var(--space-5); font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
 
-/* --- CTAs ------------------------------------------------------------------ */
+/* --- Colofão + CTAs -------------------------------------------------------- */
+.rh-colofao { margin: var(--space-16) 0 0; padding-top: var(--space-5); border-top: 1px solid var(--border-subtle); font-size: var(--text-xs); line-height: var(--leading-sm); letter-spacing: 0.02em; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+
 .rh-ctas { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: center; margin-top: var(--space-12); }
 .rh-sec--lead { margin-top: var(--space-12); }
 
@@ -227,10 +320,19 @@
      papel, então aqui a medida é em `em`, que o navegador resolve na impressão. */
   .rh-result { max-width: 40em; margin: 0 auto; animation: none; }
   .rh-print-head { display: block; font-size: var(--text-xs); color: var(--boomit-preto); border-bottom: 1px solid var(--boomit-apoio-02); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
-  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada__degrau, .rh-tabela tr, .rh-disclaimer, .rh-lente { break-inside: avoid; page-break-inside: avoid; }
-  .rh-sec { margin-top: var(--space-8); }
-  .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada__degrau, .rh-disclaimer, .rh-lente { box-shadow: none; }
-  .rh-escada__degrau.is-atual { border-color: var(--boomit-preto); }
+  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada-fig, .rh-tabela tr, .rh-disclaimer, .rh-lente, .rh-cite, .rh-mapa { break-inside: avoid; page-break-inside: avoid; }
+  .rh-sec { margin-top: var(--space-10); }
+  .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-disclaimer, .rh-lente { box-shadow: none; }
+  /* A capa é a primeira página: o miolo começa numa folha nova. */
+  .rh-capa { background: var(--bg-surface); border: 1px solid var(--boomit-apoio-02); border-radius: 0; padding: var(--space-8) 0; }
+  .rh-capa { border-left: 0; border-right: 0; border-top: 0; }
+  .rh-mapa { break-after: page; page-break-after: always; }
+  /* O gráfico da escada só vale impresso se os preenchimentos forem impressos;
+     se o navegador ainda assim descartar o fundo, o degrau atual continua
+     identificado pela etiqueta e pelo contorno. */
+  .rh-escada__face { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .rh-escada__degrau.is-atual { outline: 1px solid var(--boomit-preto); }
+  .rh-escada__tag { border: 1px solid var(--boomit-preto); }
   .rh-tabela-wrap { overflow: visible; }
   a[href]::after { content: ""; }
 }

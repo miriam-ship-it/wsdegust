@@ -194,11 +194,17 @@ semântica do motor do pacote, mexer em peso/corte/limiar ou tocar produção.
 ## Entregáveis do PROMPT §10
 
 - **Capturas** — `npm run capturas` sobe o dev server, dirige um Chrome headless
-  pelo protocolo de depuração (sem dependência nova) e grava as seis telas em
-  [capturas/](./capturas): abertura, questão e devolutiva, em desktop (1280×900,
-  densidade 2×) e mobile (390×844). Percorre o fluxo de verdade — contexto, as 30
-  respostas com perfil desigual, o portão de lead —, então a captura é evidência
+  pelo protocolo de depuração (sem dependência nova) e grava **nove** artefatos em
+  [capturas/](./capturas): abertura, questão e devolutiva em desktop (1280×900,
+  densidade 2×) e mobile (390×844), a devolutiva também no **tema escuro** nos dois
+  tamanhos, e `devolutiva-impressa.pdf`. Percorre o fluxo de verdade — contexto, as
+  30 respostas com perfil desigual, o portão de lead —, então a captura é evidência
   que se regenera, não um print que envelhece em silêncio.
+- **Impressão, agora coberta.** O `@media print` era o único item do §9 sem
+  verificação mecânica. O PDF sai pelo mesmo caminho do botão "Imprimir ou salvar
+  PDF" (`Page.printToPDF`, A4, com fundos) e mostra o que precisava ser mostrado:
+  capa isolada na página 1, escada preservada com os preenchimentos, tabela do
+  plano sem quebrar no meio da linha, disclaimer presente — 7 páginas.
 - **ZIP** — gerado com `git archive` (só o que está versionado: sem `node_modules`,
   sem cache, sem `.git`, sem rascunho). Verificado por extração em diretório limpo:
   `npm test` 208/208 e `npm run build` verdes a partir do pacote.

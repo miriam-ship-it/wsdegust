@@ -143,6 +143,31 @@ vertical, preservando a ordem. Sob a escada, a ressalva do quinto degrau.
 > contra o PROMPT §5.2. Removido de `rhia.mjs` e de `rhia.css`, e o teste que
 > exigia o segundo destaque foi corrigido.
 
+> Redesenho (13/09) — **a escada virou o gráfico da devolutiva.** A dona do
+> produto pediu que a entrega tivesse gráficos e que a escada se inspirasse na
+> escada do deck do curso (`Curso Leadrix — CEO — Business apresentação WS.pdf`,
+> slide “Nível 1 … Nível 5”). O deck desenha cinco blocos isométricos com
+> degradê do preto ao verde e sombra. Três coisas de lá **não** vieram, porque
+> a skill Boomit Design proíbe em gráfico: **3D, degradê e sombra em barra**.
+> O que veio foi a estrutura — cinco degraus subindo da esquerda para a direita,
+> o nome de cada um acima do bloco, o tamanho crescendo com a posição.
+>
+> No lugar do degradê, a **rampa sequencial sancionada pela própria skill**
+> (“sequencial `moss-100 → moss-900`”): cinco preenchimentos chapados da família
+> moss, do claro ao escuro. O degrau atual **não entra na rampa** — recebe o
+> preto oficial, uma faixa quente atrás da coluna e a etiqueta contornada
+> “Degrau atual”. Continua um único destaque, e nunca só por cor (etiqueta +
+> posição + `aria-current="step"`). No tema escuro a rampa é invertida
+> (moss-700 → moss-300): um moss-800 sobre o canvas preto seria um degrau
+> invisível.
+>
+> Esta é a única exceção de escala crua em `rhia.css`, confinada ao componente
+> e declarada como variáveis locais de `.rh-escada-fig`. A skill a prevê:
+> série de gráfico é o caso em que a escala crua é o valor certo.
+>
+> Abaixo de 40rem a escada gira: a altura do degrau vira a **largura da barra**,
+> e a leitura de ascensão se mantém sem picotar os nomes em cinco colunas.
+
 ### 1.6 Impressão
 
 - `@media print`: fundo branco, sem sombra, sem botões, cards com
@@ -208,6 +233,56 @@ vira cartão com o rótulo da coluna.
   casa: dizem o que houve e o que fazer, sem pedir desculpa.
 - Rótulos de qualidade da evidência: `BROAD` → "ampla", `ADEQUATE` →
   "adequada", `LIMITED` → "limitada" (ARQUITETURA §3).
+
+---
+
+### 1.9 A devolutiva como documento (redesenho de 13/09)
+
+Pedido da dona do produto: *"o layout da entrega precisa ser profissional,
+encantador, com tom de voz acolhedor, analítico, de valor e com muita entrega"*.
+O problema é que **"encantador" e a skill Boomit Design puxam para lados
+opostos** — a skill manda a interface ser quieta, quase monocromática, e diz
+para "errar para o lado do discreto". A decisão foi buscar o encantamento onde
+ele não custa sobriedade: **escala, respiro, hierarquia tipográfica e estrutura
+de documento** — não cor, não ornamento, não mais números.
+
+O que entrou:
+
+- **Capa.** A devolutiva abre como documento, em superfície quente
+  (`--bg-surface-warm`), com respiro largo, título grande e a qualidade da
+  evidência como dado de abertura. É o Modo 3 da skill Boomit UI ("trate como
+  documento, não como dashboard"; "a capa pode levar tratamento próprio").
+- **Ordem do texto de abertura invertida.** Antes a primeira frase era a
+  ressalva ("não é avaliação de pessoa nem diagnóstico da empresa"); quem
+  acabou de responder 30 itens recebia uma negativa antes da leitura que pediu.
+  Agora abre agradecendo e dizendo o que vem, e a ressalva vem na frase
+  seguinte — **inteira**, mais o disclaimer integral no bloco final. Nada de
+  rigor metodológico foi trocado por acolhimento; só a ordem mudou.
+- **Mapa de leitura.** Um índice de duas colunas logo depois da capa, montado a
+  partir das seções **realmente renderizadas** (quando não há tensão a relatar,
+  a seção some do documento e do mapa). Não são links: a tela é roteada por
+  hash e uma âncora mudaria a rota.
+- **Seções numeradas.** O numeral é informação, não ornamento: a devolutiva tem
+  ordem de leitura real (a escada situa, a referência compara, a governança
+  condiciona, o plano executa), e o mapa promete exatamente essa sequência.
+  Fica fora da árvore de acessibilidade, porque o `<h2>` já nomeia a seção.
+- **Assinatura como citação.** É a frase mais densa do documento; ganha escala
+  de citação com filete à esquerda em vez de virar mais um cartão igual aos
+  outros. Sem aspas decorativas.
+- **Colofão.** Data, versão do instrumento e versão da devolutiva no pé. Sem
+  isso a leitura não é auditável seis meses depois.
+
+O que **não** entrou, e por quê: nenhum gráfico por dimensão, nenhum radar,
+nenhum número, nenhuma porcentagem. O método proíbe expor nota por dimensão e
+pontos-base (PROMPT §5; `fronteira-rhia.test.mjs` falha o build se vazarem), e
+"mais entrega" não pode virar "mais métrica". A entrega cresceu em profundidade
+analítica e em legibilidade, não em instrumentação.
+
+**Verificação.** `npm run capturas` percorre o fluxo de verdade e grava agora
+**nove** artefatos: abertura, questão e devolutiva em desktop e mobile, a
+devolutiva **nos dois temas**, e `devolutiva-impressa.pdf` — o papel, que era o
+único item do §9 sem verificação mecânica, gerado pelo mesmo caminho do botão
+"Imprimir ou salvar PDF".
 
 ---
 
