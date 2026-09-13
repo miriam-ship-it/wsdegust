@@ -187,7 +187,23 @@ semântica do motor do pacote, mexer em peso/corte/limiar ou tocar produção.
   [LIMITES-METODOLOGICOS.md](./LIMITES-METODOLOGICOS.md). Nada aqui constitui escala
   validada. Duas divergências do pacote consigo mesmo (limiar de extremos e nomes de
   dimensão) estão registradas lá e em DECISOES, não resolvidas por nós.
-- **`npm run test:behavioral` exige `npm ci` uma vez** dentro de
-  `screener/loader/behavioral` (é onde o pglite vive).
+- **`npm run test:behavioral` exige `npm run setup` uma vez** (instala o pglite em
+  `screener/loader/behavioral`, onde ele vive). `npm run dev` e `npm run test:dev`
+  também dependem dele, e avisam o que fazer quando falta.
+
+## Entregáveis do PROMPT §10
+
+- **Capturas** — `npm run capturas` sobe o dev server, dirige um Chrome headless
+  pelo protocolo de depuração (sem dependência nova) e grava as seis telas em
+  [capturas/](./capturas): abertura, questão e devolutiva, em desktop (1280×900,
+  densidade 2×) e mobile (390×844). Percorre o fluxo de verdade — contexto, as 30
+  respostas com perfil desigual, o portão de lead —, então a captura é evidência
+  que se regenera, não um print que envelhece em silêncio.
+- **ZIP** — gerado com `git archive` (só o que está versionado: sem `node_modules`,
+  sem cache, sem `.git`, sem rascunho). Verificado por extração em diretório limpo:
+  `npm test` 208/208 e `npm run build` verdes a partir do pacote.
+- **Varredura de segredos** — nenhum `.env`, nenhuma chave privada, nenhuma
+  `service_role`. Os JWTs presentes em `frontend/` são a chave `anon` do projeto
+  (publicável por desenho, decodificada e conferida: `role=anon`).
 - **Nada foi aplicado a produção.** As migrations `20260912120000` e `20260913120000`
   são arquivos; o roteiro de aplicação está em [DEPLOY.md](./DEPLOY.md).
