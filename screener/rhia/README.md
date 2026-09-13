@@ -96,7 +96,6 @@ Testes por pasta, sem o `package.json`:
 
 ```bash
 node --test screener/rhia/*.test.mjs
-node --test frontend/rhia.test.mjs
 node --test screener/loader/gerar-carga-rhia.test.mjs
 cd screener/loader/behavioral && node --test rhia-rpc.behavioral.test.mjs edge-rhia.behavioral.test.mjs carga-rhia.behavioral.test.mjs
 ```
@@ -112,7 +111,12 @@ screener/rhia/
 ├── DEPLOY.md                     roteiro de colocação no ar, sob autorização
 ├── definicao.mjs                 instrumento (JSON verbatim), canonicalize, checksum(), apresentacaoPublica()
 ├── logica.mjs                    validarResposta, validarSubmissao, canonico, calcularContrato, paraPublico
+├── ACEITE.md                     checklist do pacote, item a item, com a prova de cada um
+├── RELATORIO-DE-TESTES.md        comandos, números e limitações
 ├── definicao.test.mjs · logica.test.mjs · fronteira-rhia.test.mjs
+├── motor-casos.test.mjs          os casos obrigatórios do PROMPT §9 pela porta da casa
+├── pacote-integro.test.mjs       manifesto sha256 + contrato do motor contra o schema
+├── frontend-rhia.test.mjs        testes do app — FORA de frontend/, que o Netlify publica
 └── pacote/                       fonte de verdade, verbatim (ver precedência abaixo)
     ├── instrumento-rh-ia-v1.json
     ├── src/output-engine-v2.mjs · output-definition-v2.mjs · result-contract-v2.schema.json

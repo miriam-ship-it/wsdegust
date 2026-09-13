@@ -108,9 +108,9 @@ handler e das RPC):
 </script>
 ```
 
-Sem credencial de prévia: o link é público. Verificação: `node --test
-frontend/rhia.test.mjs` e `npm run build` verdes; `npm run dev` roda o fluxo
-inteiro contra o pglite (o portão retém o resultado e o revela após o lead).
+Sem credencial de prévia: o link é público. Verificação: `npm test` e
+`npm run build` verdes; `npm run dev` roda o fluxo inteiro contra o pglite
+(o portão retém o resultado e o revela após o lead).
 Commit no branch; entra em produção só no Passo 6.
 
 Rollback: reverter o commit (nada foi a prod).

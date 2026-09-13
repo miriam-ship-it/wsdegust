@@ -3,6 +3,13 @@
 > Texto integral do contrato de construção, registrado como documentação. É a
 > referência contra a qual cada módulo desta pasta (núcleo, banco, edge,
 > frontend, loader, dev server, docs) foi escrito e testado.
+>
+> **Este é o contrato COMO FOI EMITIDO — não é atualizado.** A revisão
+> adversarial mudou duas coisas de layout: os testes do app saíram de
+> `frontend/rhia.test.mjs` para `screener/rhia/frontend-rhia.test.mjs` (o
+> Netlify publica `frontend/` inteiro, e o teste carregava o motor privado), e
+> o `npm test` acompanhou. O estado atual está no
+> [README.md](./README.md); o porquê, em [DECISOES.md](./DECISOES.md).
 
 Repositório: `wsdegust-worktrees/ia-maturity-diagnostic-module-54e0fb` (git worktree; nunca fazer cd para outro repo; nunca usar git stash; o orquestrador commita).
 
