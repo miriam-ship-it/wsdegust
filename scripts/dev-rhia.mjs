@@ -23,7 +23,19 @@ import { instrumento, canonicalize } from "../screener/rhia/definicao.mjs";
 
 // pglite vive em screener/loader/behavioral/node_modules (é dependência de teste).
 const require = createRequire(path.join(RAIZ, "screener/loader/behavioral/package.json"));
-const { PGlite } = require("@electric-sql/pglite");
+let PGlite;
+try {
+  ({ PGlite } = require("@electric-sql/pglite"));
+} catch {
+  // Num clone novo essa dependência ainda não foi instalada. Diga o que fazer,
+  // em vez de deixar o stack trace do require falar pela ferramenta.
+  console.error(
+    "\nO banco de desenvolvimento (pglite) ainda não foi instalado.\n" +
+    "Rode uma vez:  npm run setup\n" +
+    "(equivale a `npm ci` dentro de screener/loader/behavioral, onde essa dependência vive.)\n"
+  );
+  process.exit(1);
+}
 const { createHash } = await import("node:crypto");
 
 const MIGR = path.join(RAIZ, "supabase", "migrations");

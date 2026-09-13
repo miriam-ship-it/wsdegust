@@ -84,10 +84,11 @@ Na raiz do repositório:
 
 | Comando | O que faz |
 |---|---|
+| `npm run setup` | **Uma vez, num clone novo.** Instala o pglite (o banco de desenvolvimento), que vive em `screener/loader/behavioral`. Sem ele, `npm run dev`, `npm run test:dev` e `npm run test:behavioral` não rodam. |
 | `npm run dev` | Sobe `http://localhost:4600` servindo `frontend/` e montando `/functions/v1/screener/*` sobre um Postgres efêmero (pglite) com as migrations `20260902143339`, `20260903120000`, `20260904120000`, `20260905120000`, `20260912120000` e `20260913120000`. Abra **http://localhost:4600/rhia.html**. O dev server injeta `window.SCREENER_RHIA_CONFIG` em `rhia.html` só em dev; o arquivo não é editado. CORS liberado só para localhost. |
 | `npm run preview` | Só o estático de `frontend/`, em `http://localhost:4601` (sem edge; serve para conferir layout e impressão). |
 | `npm test` | Testes estáticos: núcleo rhia, frontend rhia, gerador de carga rhia, edge, motor V1, frontend V1, loader V1. |
-| `npm run test:behavioral` | Testes de comportamento contra pglite (`screener/loader/behavioral/*.behavioral.test.mjs`) — exigem `npm ci` dentro de `screener/loader/behavioral` uma vez. |
+| `npm run test:behavioral` | Testes de comportamento contra pglite (`screener/loader/behavioral/*.behavioral.test.mjs`) — exigem `npm run setup` antes. |
 | `npm run test:dev` | Sobe o dev server numa porta livre e percorre o fluxo inteiro por HTTP real (30 respostas, portão de lead, resultado). |
 | `npm run build` | `npm test` + a prova de fronteira (`screener/rhia/fronteira-rhia.test.mjs`). Não há bundling: o Netlify publica `frontend/` como está (`netlify.toml`). |
 

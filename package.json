@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Screener Boomit — V1 (Empresa+IA, em produção) e Diagnóstico RH+IA v2 (rhia).",
   "scripts": {
+    "setup": "npm ci --prefix screener/loader/behavioral",
     "dev": "node scripts/dev-rhia.mjs",
     "preview": "node scripts/preview-static.mjs",
     "test": "node --test screener/rhia/*.test.mjs screener/loader/gerar-carga-rhia.test.mjs screener/edge/*.test.mjs screener/motor/*.test.mjs frontend/screener.test.mjs screener/loader/loader.test.mjs screener/rhia/pacote/tests/*.test.mjs",
