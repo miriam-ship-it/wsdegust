@@ -234,3 +234,10 @@
   .rh-tabela-wrap { overflow: visible; }
   a[href]::after { content: ""; }
 }
+
+/* --- Foco programático do título ao trocar de tela -------------------------
+   `pintar()` leva o foco ao <h1> quando a tela muda, para que o leitor de tela
+   anuncie a tela nova (o <main> não é live region, de propósito). O título não
+   é um controle operável por teclado, então não leva anel de foco: o indicador
+   visível continua obrigatório em tudo que se clica ou tabula. */
+.rh-shell h1[tabindex="-1"]:focus { outline: none; }

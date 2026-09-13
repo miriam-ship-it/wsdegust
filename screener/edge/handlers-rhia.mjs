@@ -71,10 +71,24 @@ async function resolverBinding(ctx, event_slug, previewHash, ipHmac) {
     if (r.status === "invalid") return { erro: resp(404, { error: "nao_encontrado" }) };
     return { erro: resp(503, { error: "indisponivel_temporario" }) }; // bad_key
   }
-  const b = await rpc(ctx, "screener_rhia_op_get_binding", [event_slug, previewHash]);
+  let b;
+  try { b = await rpc(ctx, "screener_rhia_op_get_binding", [event_slug, previewHash]); }
+  // Sem isto a exceção escapava do handler e o dispatcher devolvia 500 com o
+  // texto cru do Postgres a uma entrada anônima (ex.: "invalid byte sequence
+  // for encoding UTF8"). O diagnóstico fica no log; o cliente recebe o genérico.
+  catch { return { erro: resp(503, { error: "indisponivel_temporario" }) }; }
   if (!b) return { erro: resp(404, { error: "nao_encontrado" }) };
   return { binding: b };
 }
+
+/**
+ * Forma do slug de evento, igual ao CHECK da tabela de vínculos
+ * (`^[a-z0-9]+(-[a-z0-9]+)*$`). Um slug fora disso não pode casar com vínculo
+ * nenhum: recusamos antes de tocar o banco, para que caractere de controle ou
+ * byte inválido nem cheguem ao Postgres.
+ */
+const SLUG_VALIDO = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const slugUtilizavel = (s) => typeof s === "string" && s.length <= 120 && SLUG_VALIDO.test(s);
 
 /** Versão vigente do aviso de privacidade — do vínculo ou o padrão. */
 function noticeVigente(binding) {
@@ -139,6 +153,7 @@ function mapaRespostas(responses) {
 // ---------- GET /rhia/start (obter apresentação) ----------
 export async function getStartRhia(ctx, { event_slug, previewKey, ipHmac }) {
   if (!event_slug) return resp(400, { error: "event_slug_obrigatorio" });
+  if (!slugUtilizavel(event_slug)) return resp(404, { error: "nao_encontrado" });
   const { binding, erro } = await resolverBinding(ctx, event_slug, await previaHash(previewKey), ipHmac);
   if (erro) return erro; // inexistente/prévia sem credencial → 404; excesso → 429
   const cap = capacidades(binding, ctx.now());
@@ -157,6 +172,7 @@ export async function getStartRhia(ctx, { event_slug, previewKey, ipHmac }) {
 // ---------- POST /rhia/start (iniciar sessão) ----------
 export async function postStartRhia(ctx, { event_slug, previewKey, privacy_ack, privacy_notice_version, ipHmac }) {
   if (!event_slug) return resp(400, { error: "event_slug_obrigatorio" });
+  if (!slugUtilizavel(event_slug)) return resp(404, { error: "nao_encontrado" });
   const previewHash = await previaHash(previewKey);
   const { binding, erro } = await resolverBinding(ctx, event_slug, previewHash, ipHmac);
   if (erro) return erro;

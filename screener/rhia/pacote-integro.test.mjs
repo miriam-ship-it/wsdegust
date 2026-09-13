@@ -148,3 +148,39 @@ test("o modelo público do ramo normal também cabe no schema (sem internal)", (
   assert.equal(pub.internal, undefined);
   assert.match(pub.emitido_em, /^\d{4}-\d{2}-\d{2}$/);
 });
+
+/** Perfil desigual: estratégia e influência no topo, desenvolvimento e IA atrás. */
+function respostasDesiguais() {
+  const porDimensao = { EST: "E4", INF: "E4", TAL: "E3", DAD: "E3", DES: "E2", IA: "E2" };
+  const out = {};
+  CTX.forEach((it, i) => { out[it.id] = it.options[[0, 2, 2][i]].id; });
+  for (const it of instrumento.items) {
+    if (it.kind === "scored") out[it.id] = porDimensao[it.dimension];
+    if (it.kind === "governance_gate") out[it.id] = "E3";
+  }
+  return out;
+}
+
+test("perfil desigual exercita os arrays de verdade: maxItems 2 e os sub-schemas", () => {
+  // Os outros casos do schema são uniformes, e neles supporters/limiters/tensions
+  // vêm SEMPRE vazios — o `maxItems: 2` do contrato nunca era checado de fato.
+  const contrato = calcularContrato({ respostas: respostasDesiguais() });
+  const pub = paraPublico(contrato);
+
+  assert.equal(pub.status, "ORIENTATIVE_HYPOTHESIS");
+  assert.equal(pub.supporters.length, 2, "o perfil precisa gerar dois sustentadores");
+  assert.equal(pub.limiters.length, 2, "o perfil precisa gerar dois limitadores");
+  assert.equal(pub.tensions.length, 2, "o perfil precisa gerar duas tensões");
+
+  assert.deepEqual(validar(SCHEMA, contrato), [], "contrato desigual fora do schema");
+  assert.deepEqual(validar(SCHEMA.properties.public, pub), [], "modelo público desigual fora do schema");
+
+  // Forma de cada item — o schema declara os arrays, mas não o conteúdo.
+  for (const s of pub.supporters) assert.deepEqual(Object.keys(s).sort(), ["evidence", "name"]);
+  for (const l of pub.limiters) assert.deepEqual(Object.keys(l).sort(), ["action", "name", "risk"]);
+  for (const t of pub.tensions) assert.deepEqual(Object.keys(t).sort(), ["label", "text"]);
+
+  // O motor tinha três candidatas a tensão neste perfil; o corte em duas é regra
+  // do método (ARQUITETURA §7), não acaso do caso escolhido.
+  assert.ok(!JSON.stringify(pub).includes("Bp"), "pontos-base no modelo público");
+});

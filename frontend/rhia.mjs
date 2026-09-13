@@ -1029,18 +1029,35 @@ export function iniciarApp(cfg) {
     const acao = el.getAttribute("data-acao");
     return acao ? `[data-acao="${acao}"]` : null;
   }
+  // Qual tela estava pintada da última vez — para distinguir TROCA DE TELA de
+  // repintura dentro da mesma tela (responder um item, salvar, validar).
+  let telaPintada = null;
+
   function pintar() {
     const compacto = st.tela === "questoes" || st.tela === "contexto";
     const foco = marcaDeFoco();
+    const trocouDeTela = st.tela !== telaPintada;
     raiz.innerHTML = `<div class="sc-shell rh-shell rh-tela--${st.tela}">` + cabecalho(compacto) + corpo() + `</div>`;
+    telaPintada = st.tela;
     if (st.tela === "questoes") {
       const q = raiz.querySelector("#sc-questao");
       if (q) { try { q.focus({ preventScroll: true }); } catch { /* ok */ } }
       return;
     }
-    // Nas demais telas, devolve o foco a quem o tinha (mesmo elemento, mesma
-    // alternativa). Se o elemento não existe mais, o foco simplesmente não é
-    // roubado — nenhuma tela depende disso para funcionar.
+    // TROCA DE TELA: leva o foco ao título. Sem isto nada é anunciado a quem usa
+    // leitor de tela — o <main> não é live region (seria pior: reanunciaria a
+    // tela inteira a cada resposta), então é o foco que precisa dizer "mudou".
+    if (trocouDeTela) {
+      const h1 = raiz.querySelector("h1");
+      if (h1) {
+        h1.setAttribute("tabindex", "-1");
+        try { h1.focus({ preventScroll: true }); } catch { /* ok */ }
+        return;
+      }
+    }
+    // Repintura na MESMA tela: devolve o foco a quem o tinha (mesmo elemento,
+    // mesma alternativa). Se o elemento não existe mais, o foco simplesmente
+    // não é roubado — nenhuma tela depende disso para funcionar.
     if (foco) focar(foco);
   }
 

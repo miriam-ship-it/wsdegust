@@ -15,8 +15,8 @@ repositório e todo teste de banco roda contra um Postgres efêmero (pglite).
 
 | Comando | Testes | Passa | Falha | Skip |
 |---|---:|---:|---:|---:|
-| `npm test` (estáticos: rhia + regressão V1) | 207 | 207 | 0 | 0 |
-| `npm run test:behavioral` (pglite) | 116 | 115 | 0 | 1 |
+| `npm test` (estáticos: rhia + regressão V1) | 208 | 208 | 0 | 0 |
+| `npm run test:behavioral` (pglite) | 118 | 117 | 0 | 1 |
 | `npm run test:dev` (dev server, HTTP real) | 5 | 5 | 0 | 0 |
 
 O único `skip` é herdado do V1 (existia antes deste trabalho) e não pertence ao
@@ -43,12 +43,12 @@ frontend V1), que continuam verdes — inclusive
 
 ### Por suíte — comportamentais (pglite, Postgres real)
 
-As três suítes do rhia somam **56 testes**, todos verdes:
+As três suítes do rhia somam **58 testes**, todos verdes:
 
 | Suíte | Testes |
 |---|---:|
 | `rhia-rpc.behavioral.test.mjs` | 19 |
-| `edge-rhia.behavioral.test.mjs` | 29 |
+| `edge-rhia.behavioral.test.mjs` | 31 |
 | `carga-rhia.behavioral.test.mjs` | 8 |
 
 - `rhia-rpc.behavioral.test.mjs` — as 7 funções `SECURITY DEFINER`: fluxo completo
