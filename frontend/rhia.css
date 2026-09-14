@@ -101,6 +101,37 @@
 .rh-progress__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
 .sc-opt { position: relative; }
 
+/* --- Questões: pilha com vizinhos esmaecidos ------------------------------
+   Uma questão por vez, com a anterior e a próxima visíveis e apagadas. Dá
+   sentido de percurso — quanto já andou, o que vem — sem competir com a
+   pergunta que está sendo respondida. Escolher já avança, então não há botão
+   de "Avançar": o único controle é o caminho de volta, que é o vizinho de
+   cima (a seta ← faz o mesmo).
+
+   O vizinho de baixo NÃO é clicável e sai da árvore de acessibilidade: ver o
+   que vem não pode virar pular sem responder. O de cima é um <button> de
+   verdade, com rótulo próprio para quem usa leitor de tela. */
+.rh-pilha { display: grid; gap: var(--space-4); margin-top: var(--space-5); }
+.rh-viz { display: block; width: 100%; text-align: left; margin: 0; border: 0; background: none;
+  padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg); color: var(--text-tertiary);
+  font: inherit; opacity: 0.55; transition: opacity var(--duration-base) var(--ease-out); }
+.rh-viz__k { display: block; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; font-weight: var(--weight-medium); }
+.rh-viz__t { display: block; margin-top: var(--space-1); font-size: var(--text-sm); line-height: var(--leading-sm);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rh-viz--antes { cursor: pointer; border: 1px solid transparent; }
+.rh-viz--antes:hover { opacity: 0.9; background: var(--bg-muted); }
+.rh-viz--antes:focus-visible { opacity: 1; border-color: var(--border-default); }
+.rh-viz--depois { pointer-events: none; user-select: none; }
+.rh-pilha__atual { margin: 0; }
+/* O botão de avançar sumiu; a barra fica só com o indicador de salvamento. */
+.rh-nav--simples { justify-content: flex-end; }
+@media (max-width: 30rem) {
+  .rh-viz { padding: var(--space-3) var(--space-4); }
+  .rh-viz__t { -webkit-line-clamp: 1; }
+}
+/* Quem pediu menos movimento não recebe a transição de opacidade. */
+@media (prefers-reduced-motion: reduce) { .rh-viz { transition: none; } }
+
 /* --- Revisão -------------------------------------------------------------- */
 .rh-rev__texto { color: var(--text-primary); }
 .rh-tela--revisao .sc-rev__linha .sc-btn { min-height: 2.75rem; }

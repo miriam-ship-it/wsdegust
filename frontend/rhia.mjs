@@ -822,6 +822,18 @@ export function iniciarApp(cfg) {
     if (r.status !== 200) { st.erroTopo = mensagemErro(r.status, r.body); return pintar(); }
     st.salvoRecente = true; st.erroTopo = null; rastrear("question_answered", { id: item_id, option: value });
     if (repintar) pintar(); else refrescarLeve();
+
+    // Avanço automático: só depois de a resposta estar GRAVADA (avançar antes
+    // esconderia uma falha de rede) e só quando a escolha foi deliberada —
+    // clique, toque ou tecla numérica. Nunca por `change` de navegação: as
+    // setas ↑↓ percorrem as alternativas de um radiogroup e disparam `change` a
+    // cada parada; avançar ali tornaria o teclado inutilizável.
+    if (foiEscolhaDeliberada() && st.tela === "questoes" && !st.avancando) {
+      escolhaDeliberadaEm = 0;   // uma escolha, um avanço
+      st.avancando = true;
+      // A pausa é para a pessoa VER a escolha marcar antes de a tela trocar.
+      setTimeout(() => { st.avancando = false; if (st.tela === "questoes") avancar(); }, 340);
+    }
   }
   // Texto livre: sai para o servidor só quando válido (o servidor recusa 2–120 inválido).
   async function salvarTextoOutro() {
@@ -923,6 +935,28 @@ export function iniciarApp(cfg) {
     }
     st.pos = 0; persistir(); rastrear("context_completed"); irPara("questoes");
   }
+  // ESCOLHA DELIBERADA vs. NAVEGAÇÃO. O avanço automático não pode depender da
+  // ordem entre `click` e `change`, que varia entre navegadores. Em vez de um
+  // sinalizador consumido na ordem errada, guardamos QUANDO houve uma escolha
+  // deliberada e perguntamos, na hora de avançar, se foi agora.
+  //
+  // Contam como deliberadas: toque, clique (inclusive Espaço num radio com
+  // foco, que dispara `click`) e tecla numérica. NÃO conta a navegação por ↑↓
+  // dentro do radiogroup, que dispara `change` a cada parada sem `click` — se
+  // ela avançasse, o teclado ficaria inutilizável.
+  //
+  // O DISCRIMINADOR NÃO PODE SER O `click`. Descoberto medindo, não supondo:
+  // percorrer um radiogroup com ↑↓ executa o comportamento de ativação do
+  // navegador, que MARCA o radio e dispara `click` e `change` — indistinguíveis
+  // dos de um toque. A única coisa que separa navegar de escolher é saber qual
+  // TECLA foi pressionada, e isso só o `keydown` sabe (ele roda antes da ação
+  // padrão). Por isso a seta anota "estou navegando" e o Espaço a desanota.
+  let escolhaDeliberadaEm = 0;
+  let navegandoPorSetaEm = 0;
+  const marcarEscolhaDeliberada = () => { escolhaDeliberadaEm = Date.now(); };
+  const foiEscolhaDeliberada = () =>
+    Date.now() - escolhaDeliberadaEm < 1500 && Date.now() - navegandoPorSetaEm > 900;
+
   function avancar() {
     if (st.pos >= st.flat.length - 1) { st.pos = st.flat.length - 1; persistir(); return irPara("revisao"); }
     st.pos += 1; persistir(); pintar(); scrollTopo();
@@ -1046,18 +1080,32 @@ export function iniciarApp(cfg) {
     const dim = it.dimension_name ? ` · ${escapeHtml(it.dimension_name)}` : "";
     const escolhido = st.respostas[it.id];
     const ultimo = st.pos === st.flat.length - 1;
+    // Vizinhos esmaecidos: dão contexto do percurso sem competir com a questão
+    // atual. O ANTERIOR é clicável (é o caminho de volta, e a seta ← faz o
+    // mesmo); o PRÓXIMO não é — ver ainda não é poder pular.
+    const anterior = st.pos > 0 ? st.flat[st.pos - 1] : null;
+    const proxima = st.pos < st.flat.length - 1 ? st.flat[st.pos + 1] : null;
+    const antesHtml = `<button class="rh-viz rh-viz--antes" type="button" data-acao="voltar-nav"
+        aria-label="${anterior ? `Voltar para a pergunta ${anterior.order}` : "Voltar para o contexto"}">
+        <span class="rh-viz__k">${anterior ? `Pergunta ${anterior.order}` : "Contexto"}</span>
+        <span class="rh-viz__t">${escapeHtml(anterior ? anterior.prompt : "As três perguntas de contexto")}</span>
+      </button>`;
+    const depoisHtml = `<p class="rh-viz rh-viz--depois" aria-hidden="true">
+        <span class="rh-viz__k">${proxima ? `Pergunta ${proxima.order}` : "Para encerrar"}</span>
+        <span class="rh-viz__t">${escapeHtml(proxima ? proxima.prompt : "Conferir as respostas e enviar")}</span>
+      </p>`;
     return `${progressoHtml(`${escapeHtml(grupo)}${dim}`, `Pergunta ${it.order} de ${st.itens.length}`)}
       ${avisoStorage()}${noteTopo()}
-      <article class="sc-item" id="sc-questao" tabindex="-1" aria-label="Pergunta ${it.order} de ${st.itens.length}">
-        <p class="sc-item__prompt" id="rh-item-prompt">${escapeHtml(it.prompt)}</p>
-        <div class="sc-opts" role="radiogroup" aria-labelledby="rh-item-prompt">${opcoesHtml(it, escolhido, true)}</div>
-      </article>
-      <p class="sc-kbd">Use <kbd>1</kbd>–<kbd>${it.options.length}</kbd> para escolher · <kbd>Enter</kbd> avança · <kbd>←</kbd> volta</p>
-      <div class="sc-nav">
-        <button class="sc-btn sc-btn--ghost" type="button" data-acao="voltar-nav">${ICONE.volta} Voltar</button>
-        ${autosaveHtml()}
-        <button class="sc-btn sc-btn--primary" type="button" data-acao="avancar-nav" ${escolhido ? "" : "disabled"}>${ultimo ? "Revisar" : "Avançar"} ${ICONE.seta}</button>
-      </div>`;
+      <div class="rh-pilha">
+        ${antesHtml}
+        <article class="sc-item rh-pilha__atual" id="sc-questao" tabindex="-1" aria-label="Pergunta ${it.order} de ${st.itens.length}">
+          <p class="sc-item__prompt" id="rh-item-prompt">${escapeHtml(it.prompt)}</p>
+          <div class="sc-opts" role="radiogroup" aria-labelledby="rh-item-prompt">${opcoesHtml(it, escolhido, true)}</div>
+        </article>
+        ${depoisHtml}
+      </div>
+      <p class="sc-kbd">Escolher já avança · <kbd>1</kbd>–<kbd>${it.options.length}</kbd> escolhe · <kbd>↑</kbd><kbd>↓</kbd> percorrem · <kbd>Espaço</kbd> confirma · <kbd>←</kbd> volta</p>
+      <div class="sc-nav rh-nav--simples">${autosaveHtml()}</div>`;
   }
 
   // ---------- render: revisão ----------
@@ -1244,6 +1292,12 @@ export function iniciarApp(cfg) {
     if (acao === "editar") return editarItem(alvo.getAttribute("data-item"));
     if (fns[acao]) return fns[acao]();
   });
+  for (const tipo of ["pointerdown", "click"]) {
+    raiz.addEventListener(tipo, (ev) => {
+      const alvo = ev.target && ev.target.closest ? ev.target.closest('[data-acao="resposta"], .sc-opt') : null;
+      if (alvo) marcarEscolhaDeliberada();
+    }, true);   // captura: roda antes de qualquer `change`, em qualquer navegador
+  }
   raiz.addEventListener("change", (ev) => {
     const alvo = ev.target; if (!alvo.getAttribute) return;
     const acao = alvo.getAttribute("data-acao");
@@ -1286,8 +1340,20 @@ export function iniciarApp(cfg) {
     const it = st.flat[st.pos]; if (!it) return;
     if (ev.key >= "1" && ev.key <= "9") {
       const idx = Number(ev.key) - 1;
-      if (idx < it.options.length) { ev.preventDefault(); salvarResposta(it.id, it.options[idx].id); }
+      if (idx < it.options.length) { ev.preventDefault(); marcarEscolhaDeliberada(); salvarResposta(it.id, it.options[idx].id); }
     } else if (ev.key === "Enter" || ev.key === "ArrowRight") {
+      if (st.respostas[it.id]) { ev.preventDefault(); avancar(); }
+    } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {
+      // Navegação entre alternativas: NÃO é escolha, e não pode avançar.
+      navegandoPorSetaEm = Date.now();
+    } else if (ev.key === " " || ev.key === "Spacebar") {
+      // Espaço numa alternativa com foco É escolha. Dois caminhos:
+      //  - alternativa ainda não marcada: o navegador marca, dispara `change`,
+      //    e o avanço automático acontece pelo caminho normal;
+      //  - alternativa JÁ marcada (veio de ↑↓, que marca ao navegar): não há
+      //    mudança de estado, logo não há `change` nem avanço — então avançamos
+      //    aqui. É o que faz o teclado terminar o percurso sem botão.
+      navegandoPorSetaEm = 0; marcarEscolhaDeliberada();
       if (st.respostas[it.id]) { ev.preventDefault(); avancar(); }
     } else if (ev.key === "ArrowLeft") {
       ev.preventDefault(); voltar();

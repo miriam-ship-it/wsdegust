@@ -122,13 +122,17 @@ async function percorrer(cdp, base, sufixo, { largura, altura, mobile }) {
       if (!m) break;
       const n = Number(m[1]);
       const alvo = n <= 27 ? PLANO[ORDEM[n - 4]] : "E3";   // 28-30 são os gates
+      // Não há mais botão de avançar: escolher já avança. Esperamos a tela
+      // trocar de pergunta em vez de clicar em algo.
       const rad = [...document.querySelectorAll('input[type=radio]')];
       (rad.find(x => x.value === alvo) || rad[0]).click();
-      await new Promise(r => setTimeout(r, 220));
-      const b = document.querySelector('[data-acao="avancar-nav"]');
-      if (!b) break;
-      b.click();
-      await new Promise(r => setTimeout(r, 380));
+      let mudou = false;
+      for (let t = 0; t < 60; t++) {
+        await new Promise(r => setTimeout(r, 100));
+        const c2 = (document.querySelector(".sc-progress__count") || {}).textContent || "";
+        if (c2 !== cont || location.hash !== "#questoes") { mudou = true; break; }
+      }
+      if (!mudou) break;
       if (location.hash !== "#questoes") break;
     }
     return { hash: location.hash, progresso: (document.querySelector(".sc-progress__count") || {}).textContent || null,
