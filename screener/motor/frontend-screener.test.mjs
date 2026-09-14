@@ -10,7 +10,7 @@ import {
   rotuloEscopo, matrizPonto, sinteseExecutiva, planoDeAcao, mensagemErro, chaveArmazenamento,
   guardarSessao, lerSessao, limparSessao, criarCliente, EVENTO_PADRAO,
   modoDoStatus, leadModoEfetivo, validarEmail, descreverErro,
-} from "./screener.mjs";
+} from "../../frontend/screener.mjs";
 
 function memStore() {
   const m = new Map();

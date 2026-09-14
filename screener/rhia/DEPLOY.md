@@ -392,12 +392,76 @@ autorização.
 
 ---
 
+## Registro de execução
+
+### Decisões, autorizadas em 14/09/2026
+
+- **D1** — site confirmado: `diagnosticoboomit`. Link público será
+  `https://diagnosticoboomit.netlify.app/rhia.html`.
+- **D2** — ligar Force HTTPS no site e cadastrar **só** a origem
+  `https://diagnosticoboomit.netlify.app` no `SCREENER_CORS_ORIGINS` (Passo 3).
+- **D3** — `frontend/screener.test.mjs` **movido** para
+  `screener/motor/frontend-screener.test.mjs`. O diretório publicado não tem
+  mais nenhum arquivo de teste, e a exceção herdada saiu de
+  `fronteira-rhia.test.mjs`: a regra agora é absoluta.
+
+### Passo 0 — preflight read-only · 14/09/2026 · **passou**
+
+| Checagem | Esperado | Observado |
+|---|---|---|
+| Migrations aplicadas | 9 | 9 |
+| Migrations pendentes | 04, 05, 12, 13 | 04, 05, 12, 13 — nada além |
+| Tabelas `screener_rhia_*` | 0 | 0 |
+| Funções `screener_rhia_op_*` | 0 | 0 |
+| Vínculo `boomit-degustacao-rh-ia` | 0 | 0 |
+| Instrumento `boomit_rh_ia_maturity_v1` | 0 | 0 |
+| `screener_owner` NOLOGIN | presente | presente |
+| `screener_runtime` LOGIN | presente | presente |
+| `pg_cron` disponível | sim | 1.6.4 disponível, ainda não instalado |
+| `npm run build` | verde | verde |
+| `npm test` | verde | 208/208 |
+| `npm run test:behavioral` | verde | 117 passam, 1 pulado (herdado do V1) |
+
+**Linha de base do V1**, para provar depois que o Passo 2 não o tocou:
+
+| | |
+|---|---|
+| Tabelas `screener_*` | 6 |
+| RPC `screener_op_*` | 6 |
+| Vínculos / instrumentos | 1 / 1 |
+| Sessões, respostas, leads, snapshots | 0, 0, 0, 0 |
+| Tabelas de rate limit | 0 (a 04 cria) |
+
+**Advisors de segurança — linha de base.** Nenhum alerta é do rhia, porque nada
+do rhia existe ainda. Os que aparecem são pré-existentes e ficam registrados
+para comparação depois do Passo 2:
+
+- `rls_enabled_no_policy` (INFO) nas 6 tabelas `screener_*`. **É o desenho, não
+  um defeito:** RLS ligado sem policy é negação total, e o acesso acontece só
+  pelas RPC `SECURITY DEFINER` do `screener_owner`. As 4 tabelas rhia vão
+  aparecer aqui pelo mesmo motivo.
+- `function_search_path_mutable` (WARN) em `screener_snapshot_impede_update`,
+  do V1. Verificado: **não é `SECURITY DEFINER`** (roda como quem invoca) e
+  pertence ao `screener_owner`, então não há caminho de escalada. Fica como
+  pendência de higiene do V1, não bloqueia. As 7 RPC do rhia já nascem com
+  `search_path = ''`.
+- `auth_allow_anonymous_sign_ins` (WARN) em `admin_eventos`, `eventos`,
+  `relatorios`, `respondentes`, `respostas` — tabelas do painel antigo, fora
+  deste roteiro.
+- `auth_leaked_password_protection` desabilitado — ajuste de Auth, fora deste
+  roteiro.
+
+**Critério do Passo 0: bateu em tudo.** Liberado para o Passo 2 quando você
+autorizar.
+
+---
+
 ## Checklist
 
-- [ ] D1 — site confirmado (`diagnosticoboomit`).
-- [ ] D2 — decisão sobre Force HTTPS e a allowlist de origem.
-- [ ] D3 — decisão sobre o que mais o merge publica.
-- [ ] Passo 0 — preflight read-only bateu.
+- [x] D1 — site confirmado (`diagnosticoboomit`).
+- [x] D2 — Force HTTPS + allowlist só em `https://`.
+- [x] D3 — teste do V1 movido para fora do diretório publicado.
+- [x] Passo 0 — preflight read-only bateu (14/09/2026).
 - [x] Passo 1 — `rhia.html` ligado à edge (commitado, fora do ar).
 - [ ] Passo 2 — migrations 04, 05, 12 e 13 aplicadas; verificação bateu.
 - [ ] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos.

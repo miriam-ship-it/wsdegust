@@ -123,13 +123,12 @@ test("nenhum arquivo publicado importa de fora do diretório publicado", () => {
 
 test("nenhum arquivo de teste NOVO dentro do diretório publicado", () => {
   const publishDir = path.resolve(RAIZ, lerPublishDir());
-  // Exceção herdada e documentada: o teste do V1 já estava publicado antes desta
-  // fronteira e o V1 é intocável. Ele é autocontido (importa só ./screener.mjs) e
-  // os dois testes acima provam que não carrega marcador interno. Nenhum arquivo
-  // de teste NOVO pode entrar aqui — mova-o para junto do módulo que ele prova.
-  const HERDADOS = new Set(["screener.test.mjs"]);
+  // Não há mais exceção. O teste do V1 era a única herdada; em 14/09 ele foi
+  // para screener/motor/frontend-screener.test.mjs, antes de a `main` publicar
+  // o diretório. Arquivo de teste não tem função no ar: ele fica junto do
+  // módulo que prova, nunca dentro do que o Netlify serve.
   const testes = arquivosDe(publishDir)
     .map((f) => path.relative(publishDir, f).split(path.sep).join("/"))
-    .filter((rel) => /\.test\.[^./]+$/.test(rel) && !HERDADOS.has(rel));
+    .filter((rel) => /\.test\.[^./]+$/.test(rel));
   assert.deepEqual(testes, [], `arquivo de teste dentro do publish dir: ${testes.join(", ")}`);
 });
