@@ -129,7 +129,7 @@
    Duas colunas de itens numerados: diz de cara o tamanho e a ordem do que
    vem. Não são links — a tela é roteada por hash, e um âncora mudaria a rota. */
 .rh-mapa { margin-top: var(--space-10); padding-top: var(--space-6); border-top: 1px solid var(--border-subtle); }
-.rh-mapa__k { margin: 0 0 var(--space-4); font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-mapa__k { margin: 0 0 var(--space-2); font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
 .rh-mapa__l { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-6); }
 .rh-mapa__i { display: flex; gap: var(--space-3); align-items: baseline; min-width: 0; font-size: var(--text-sm); line-height: var(--leading-sm); }
 .rh-mapa__n { flex: none; color: var(--text-tertiary); font-variant-numeric: tabular-nums; font-size: var(--text-xs); }
@@ -292,6 +292,19 @@
 .rh-perguntas li::marker { font-weight: var(--weight-medium); color: var(--text-primary); }
 .rh-disclaimer { margin-top: var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface-warm); padding: var(--space-4) var(--space-5); font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
 
+/* --- Fecho da oferta -------------------------------------------------------
+   O documento fecha dizendo o que ele é (o primeiro dos quatro blocos do
+   workshop) e o que vem depois. Superfície quente, como a capa: abre e fecha
+   pelo mesmo tom, e o miolo — que é o diagnóstico — fica visualmente entre os
+   dois. Sem botão e sem cor de ação: é informação, não anúncio. */
+.rh-oferta { margin-top: var(--space-16); background: var(--bg-surface-warm); border-radius: var(--radius-xl); padding: var(--space-10); }
+.rh-oferta__k { margin: 0; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-oferta__t { margin: var(--space-3) 0 0; font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: var(--weight-semibold); text-wrap: balance; }
+.rh-oferta__p { margin: var(--space-4) 0 0; max-width: 34rem; font-size: var(--text-base); line-height: var(--leading-lg); color: var(--text-secondary); }
+.rh-oferta__f { margin: var(--space-6) 0 0; padding-top: var(--space-5); border-top: 1px solid var(--border-subtle); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-primary); font-weight: var(--weight-medium); }
+@media (max-width: 40rem) { .rh-oferta { padding: var(--space-8) var(--space-5); border-radius: var(--radius-lg); } }
+.rh-mapa__arco { margin: 0 0 var(--space-5); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+
 /* --- Colofão + CTAs -------------------------------------------------------- */
 .rh-colofao { margin: var(--space-16) 0 0; padding-top: var(--space-5); border-top: 1px solid var(--border-subtle); font-size: var(--text-xs); line-height: var(--leading-sm); letter-spacing: 0.02em; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
 
@@ -320,7 +333,7 @@
      papel, então aqui a medida é em `em`, que o navegador resolve na impressão. */
   .rh-result { max-width: 40em; margin: 0 auto; animation: none; }
   .rh-print-head { display: block; font-size: var(--text-xs); color: var(--boomit-preto); border-bottom: 1px solid var(--boomit-apoio-02); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
-  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada-fig, .rh-tabela tr, .rh-disclaimer, .rh-lente, .rh-cite, .rh-mapa { break-inside: avoid; page-break-inside: avoid; }
+  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada-fig, .rh-tabela tr, .rh-disclaimer, .rh-lente, .rh-cite, .rh-mapa, .rh-oferta { break-inside: avoid; page-break-inside: avoid; }
   .rh-sec { margin-top: var(--space-10); }
   .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-disclaimer, .rh-lente { box-shadow: none; }
   /* A capa é a primeira página: o miolo começa numa folha nova. */
