@@ -24,6 +24,7 @@ const MIGR = path.resolve(AQUI, "..", "..", "..", "supabase", "migrations");
 const SCHEMA = fs.readFileSync(path.join(MIGR, "20260902143339_screener_tabelas_isoladas.sql"), "utf8");
 const RPC = fs.readFileSync(path.join(MIGR, "20260903120000_screener_rpc_e_papeis.sql"), "utf8");
 const RHIA = fs.readFileSync(path.join(MIGR, "20260912120000_screener_rhia_tabelas_e_rpc.sql"), "utf8");
+const SEARCHPATH = fs.readFileSync(path.join(MIGR, "20260914120000_screener_search_path_nos_triggers.sql"), "utf8");
 
 const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
 const PREVIEW = "chave-rhia";
@@ -54,7 +55,7 @@ function contrato(respostas) {
 async function ambiente({ status = "public_pilot", cred = null, leadMode = "required_before_result" } = {}) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
-  await db.exec(SCHEMA); await db.exec(RPC); await db.exec(RHIA);
+  await db.exec(SCHEMA); await db.exec(RPC); await db.exec(RHIA); await db.exec(SEARCHPATH);
   await db.query(`insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
                   values ($1,$2,$3,$4,'inactive')`, [CODE, VERSAO, JSON.stringify(instrumento), ICS]);
   await db.query(`insert into public.screener_event_bindings
@@ -433,4 +434,52 @@ test("execução real como screener_runtime: fluxo inteiro pelas funções; tabe
       await assert.rejects(db.query(`select * from public.${t}`), /permission denied/i, t);
     await assert.rejects(db.query("insert into public.screener_rhia_leads (session_id, email, email_normalized) values (gen_random_uuid(),'x@y.co','x@y.co')"), /permission denied/i);
   } finally { await db.exec("reset role"); }
+});
+
+// -------------------------------------------------------------------------
+// 20260914120000 — search_path fixo nas funções de trigger de snapshot.
+// O advisor do Supabase apontava as duas como `search_path` mutável. Fixar é
+// higiene, mas só vale se o trigger CONTINUAR recusando o UPDATE: uma função de
+// trigger com search_path errado pode passar a falhar por outro motivo e a
+// imutabilidade do snapshot ficaria "garantida" por acidente.
+// -------------------------------------------------------------------------
+
+test("search_path: as duas funções de trigger ficam com search_path vazio", async () => {
+  const db = await ambiente();
+  const { rows } = await db.query(`
+    select p.proname, coalesce(array_to_string(p.proconfig, ','), '') as config, p.prosecdef
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname like 'screener%snapshot_impede_update'
+     order by 1`);
+  assert.equal(rows.length, 2, "as duas funções de trigger existem");
+  for (const r of rows) {
+    assert.equal(r.config, 'search_path=""', `${r.proname} precisa de search_path VAZIO, não um qualquer`);
+    assert.equal(r.prosecdef, false, `${r.proname} não pode ser SECURITY DEFINER`);
+  }
+});
+
+test("search_path: com o search_path fixo, o snapshot continua imutável", async () => {
+  const db = await ambiente();
+  const th = await abrir(db, "tk-sp");
+  const resp = respostasCompletas();
+  await responderTudo(db, th, resp);
+  await finalizar(db, th, resp);
+  const { rows } = await db.query("select id from public.screener_rhia_result_snapshots limit 1");
+  assert.ok(rows[0], "há snapshot para tentar alterar");
+  await assert.rejects(
+    () => db.query("update public.screener_rhia_result_snapshots set created_at = now() where id = $1", [rows[0].id]),
+    /imutavel/i,
+    "o UPDATE tem de continuar sendo recusado pelo trigger, com a mesma mensagem");
+});
+
+test("search_path: a migration devolve a membership temporária de screener_owner", async () => {
+  const db = await ambiente();
+  const { rows } = await db.query(`
+    select count(*)::int as n
+      from pg_auth_members m
+      join pg_roles papel  on papel.oid  = m.roleid
+      join pg_roles membro on membro.oid = m.member
+     where papel.rolname = 'screener_owner' and membro.rolname = current_user`);
+  assert.equal(rows[0].n, 0,
+    "a migration pega a membership para poder alterar as funções e tem de devolvê-la");
 });

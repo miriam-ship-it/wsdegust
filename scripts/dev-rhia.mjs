@@ -50,6 +50,7 @@ export async function prepararBanco() {
   await db.exec(ler("20260912120000_screener_rhia_tabelas_e_rpc.sql"));
   // Carga do instrumento + vínculo público, exatamente a migration versionada.
   await db.exec(ler("20260913120000_screener_rhia_carga_publica.sql"));
+  await db.exec(ler("20260914120000_screener_search_path_nos_triggers.sql"));
   // Confere que a carga deixou o banco coerente com o repositório.
   const somaRepo = createHash("sha256").update(canonicalize(instrumento), "utf8").digest("hex");
   const { rows } = await db.query(

@@ -19,6 +19,16 @@
 6. **O V1 é intocável.** Nada neste roteiro altera objeto, função ou página do
    screener V1 que já está em produção.
 
+> **Exceção ao princípio 6, aberta em 14/09/2026.** Um princípio que se dobra em
+> silêncio deixa de valer; um que registra a exceção continua valendo. Por isso:
+> o **Passo 2b** altera **uma** função do V1,
+> `public.screener_snapshot_impede_update`, para fixar `search_path = ''`. É
+> endurecimento, não mudança de comportamento — a função não é `SECURITY
+> DEFINER`, o corpo é um único `raise exception` com string literal, e o teste
+> comportamental prova que o trigger continua recusando o UPDATE depois do ALTER.
+> A alternativa era deixar a metade do V1 eternamente pendente no advisor. Nada
+> além desta função é tocado no V1.
+
 ---
 
 ## Como você autoriza
@@ -241,6 +251,76 @@ credencial nula; job do cron ativo.
 (a edge só ganha as rotas no Passo 4). Para fechar sem dropar nada, use o kill
 switch no fim deste documento. Drop de objeto exige autorização e migration
 própria.
+
+---
+
+## Passo 2b — `search_path` fixo nas funções de trigger · **escrita em banco**
+
+**Migration:** `20260914120000_screener_search_path_nos_triggers.sql`.
+**Revisada** pelo revisor de migration da casa antes de qualquer apply, que
+reprovou a primeira versão por uma linha faltando (a membership de
+`screener_owner` não era devolvida). Corrigido.
+
+**O que muda.** Fixa `search_path = ''` em `screener_snapshot_impede_update`
+(V1) e `screener_rhia_snapshot_impede_update` (rhia). Fecha o achado
+`function_search_path_mutable` do advisor, que hoje aponta as duas. **Abre a
+exceção ao princípio 6** — ver a emenda no topo deste documento.
+
+**Por que é seguro.** Nenhuma das duas é `SECURITY DEFINER`, as duas pertencem a
+`screener_owner`, e o corpo de cada uma é uma única instrução `raise exception`
+com string literal: nada que dependa de `search_path` (`pg_catalog` segue
+implícito). O comportamento observável não muda.
+
+**Preflight read-only:**
+
+```sql
+select p.proname, p.prosecdef as security_definer,
+       coalesce(array_to_string(p.proconfig, ','), '(nenhum)') as config
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname='public' and p.proname like 'screener%snapshot_impede_update';
+--> as 2, security_definer = false, config = (nenhum)
+```
+
+**Comando:** `npx supabase db push --linked` — a mesma ferramenta do Passo 2,
+pelo mesmo motivo (preserva a versão do nome do arquivo no ledger). Rodar o
+`--dry-run` antes.
+
+**Verificação:**
+
+```sql
+-- as duas com search_path VAZIO
+select p.proname, array_to_string(p.proconfig, ',') as config
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname='public' and p.proname like 'screener%snapshot_impede_update';
+
+-- a membership temporária foi devolvida
+select count(*) from pg_auth_members m
+  join pg_roles papel  on papel.oid  = m.roleid
+  join pg_roles membro on membro.oid = m.member
+ where papel.rolname='screener_owner' and membro.rolname=current_user;   -- esperado: 0
+```
+
+E os advisors: `function_search_path_mutable` tem de sair de 2 para **0**.
+
+**Critério:** as duas com `search_path=""`, membership devolvida, advisor zerado
+nesse achado, e o V1 sem nenhuma outra alteração.
+
+**Rollback** (completo, porque o `reset` sozinho não basta — `ALTER FUNCTION`
+exige ser dono):
+
+```sql
+grant screener_owner to current_user;
+alter function public.screener_snapshot_impede_update()      reset search_path;
+alter function public.screener_rhia_snapshot_impede_update() reset search_path;
+revoke screener_owner from current_user;
+```
+
+**Cobertura de teste.** Três testes comportamentais novos em
+`screener/loader/behavioral/rhia-rpc.behavioral.test.mjs`: as duas funções ficam
+com `search_path` **vazio** (não um qualquer — `set search_path = public`
+silenciaria o advisor sem fechar a lacuna); o snapshot **continua imutável**, com
+a mesma mensagem de recusa; e a **membership é devolvida**. A própria migration
+carrega uma guarda que falha se qualquer dessas condições de catálogo não valer.
 
 ---
 
@@ -488,7 +568,9 @@ migrations 04 e 05 acrescentaram, do lado do V1, três funções
 (`screener_op_preview_authorize`, `screener_op_rate_check`,
 `screener_op_capturar_lead`) e a tabela `screener_rate_limit` — todas aditivas,
 todas `SECURITY DEFINER` com `search_path=''`, e **inertes** até a edge passar a
-chamá-las. Nenhuma função existente do V1 foi alterada.
+chamá-las. Nenhuma função existente do V1 foi alterada **no Passo 2** — o Passo 2b,
+escrito depois e ainda não aplicado, altera uma delas por endurecimento, sob a
+exceção registrada no topo deste documento.
 
 #### Advisors: o que mudou, e o que cada mudança é
 
@@ -528,6 +610,7 @@ Passo 3, e ele depende de você ter ligado o Force HTTPS (decisão D2).
 - [x] Passo 0 — preflight read-only bateu (14/09/2026).
 - [x] Passo 1 — `rhia.html` ligado à edge (commitado, fora do ar).
 - [x] Passo 2 — migrations 04, 05, 12 e 13 aplicadas (14/09/2026); verificação bateu.
+- [ ] Passo 2b — `search_path` fixo nas duas funções de trigger (escrita e revisada; **não aplicada**).
 - [ ] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos.
 - [ ] Passo 4 — edge redeployada; 200 na origem certa, 403 em outra.
 - [ ] Passo 5 — 429 sob rajada.
