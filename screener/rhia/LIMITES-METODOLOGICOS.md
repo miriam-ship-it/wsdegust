@@ -124,6 +124,16 @@ comparação só faz sentido se a unidade analisada for a mesma.
 - A base de cálculo (respostas e resultado interno) fica no banco, em tabelas
   sem acesso direto de nenhum papel público; a edge só lê e escreve pelas RPC.
 - O texto livre de "Outro" nunca vai para analytics nem para o motor.
-- Retenção declarada no vínculo: 180 dias para sessões, 365 para leads. A purga
-  é compromisso a cumprir por job próprio (ver [DEPLOY.md](./DEPLOY.md), passo
-  8).
+- Retenção declarada no vínculo, e o que cada prazo protege — dito com precisão,
+  porque a versão anterior desta linha era imprecisa:
+  - **180 dias** apagam o **conteúdo da avaliação** (respostas e resultado), de
+    todo mundo, sem exceção.
+  - **365 dias** apagam o **contato** e **o registro da sessão a que ele está
+    vinculado**. Essa linha de sessão **não é anônima** enquanto o contato
+    existe: ela guarda data, ciência do aviso de privacidade e o hash do token,
+    e o `session_id` do lead é único, então as duas tabelas juntas dizem quem
+    respondeu e quando.
+  - Quem **não** deixou contato tem tudo apagado aos 180 dias.
+  A purga é executada por job diário (`boomit_screener_rhia_purga_v1`); os
+  prazos vêm do vínculo, e vínculo sem retenção declarada não é purgado. Ver
+  [DEPLOY.md](./DEPLOY.md), passo 8.

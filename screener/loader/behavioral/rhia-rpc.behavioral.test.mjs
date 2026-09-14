@@ -559,7 +559,8 @@ test("purga: sessão dentro do prazo não é tocada", async () => {
   assert.equal(await conta(db, "screener_rhia_responses", id), 1);
   assert.equal(await conta(db, "screener_rhia_result_snapshots", id), 1);
   assert.equal(await conta(db, "screener_rhia_leads", id), 1);
-  assert.equal(r.sessoes, 0, "nada a purgar");
+  assert.equal(r.sessoes_sem_contato, 0, "nada a purgar");
+  assert.equal(r.sessoes_liberadas_pelo_contato, 0, "nada a purgar");
 });
 
 test("purga: os prazos vêm do VÍNCULO, não do código", async () => {
@@ -579,4 +580,36 @@ test("purga: nenhum papel público alcança a função", async () => {
       "select has_function_privilege($1, 'public.screener_rhia_purga()', 'execute') as pode", [papel]);
     assert.equal(rows[0].pode, false, `${papel} não pode executar a purga`);
   }
+});
+
+// O buraco que quase deixou passar um defeito: em pglite o usuário é superusuário
+// e o Postgres PULA a checagem "o novo dono precisa de CREATE no schema". No
+// Supabase ele não é, e o ALTER OWNER falharia no apply. Este teste não reproduz
+// o privilégio, mas trava o efeito: se o dono sair errado, cai aqui — e não em
+// produção, seis meses depois, com a purga falhando calada dentro do cron.
+test("purga: a função pertence a screener_owner, senão não alcança as tabelas", async () => {
+  const db = await ambiente();
+  const { rows } = await db.query(`
+    select pg_get_userbyid(p.proowner) as dono, p.prosecdef, array_to_string(p.proconfig, ',') as config
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'screener_rhia_purga'`);
+  assert.equal(rows.length, 1, "a função existe");
+  assert.equal(rows[0].dono, "screener_owner", "SECURITY DEFINER com dono errado não alcança as tabelas");
+  assert.equal(rows[0].prosecdef, true);
+  assert.equal(rows[0].config, 'search_path=""');
+});
+
+test("purga: vínculo que NÃO declarou retenção não é purgado", async () => {
+  const db = await ambiente();
+  // O CHECK screener_binding_retencao exige retenção declarada em public_pilot,
+  // e é justamente por isso que o caso sem política só existe fora dele: um
+  // vínculo de prévia interna pode legitimamente não declarar prazo.
+  await db.query(`update public.screener_event_bindings
+                     set status = 'internal_preview', session_retention_days = null, lead_retention_days = null`);
+  const id = await sessaoAntiga(db, { diasSessao: 900, diasLead: 900 });
+  await db.query("select public.screener_rhia_purga()");
+  assert.equal(await conta(db, "screener_rhia_sessions", id), 1,
+    "sem política declarada não existe prazo — a função não pode inventar um");
+  assert.equal(await conta(db, "screener_rhia_responses", id), 1);
+  assert.equal(await conta(db, "screener_rhia_leads", id), 1);
 });
