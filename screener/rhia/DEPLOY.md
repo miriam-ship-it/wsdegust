@@ -645,16 +645,45 @@ select count(*) from pg_auth_members m
 
 ---
 
+### Passo 3 — secrets da edge · 14/09/2026 · **passou**
+
+**Force HTTPS confirmado antes de escolher a origem.** O Netlify reportava a URL
+primária como `http://`, então testei o comportamento real em vez de confiar no
+campo: `http://diagnosticoboomit.netlify.app/` responde **301** para
+`https://…`. Com o redirecionamento ativo, cadastrar **só** a origem `https` é
+seguro — ninguém chega à edge com uma `Origin` em `http`.
+
+| Secret | Valor | Estado |
+|---|---|---|
+| `SCREENER_CORS_ORIGINS` | `https://diagnosticoboomit.netlify.app` | definido |
+| `SCREENER_RATE_KEY_SECRET` | 32 bytes aleatórios em hex (64 caracteres) | definido |
+
+**Como a chave foi tratada.** Gerada com `randomBytes(32)` e escrita **direto**
+num arquivo `.env` temporário no scratchpad, sem passar por linha de comando,
+por variável de ambiente exportada ou por saída de terminal. O CLI leu o arquivo
+(`supabase secrets set --env-file`) e o arquivo foi apagado em seguida. O valor
+não existe em nenhum lugar legível, e não é recuperável: se um dia for preciso,
+gera-se outra. Rotacionar essa chave só invalida os baldes de rate limit
+existentes — ela é material de HMAC interno da edge, não credencial de acesso.
+
+**Verificação:** `supabase secrets list` mostra os dois pelo nome e por digest,
+nunca pelo valor. `SCREENER_DB_POOLER_URL`, do V1, segue intacto desde 04/09.
+
+**Ainda não estão em efeito.** A edge só lê os secrets quando é redeployada —
+é o Passo 4. Até lá o comportamento em produção não mudou.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
-- [x] D2 — Force HTTPS + allowlist só em `https://`.
+- [x] D2 — Force HTTPS **confirmado ativo** (301 de http para https); allowlist só em `https://`.
 - [x] D3 — teste do V1 movido para fora do diretório publicado.
 - [x] Passo 0 — preflight read-only bateu (14/09/2026).
 - [x] Passo 1 — `rhia.html` ligado à edge (commitado, fora do ar).
 - [x] Passo 2 — migrations 04, 05, 12 e 13 aplicadas (14/09/2026); verificação bateu.
 - [x] Passo 2b — `search_path` fixo nas duas funções de trigger (aplicado 14/09/2026); advisor zerado.
-- [ ] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos.
+- [x] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos (14/09/2026).
 - [ ] Passo 4 — edge redeployada; 200 na origem certa, 403 em outra.
 - [ ] Passo 5 — 429 sob rajada.
 - [ ] Passo 6 — merge para `main`; Netlify publicou.
