@@ -109,6 +109,7 @@ screener/rhia/
 ├── DECISOES.md                   decisões de UI (rastreadas às skills Boomit) e de arquitetura
 ├── LIMITES-METODOLOGICOS.md      o que o screener não afirma; agenda de validação
 ├── DEPLOY.md                     roteiro de colocação no ar, sob autorização
+├── PEDIDO-AO-INSTRUMENTO.md      o que falta no motor, para quem aprova o instrumento
 ├── definicao.mjs                 instrumento (JSON verbatim), canonicalize, checksum(), apresentacaoPublica()
 ├── logica.mjs                    validarResposta, validarSubmissao, canonico, calcularContrato, paraPublico
 ├── ACEITE.md                     checklist do pacote, item a item, com a prova de cada um
