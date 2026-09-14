@@ -909,6 +909,72 @@ pelos leads `smoke+passo7@` e `smoke+navegador@`:
 
 ---
 
+### Passo 8 — purga por retenção · 14/09/2026 · **aplicado**
+
+Migration `20260914170000_screener_rhia_purga_por_retencao`. **Revisada antes do
+apply, e REPROVADA na primeira versão** por um defeito que teria falhado em
+produção — ver abaixo, porque é a parte mais instrutiva deste passo.
+
+**O que passa a acontecer.** Job diário `boomit_screener_rhia_purga_v1`, às 03:17
+UTC. Os prazos vêm do vínculo; **vínculo sem retenção declarada não é purgado**.
+
+| Verificação em produção | Observado |
+|---|---|
+| Dono da função | `screener_owner` |
+| `SECURITY DEFINER` / `search_path` | sim / `""` |
+| EXECUTE para `anon`, `authenticated`, `service_role`, `screener_runtime` | **false** nos quatro |
+| Executor do cron | `postgres`, **com** EXECUTE |
+| Agendamento | `17 3 * * *`, ativo |
+| CREATE no schema para `screener_owner` (era transitório) | **devolvido** |
+| Membership temporária | devolvida |
+| Execução real, como `postgres` | rodou; devolveu tudo zero; a sessão viva ficou intacta |
+
+Essa última linha é a que importa: é a **única** prova de que a função foi criada
+com o dono certo e alcança as tabelas. Hoje é no-op, porque a primeira exclusão
+real só acontece por volta de março de 2027.
+
+#### O defeito bloqueante, e por que meus testes não o pegaram
+
+Faltava conceder `create on schema public` a `screener_owner` em volta do
+`ALTER ... OWNER`. Sem isso o ALTER falha com `permission denied for schema
+public`. As migrations 03, 04, 05 e 12 todas fazem esse par grant/revoke
+transitório; a minha era a única que não.
+
+**Os oito testes comportamentais passavam mesmo assim, e o motivo é uma armadilha
+que vale registrar:** no pglite o usuário é **superusuário**, e o Postgres pula a
+checagem "o novo dono precisa de CREATE no schema". No Supabase o `postgres`
+**não** é superusuário. O revisor reproduziu a falha criando um papel não
+superusuário e aplicando linha a linha.
+
+A lição: **teste em pglite não cobre caminho de privilégio**, porque o privilégio
+do executor é diferente. Onde a migration mexe em propriedade ou em GRANT, a
+prova tem de ser o padrão já usado pelas migrations anteriores, não o teste verde.
+
+#### As outras sete correções
+
+| # | O que estava errado |
+|---|---|
+| 2 | `create or replace` numa função nova. Substituiria uma homônima **mantendo o dono antigo** — e `SECURITY DEFINER` com dono errado falha calada dentro do cron. Virou `create function`. |
+| 3 | Os dois `delete` de sessão eram idênticos e a soma jogava fora a distinção. Agora devolvem `sessoes_sem_contato` e `sessoes_liberadas_pelo_contato` separados. |
+| 4 | Os `coalesce(180/365)` faziam a função inventar política para vínculo que calou. Saíram. |
+| 5 | `to postgres` cravado virou `to current_user`, e a guarda do executor foi para dentro do bloco do cron, checando `v_job.username`. |
+| 6 | O cabeçalho errava a ordem real de exclusão e chamava de **anônima** a sessão que sobrevive entre 180 e 365 dias. Ela não é: continua ligada à PII pelo `session_id` único do lead. Corrigido aqui, em `LIMITES-METODOLOGICOS.md` e num `comment on function`. |
+| 7 | O rollback do cabeçalho omitia a membership, sem a qual o `drop function` falha. |
+| 8 | Migration e teste commitados **antes** do apply. |
+
+Mais dois testes, um deles fechando o buraco: a função pertence a
+`screener_owner`; e vínculo sem retenção declarada não é purgado.
+
+#### O risco que fica, e é de operação
+
+A purga roda numa transação só: qualquer erro aborta tudo, sem apagar nada e sem
+avisar ninguém. Como a primeira exclusão real é em março de 2027, uma purga
+quebrada ficaria invisível até lá. **Pendência de operação:** conferir
+`cron.job_run_details` periodicamente, ou gravar o resumo JSON que a função já
+devolve numa tabela de rastro.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -923,4 +989,4 @@ pelos leads `smoke+passo7@` e `smoke+navegador@`:
 - [x] Passo 5 — 429 sob rajada (14/09/2026); as 10 sessões de teste foram apagadas sob autorização.
 - [ ] Passo 6 — merge para `main`; Netlify publicou.
 - [x] Passo 7 — smoke **45/45** (28 de rede + 17 de navegador), incluindo a prova do portão (14/09/2026).
-- [ ] Passo 8 — purga agendada, ou registrada como pendência com prazo.
+- [x] Passo 8 — purga agendada e verificada em produção (14/09/2026).
