@@ -756,6 +756,46 @@ cota.
 
 ---
 
+### Limpeza das sessões de teste · 14/09/2026 · **feita**
+
+As 10 sessões da rajada do Passo 5 foram apagadas, sob autorização. Duas coisas
+merecem registro.
+
+**A primeira tentativa foi RECUSADA pelo banco** — `permission denied for table
+screener_rhia_sessions`. Isso é a fronteira funcionando: as tabelas pertencem ao
+`screener_owner`, que não concede privilégio a ninguém, e o `postgres` é membro
+**sem herança e sem `set role`** (exatamente o que o Passo 2b verificou). Não
+existe caminho direto até essas tabelas; só as RPC chegam lá, e não há RPC de
+exclusão.
+
+**A exclusão exigiu a mesma membership temporária das migrations**, aberta e
+devolvida na mesma chamada. O filtro foi conferido antes: listou as 10, todas
+`open`, todas com zero respostas, zero snapshots e zero leads, na janela de
+quatro segundos. Depois: `screener_rhia_sessions` em **0**, respostas, leads e
+snapshots em 0, V1 em 0, e a membership fechada (0).
+
+---
+
+### Passo 6 — frontend publicado · 14/09/2026 · **passou**
+
+`main` avançou de `f5c20bf` para `72ab5fd` em **fast-forward** (75 commits,
+sem merge commit — `main` era ancestral do branch e não tinha mudado). Build
+verde imediatamente antes: 208/208.
+
+| Verificação | Observado |
+|---|---|
+| `https://diagnosticoboomit.netlify.app/rhia.html` | **200** (404 na primeira tentativa, ainda buildando) |
+| `<title>` | Diagnóstico Boomit — RH, Desenvolvimento e IA |
+| `EDGE_URL` na página | a função `screener` do projeto certo |
+| `rhia.mjs`, `rhia.css`, `tokens.css`, logo | 200 |
+| `screener.test.mjs` | **404** — a decisão D3 valeu |
+| Instrumento no JS estático | **0 ocorrências** de código, id de item ou enunciado |
+
+**O link público está no ar:**
+`https://diagnosticoboomit.netlify.app/rhia.html`
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -767,7 +807,7 @@ cota.
 - [x] Passo 2b — `search_path` fixo nas duas funções de trigger (aplicado 14/09/2026); advisor zerado.
 - [x] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos (14/09/2026).
 - [x] Passo 4 — edge redeployada (14/09/2026); 200 na origem certa, 403 em outra.
-- [x] Passo 5 — 429 sob rajada (14/09/2026); 10 sessões de teste criadas, aguardando decisão de limpeza.
+- [x] Passo 5 — 429 sob rajada (14/09/2026); as 10 sessões de teste foram apagadas sob autorização.
 - [ ] Passo 6 — merge para `main`; Netlify publicou.
 - [ ] Passo 7 — smoke 13/13, incluindo a prova do portão na rede.
 - [ ] Passo 8 — purga agendada, ou registrada como pendência com prazo.
