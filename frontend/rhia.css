@@ -69,6 +69,14 @@
 .rh-k { font-weight: var(--weight-medium); color: var(--text-primary); }
 
 /* --- Abertura ------------------------------------------------------------- */
+/* A marca aparecia DUAS vezes na primeira dobra: pequena no cabeçalho e grande
+   no hero, uma logo abaixo da outra. Na abertura vale a grande — é a única tela
+   em que a marca tem espaço para respirar. O cabeçalho fica só com o botão de
+   tema, empurrado para a direita (sem a marca, o `space-between` levaria o
+   botão para a esquerda). Nas demais telas o cabeçalho segue com a marca. */
+.rh-tela--abertura .sc-head .sc-brand { display: none; }
+.rh-tela--abertura .sc-head .sc-theme { margin-left: auto; }
+
 /* O título deste diagnóstico é longo ("Diagnóstico Boomit — RH, Desenvolvimento
    e IA") e a regra do V1 (.sc-hero__title, 48px fixos) estourava a largura em
    320px: só a palavra "Desenvolvimento" mede mais que a caixa. Sobrescrito
