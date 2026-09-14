@@ -674,6 +674,53 @@ nunca pelo valor. `SCREENER_DB_POOLER_URL`, do V1, segue intacto desde 04/09.
 
 ---
 
+### Passo 4 — edge redeployada · 14/09/2026 · **passou**
+
+Baseline antes: função `screener` **versão 2**, de 04/09, sem as rotas do
+diagnóstico — provado por `GET /rhia/start` responder **404** antes do deploy.
+Essa é a referência de rollback.
+
+Deploy com `supabase functions deploy screener`. O CLI empacotou os módulos
+fora de `supabase/functions/` que a função importa: handlers V1 e rhia, motor,
+lógica, e o JSON do instrumento.
+
+| Verificação | Esperado | Observado |
+|---|---|---|
+| `GET /rhia/start`, origem certa | 200 com 30 itens | **200**, 30 itens, `lead_capture_mode: required_before_result` |
+| Origem não autorizada | 403 | **403** |
+| Origem em `http` | 403 | **403** |
+| Slug inexistente | 404 | **404** |
+| Rota inexistente | 404 | **404** |
+
+**A resposta pública não carrega interno.** As opções de cada item têm
+exatamente duas chaves, `id` e `label` — nada de peso, ponto, faceta ou escala.
+Os itens trazem `id, order, kind, group, dimension_name, prompt, options`.
+
+Uma ressalva honesta sobre os ids `E1`–`E4`: eles **estão** na resposta, e
+precisam estar — é o identificador que o navegador devolve ao responder. Não é
+vazamento: eles não revelam pontuação, e os próprios enunciados já são
+ordenados, porque é assim que uma escala de maturidade se lê. O que é segredo —
+pontos, pesos, cortes e o mapeamento para degraus — não aparece. A proibição de
+`E1`–`E4` vale para o **arquivo estático publicado** e para a **tela de
+resultado**, e as duas seguem cobertas por teste.
+
+**O V1 continua fechado, e isso é desenho, não regressão.** `GET /start` no
+vínculo real `preview-interno-ia-v1` responde 404. A causa é determinística:
+o vínculo está `internal_preview` **sem credencial cadastrada**, e
+`screener_priv_previa_ok` exige `p_hash is not null` — com hash nulo ela sempre
+devolve falso, o `get_binding` devolve null e o handler traduz para 404. Estado
+inalterado desde a carga do V1, em 02/09.
+
+> **Falha de método que eu cometi aqui:** não testei as rotas do V1 **antes** do
+> deploy, então não tinha um A/B para comparar. Resolvi por leitura do código e
+> do estado do vínculo, que é prova suficiente neste caso — mas o preflight do
+> Passo 4 deveria ter incluído um toque nas rotas do V1, e passa a incluir.
+
+**Rollback:** redeploy da versão anterior da função, ou o kill switch no vínculo,
+que é mais rápido.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -684,7 +731,7 @@ nunca pelo valor. `SCREENER_DB_POOLER_URL`, do V1, segue intacto desde 04/09.
 - [x] Passo 2 — migrations 04, 05, 12 e 13 aplicadas (14/09/2026); verificação bateu.
 - [x] Passo 2b — `search_path` fixo nas duas funções de trigger (aplicado 14/09/2026); advisor zerado.
 - [x] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos (14/09/2026).
-- [ ] Passo 4 — edge redeployada; 200 na origem certa, 403 em outra.
+- [x] Passo 4 — edge redeployada (14/09/2026); 200 na origem certa, 403 em outra.
 - [ ] Passo 5 — 429 sob rajada.
 - [ ] Passo 6 — merge para `main`; Netlify publicou.
 - [ ] Passo 7 — smoke 13/13, incluindo a prova do portão na rede.
