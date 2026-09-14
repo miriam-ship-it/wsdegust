@@ -721,6 +721,41 @@ que é mais rápido.
 
 ---
 
+### Passo 5 — rate limiting ativo · 14/09/2026 · **passou**
+
+Rajada de `POST /rhia/start` do mesmo IP, com consentimento válido:
+
+| Requisições | Resposta |
+|---|---|
+| 1 a 10 | **201**, sessão criada |
+| 11 e 12 | **429** `muitas_requisicoes`, `retry_after_seconds` ≈ 3235 |
+
+O contador no banco registrou `start_preview = 12` na janela — conta todas,
+autoriza as 10 primeiras. A política é 10 por hora por IP, em janela alinhada
+à hora, e o `retry_after` devolvido bate com o tempo que falta para virar.
+
+**O que isto custou em produção, dito sem rodeio.** A contagem só incrementa
+**depois** do consentimento validado e **antes** da criação da sessão, então não
+existe caminho que prove o limite sem criar sessão. Foram criadas **10 sessões
+de teste**, entre 14:06:01 e 14:06:05, com **zero** respostas, leads e
+snapshots. São inequivocamente artefato meu: nenhuma sessão real nasce sem
+resposta nenhuma em quatro segundos. Ficam registradas aqui para não se
+confundirem com funil real, e a exclusão delas depende de autorização — apagar
+linha de produção é destrutivo, mesmo quando a linha é lixo conhecido.
+
+**Efeito colateral que atrapalha o Passo 7.** O IP desta máquina fica limitado
+para *criar sessão* por cerca de 54 minutos. O smoke ponta a ponta precisa
+criar uma. Duas saídas: esperar a janela virar, ou rodar o smoke de outra rede
+(celular no 4G, por exemplo) — que, aliás, é o teste mais fiel, porque é o
+caminho de quem vai receber o link.
+
+**Um efeito lateral menor, já contabilizado.** Os testes de rota do Passo 4
+deixaram `previa_invalida = 3` (o limite é 5 por 10 minutos). Não bloqueou nada
+e a janela vira sozinha, mas vale saber que tocar rotas fechadas também consome
+cota.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -732,7 +767,7 @@ que é mais rápido.
 - [x] Passo 2b — `search_path` fixo nas duas funções de trigger (aplicado 14/09/2026); advisor zerado.
 - [x] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos (14/09/2026).
 - [x] Passo 4 — edge redeployada (14/09/2026); 200 na origem certa, 403 em outra.
-- [ ] Passo 5 — 429 sob rajada.
+- [x] Passo 5 — 429 sob rajada (14/09/2026); 10 sessões de teste criadas, aguardando decisão de limpeza.
 - [ ] Passo 6 — merge para `main`; Netlify publicou.
 - [ ] Passo 7 — smoke 13/13, incluindo a prova do portão na rede.
 - [ ] Passo 8 — purga agendada, ou registrada como pendência com prazo.
