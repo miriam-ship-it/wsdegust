@@ -25,6 +25,13 @@ export const EVENTO_PADRAO = "boomit-degustacao-rh-ia";
 const PREFIXO_ARMAZENAMENTO = "rhia:v1:";
 const CHAVE_TEMA = "screener:tema";
 export const TITULO = "Diagnóstico Boomit — RH, Desenvolvimento e IA";
+/**
+ * Título VISÍVEL da abertura. Curto de propósito: a marca já está no logo logo
+ * acima dele, e "Diagnóstico" estava escrito três vezes na mesma dobra (logo,
+ * eyebrow e título). `TITULO`, o nome formal, segue valendo para a aba do
+ * navegador e para o cabeçalho de impressão, onde não há logo ao lado.
+ */
+export const TITULO_HERO = "RH, Desenvolvimento e IA";
 
 /** Os cinco degraus públicos, na ordem (referência conhecida do público). */
 export const ESCADA_PUBLICA = Object.freeze([
@@ -851,7 +858,9 @@ export function iniciarApp(cfg) {
   // ---------- render: comuns ----------
   function cabecalho(compacto) {
     const ic = temaAtual() === "dark" ? ICONE.sol : ICONE.lua;
-    const sub = compacto ? "" : `<span class="sc-brand__divisor"></span><span class="sc-brand__sub">RH, Desenvolvimento e IA</span>`;
+    // Sem subtítulo ao lado da marca: na abertura ele repetia palavra por palavra
+    // o título logo abaixo, e nas demais telas não acrescentava nada.
+    const sub = "";
     return `<header class="sc-head">
       <div class="sc-brand">${LOGO}${sub}</div>
       <button class="sc-theme" type="button" data-acao="tema" aria-label="Alternar tema claro e escuro">${ic}</button>
@@ -892,8 +901,7 @@ export function iniciarApp(cfg) {
     const retomavel = !!st.token && !st.submitido;
     return `<div class="sc-hero rh-hero">
       <div class="sc-hero__logo">${LOGO}</div>
-      <p class="sc-eyebrow">Diagnóstico</p>
-      <h1 class="sc-hero__title">${escapeHtml(TITULO)}</h1>
+      <h1 class="sc-hero__title">${escapeHtml(TITULO_HERO)}</h1>
       <p class="sc-hero__lead">${escapeHtml(ins.purpose || "")}</p>
       <ul class="rh-hero__fatos" aria-label="Antes de começar">
         <li>${ICONE.relogio}<span>Leva cerca de ${escapeHtml(ins.estimated_minutes || "8–10")} minutos.</span></li>
@@ -904,7 +912,6 @@ export function iniciarApp(cfg) {
       <div class="sc-actions">
         ${retomavel ? `<button class="sc-btn sc-btn--primary" type="button" data-acao="continuar">Continuar de onde parei ${ICONE.seta}</button>` : `<button class="sc-btn sc-btn--primary" type="button" data-acao="comecar" ${st.tentandoEnviar ? "disabled" : ""}>${st.tentandoEnviar ? "Iniciando…" : `Começar leitura ${ICONE.seta}`}</button>`}
       </div>
-      <p class="sc-hero__foot">${escapeHtml(ins.disclaimer || "")}</p>
     </div>`;
   }
 
