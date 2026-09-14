@@ -297,7 +297,8 @@ select p.proname, array_to_string(p.proconfig, ',') as config
 select count(*) from pg_auth_members m
   join pg_roles papel  on papel.oid  = m.roleid
   join pg_roles membro on membro.oid = m.member
- where papel.rolname='screener_owner' and membro.rolname=current_user;   -- esperado: 0
+ where papel.rolname='screener_owner' and membro.rolname=current_user
+   and (m.inherit_option or m.set_option);   -- esperado: 0
 ```
 
 E os advisors: `function_search_path_mutable` tem de sair de 2 para **0**.
@@ -602,6 +603,48 @@ Passo 3, e ele depende de você ter ligado o Force HTTPS (decisão D2).
 
 ---
 
+### Passo 2b — `search_path` fixo · 14/09/2026 · **passou**
+
+Aplicada com `supabase db push --linked` (dry-run antes, só ela na fila).
+
+| Verificação | Observado |
+|---|---|
+| `screener_snapshot_impede_update` | `search_path=""` |
+| `screener_rhia_snapshot_impede_update` | `search_path=""` |
+| Funções `screener_*` ainda sem `search_path` | 0 |
+| Advisor `function_search_path_mutable` | **2 → 0** |
+| Dados do V1 | sessões e snapshots seguem em zero |
+
+**Um susto que virou lição sobre a própria verificação.** A consulta de membership
+que eu tinha escrito aqui devolveu **1**, e não 0. Investiguei antes de concluir
+qualquer coisa, e a membership que restou **não é a da migration**:
+
+- o `grantor` dela é `supabase_admin`, não o papel que roda a migration;
+- ela tem `admin_option = true` e, decisivo, `inherit_option = false` e
+  `set_option = false` — o `postgres` não herda privilégio do `screener_owner`
+  nem consegue `set role` para ele;
+- o mesmo formato de linha existe para `screener_runtime`, que **nenhuma**
+  migration nossa concede ou revoga.
+
+É o registro que o Postgres 17 grava quando `supabase_admin` cria o papel, lá na
+`20260903120000`. Predata o Passo 2b. A membership que a migration pega (com
+`inherit`/`set`) foi devolvida, como o teste comportamental prova.
+
+**A consulta do roteiro era grossa demais** — contava qualquer membership em vez
+da que a migration cria. Corrigida abaixo, para não dar o mesmo susto na próxima:
+
+```sql
+select count(*) from pg_auth_members m
+  join pg_roles papel  on papel.oid  = m.roleid
+  join pg_roles membro on membro.oid = m.member
+ where papel.rolname='screener_owner' and membro.rolname=current_user
+   and (m.inherit_option or m.set_option);   -- esperado: 0
+```
+
+**Critério do Passo 2b: bateu.** Próximo é o Passo 3.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -610,7 +653,7 @@ Passo 3, e ele depende de você ter ligado o Force HTTPS (decisão D2).
 - [x] Passo 0 — preflight read-only bateu (14/09/2026).
 - [x] Passo 1 — `rhia.html` ligado à edge (commitado, fora do ar).
 - [x] Passo 2 — migrations 04, 05, 12 e 13 aplicadas (14/09/2026); verificação bateu.
-- [ ] Passo 2b — `search_path` fixo nas duas funções de trigger (escrita e revisada; **não aplicada**).
+- [x] Passo 2b — `search_path` fixo nas duas funções de trigger (aplicado 14/09/2026); advisor zerado.
 - [ ] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos.
 - [ ] Passo 4 — edge redeployada; 200 na origem certa, 403 em outra.
 - [ ] Passo 5 — 429 sob rajada.
