@@ -5,6 +5,9 @@
 // deno-lint-ignore-file no-explicit-any
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+// O cálculo vive num módulo puro, fora da edge, para poder ser testado sozinho
+// e para existir UMA implementação só. Mesmo padrão do módulo de IA.
+import { calcularResultado, divergencias } from '../../../screener/lideranca/motor.mjs';
 
 interface GatePayload {
   token: string;
@@ -268,9 +271,13 @@ function renderPdfHtml(data: { respondente: any; relatorio: any; payload: GatePa
   const m = data.m;
   const r = data.respondente;
   const rel = data.relatorio;
-  const scoresJson = data.payload.scores_json || {};
+  // 🔒 Os gráficos do PDF (radar, componentes, competências, régua) saem do
+  //    `scores_json` do RELATÓRIO, que a partir de agora é o do servidor — não
+  //    do corpo da requisição. Trocar a letra e o CDL sem trocar isto deixaria
+  //    metade do documento ainda desenhada com número vindo do navegador.
+  const scoresJson = (data.relatorio?.scores_json as any) || {};
   const scores = scoresJson.scores || {};
-  const scoreGeral = scoresJson.scoreGeral || 3.0;
+  const scoreGeral = scoresJson.scoreGeral ?? 3.0;
 
   const stratWeight = ((scores.D1?.empresa || 3) + (scores.D3?.empresa || 3)) / 2;
   const tacWeight   = ((scores.D5?.empresa || 3) + (scores.D2?.empresa || 3)) / 2;
@@ -530,17 +537,59 @@ serve(async (req: Request) => {
     }).eq('id', respondente.id);
     if (errUpd) throw new Error(`Update respondente: ${errUpd.message}`);
 
+    // 🔒 O SERVIDOR CALCULA. Antes, letra, score, CDL e risco chegavam PRONTOS
+    //    no corpo da requisição e eram gravados sem conferência — quem abrisse
+    //    o console escolhia o próprio resultado, e a Boomit gerava e enviava um
+    //    PDF com a sua marca carregando aquele número.
+    //
+    //    As respostas já estão no banco com dimensão, lente e valor (o cliente
+    //    as grava uma a uma enquanto responde), então não é preciso confiar em
+    //    nada que venha de fora: recalculamos da fonte.
+    const { data: linhasResp, error: errLinhas } = await supabase
+      .from('respostas').select('dimensao, lente, valor').eq('respondente_id', respondente.id);
+    if (errLinhas) throw new Error(`Ler respostas: ${errLinhas.message}`);
+
+    const calculado = calcularResultado({ respostas: linhasResp ?? [], respondente });
+    if (calculado.status !== 'OK') {
+      return json({ ok: false, error: 'respostas_incompletas', faltantes: calculado.faltantes }, 409);
+    }
+
+    // O que o navegador mandou vira APENAS registro de divergência. Ele nunca
+    // entra no relatório. Divergência significa adulteração — ou, como se
+    // descobriu ao mover o cálculo, duas fórmulas vivendo ao mesmo tempo.
+    const divs = divergencias(calculado, payload);
+    if (divs.length) {
+      console.warn('gate: divergencia cliente-servidor', JSON.stringify({
+        respondente_id: respondente.id, divergencias: divs,
+      }));
+    }
+
     const relatorioBase = {
       respondente_id: respondente.id,
       catalogo_versao: 'v1.1',
       questionario_versao: respondente.versao_questionario || 'q-v1.0',
-      motor_versao: 'engine-v1.0',
-      scores_json: payload.scores_json,
-      maturidade_letra: payload.maturidade_letra,
-      maturidade_score: payload.maturidade_score,
-      cdl_min: payload.cdl_min,
-      cdl_max: payload.cdl_max,
-      risco_estrategico: payload.risco_estrategico,
+      motor_versao: 'engine-v2.0-servidor',
+      // `scores_json` passa a ser o do servidor. Guardamos junto o que o cliente
+      // afirmou, para auditoria — sem que isso alimente relatório nenhum.
+      scores_json: {
+        scores: calculado.scores,
+        scoreGeral: calculado.scoreGeral,
+        identificacao: (payload.scores_json as any)?.identificacao ?? null,
+        origem: 'servidor',
+        cliente_afirmou: {
+          maturidade_letra: payload.maturidade_letra ?? null,
+          maturidade_score: payload.maturidade_score ?? null,
+          cdl_min: payload.cdl_min ?? null,
+          cdl_max: payload.cdl_max ?? null,
+          risco_estrategico: payload.risco_estrategico ?? null,
+        },
+        divergencias: divs,
+      },
+      maturidade_letra: calculado.maturidade.letra,
+      maturidade_score: calculado.maturidade.score100,
+      cdl_min: calculado.cdl.min,
+      cdl_max: calculado.cdl.max,
+      risco_estrategico: calculado.risco_estrategico,
     };
     const { data: relatorio, error: errRel } = await supabase
       .from('relatorios').upsert(relatorioBase, { onConflict: 'respondente_id' }).select().single();
