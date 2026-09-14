@@ -26,12 +26,13 @@ const PREFIXO_ARMAZENAMENTO = "rhia:v1:";
 const CHAVE_TEMA = "screener:tema";
 export const TITULO = "Diagnóstico Boomit — RH, Desenvolvimento e IA";
 /**
- * Título VISÍVEL da abertura. Curto de propósito: a marca já está no logo logo
- * acima dele, e "Diagnóstico" estava escrito três vezes na mesma dobra (logo,
- * eyebrow e título). `TITULO`, o nome formal, segue valendo para a aba do
- * navegador e para o cabeçalho de impressão, onde não há logo ao lado.
+ * Título VISÍVEL da abertura. Nomeia o que a pessoa vai fazer, não o produto: a
+ * marca já está no logo logo acima, e "diagnóstico do cenário" é exatamente o
+ * primeiro dos quatro blocos do workshop — a mesma palavra que a devolutiva usa
+ * no fecho. `TITULO`, o nome formal, segue valendo para a aba do navegador e
+ * para o cabeçalho de impressão, onde não há logo ao lado.
  */
-export const TITULO_HERO = "RH, Desenvolvimento e IA";
+export const TITULO_HERO = "Diagnóstico de cenário";
 
 /** Os cinco degraus públicos, na ordem (referência conhecida do público). */
 export const ESCADA_PUBLICA = Object.freeze([
