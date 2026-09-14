@@ -853,6 +853,62 @@ Não exigiu redeploy da edge: a política vive no banco.
 
 ---
 
+### Passo 7 — smoke ponta a ponta · 14/09/2026 · **passou (45/45)**
+
+Rodado **contra produção**, em duas camadas independentes.
+
+**Camada de rede — 28 verificações.** Chamadas diretas à edge, sem navegador, que
+é o único jeito de provar que o portão não depende do front:
+
+- `GET /rhia/start` 200 com 30 itens; `POST /rhia/start` 201 com o token
+  devolvido uma única vez.
+- Texto livre: 1 caractere **recusado pelo servidor** (400), texto válido aceito.
+  Autosave gravou 31 (30 itens + o texto).
+- Opção fora do gabarito **recusada** (400).
+- `GET /rhia/session` retoma com as respostas salvas e sem nada interno.
+- **O portão:** `POST /rhia/submit` devolveu **exatamente** `{lead_required,
+  submitted}` — nada de posicionamento, degrau, governança ou disclaimer. E
+  `GET /rhia/result` **antes** do lead respondeu **403 `lead_required`**, com
+  corpo que não vaza uma palavra da devolutiva. Depois do lead, 200.
+- O corpo do resultado não contém `3333`, `6667`, `10000`, sufixo `_bp`,
+  `internal`, `answers`, `weights`, `weakestBp`, nem código `E1`–`E4` ou
+  `P1`–`P5`. Versão `2.0.0-pilot`.
+- Origem não autorizada: 403.
+
+**Camada de navegador — 17 verificações.** Chrome headless no site publicado:
+
+- Abertura com o título **"Diagnóstico de cenário"** e o botão de começar.
+- Contexto: "Outro" abre o campo de texto, e trocar de opção o esconde.
+- **Recarregar no meio retoma no mesmo ponto** — "Pergunta 9 de 30" antes e
+  depois do reload, com as respostas de volta.
+- Revisão lista as 30 e **não mostra código** de escala nem de estágio.
+- **O portão, agora pela interface:** ao enviar, pede o contato e a devolutiva
+  **não** aparece. Depois do lead, aparece.
+- Devolutiva com a escada de 5 degraus, **um único** em destaque, o fecho que
+  liga ao workshop, e nenhum código ou ponto-base no texto.
+- **320px sem rolagem lateral:** excesso 0px, medido na devolutiva real.
+
+**Banco:** 1 snapshot por sessão submetida, versão `2.0.0-pilot`, degrau
+preenchido. O snapshot guarda o **contrato inteiro** (com `internal`) — quem
+projeta só a parte pública é a edge, que é exatamente o desenho. V1 em zero.
+
+**Dados de teste deixados em produção.** Três sessões minhas, identificáveis
+pelos leads `smoke+passo7@` e `smoke+navegador@`:
+
+| Sessão | Hora | O que é |
+|---|---|---|
+| `4d2da497` | 15:52 | smoke de rede (submetida, com lead) |
+| `c953ce13` | 15:53 | verificação de retomada (aberta, 3 respostas) |
+| `44a2fd34` | 15:55 | smoke de navegador (submetida, com lead) |
+
+> **Uma sessão às 15:51 NÃO é minha** — foi criada antes de eu começar, tem uma
+> resposta e nenhum lead. É de quem abriu o link. Fica **intocada**. Se eu
+> tivesse limpado por janela de tempo, como fiz no Passo 5, teria apagado o
+> primeiro uso real do produto. A lição: limpar por **identidade do artefato**
+> (o lead de teste, o id), nunca por tempo.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -866,5 +922,5 @@ Não exigiu redeploy da edge: a política vive no banco.
 - [x] Passo 4 — edge redeployada (14/09/2026); 200 na origem certa, 403 em outra.
 - [x] Passo 5 — 429 sob rajada (14/09/2026); as 10 sessões de teste foram apagadas sob autorização.
 - [ ] Passo 6 — merge para `main`; Netlify publicou.
-- [ ] Passo 7 — smoke 13/13, incluindo a prova do portão na rede.
+- [x] Passo 7 — smoke **45/45** (28 de rede + 17 de navegador), incluindo a prova do portão (14/09/2026).
 - [ ] Passo 8 — purga agendada, ou registrada como pendência com prazo.
