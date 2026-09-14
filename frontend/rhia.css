@@ -125,6 +125,15 @@
 .rh-lente__k { display: block; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
 .rh-lente__t { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-secondary); }
 
+/* --- Síntese executiva -----------------------------------------------------
+   A leitura inteira num parágrafo, logo depois da capa. Escala de leitura
+   maior que o corpo e filete à esquerda: é o único bloco que alguém com pressa
+   vai ler, então tem de se anunciar sem virar caixa colorida. */
+.rh-sintese { margin-top: var(--space-10); border-left: 2px solid var(--border-strong); padding: var(--space-1) 0 var(--space-1) var(--space-6); }
+.rh-sintese__k { margin: 0; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-sintese__p { margin: var(--space-3) 0 0; max-width: 40rem; font-size: var(--text-lg); line-height: var(--leading-lg); color: var(--text-primary); }
+@media (max-width: 40rem) { .rh-sintese { padding-left: var(--space-4); } .rh-sintese__p { font-size: var(--text-base); } }
+
 /* --- Mapa de leitura -------------------------------------------------------
    Duas colunas de itens numerados: diz de cara o tamanho e a ordem do que
    vem. Não são links — a tela é roteada por hash, e um âncora mudaria a rota. */
@@ -333,7 +342,7 @@
      papel, então aqui a medida é em `em`, que o navegador resolve na impressão. */
   .rh-result { max-width: 40em; margin: 0 auto; animation: none; }
   .rh-print-head { display: block; font-size: var(--text-xs); color: var(--boomit-preto); border-bottom: 1px solid var(--boomit-apoio-02); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
-  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada-fig, .rh-tabela tr, .rh-disclaimer, .rh-lente, .rh-cite, .rh-mapa, .rh-oferta { break-inside: avoid; page-break-inside: avoid; }
+  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada-fig, .rh-tabela tr, .rh-disclaimer, .rh-lente, .rh-cite, .rh-mapa, .rh-oferta, .rh-sintese { break-inside: avoid; page-break-inside: avoid; }
   .rh-sec { margin-top: var(--space-10); }
   .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-disclaimer, .rh-lente { box-shadow: none; }
   /* A capa é a primeira página: o miolo começa numa folha nova. */

@@ -232,6 +232,82 @@ export function fraseEvidencia(status) {
   return `${base} Esta leitura deve ser confrontada com indicadores, decisões registradas e a perspectiva de outras pessoas.`;
 }
 
+/**
+ * SÍNTESE EXECUTIVA — a leitura inteira num parágrafo, montada a partir do que o
+ * motor JÁ emitiu. Não infere nada de novo: cada frase carrega uma palavra do
+ * contrato (degrau, assinatura, referência, sustentador, limitador, tensão,
+ * governança, próximo movimento) e só acrescenta as conjunções que ligam uma
+ * evidência à outra.
+ *
+ * É a diferença entre "riqueza vinda da interpretação das relações entre
+ * evidências" e "riqueza vinda de aumentar a certeza da linguagem": aqui não
+ * existe adjetivo novo, previsão nem estimativa — existe a relação entre coisas
+ * que o motor já afirmou separadamente, dita numa ordem que se lê de uma vez.
+ *
+ * Degrada sozinha: sem tensão, sem sustentador ou com referência inconclusiva,
+ * a frase correspondente simplesmente não entra.
+ */
+export function sinteseExecutiva(pub) {
+  const p = pub || {};
+  const pos = p.positioning || {}, ref = p.reference || {}, gap = p.gap || {}, sig = p.signature || {};
+  const sup = (p.supporters || [])[0], lim = (p.limiters || [])[0], ten = (p.tensions || [])[0];
+  const gov = p.governance || {};
+  const r = p.restriction ? rotuloRestricao(p.restriction) : null;
+
+  // Sem degrau não há leitura para resumir (ramo INSUFFICIENT, entrada vazia).
+  if (!pos.stage) return "";
+
+  const frases = [];
+  const juntar = (texto, opcional = false) => texto && frases.push({ texto, opcional });
+
+  juntar(`As práticas que você descreveu situam a área no degrau ${pos.stage}.`);
+  if (sig.label) juntar(`O padrão que se repete é o de ${minuscula(sig.label)}.`, true);
+
+  if (ref.status === "VALID" && ref.stage) {
+    juntar(ref.stage === pos.stage
+      ? `O alcance e a autoridade que você informou apontam para o mesmo degrau: ${minuscula(gap.label || "capacidade e referência alinhadas")}.`
+      : `O alcance e a autoridade que você informou apontam para ${ref.stage}, e a distância entre as duas posições é o que o bloco seguinte detalha.`);
+  } else {
+    juntar("O alcance e a autoridade que você informou divergem entre si, então a referência de posição ficou inconclusiva.");
+  }
+
+  if (sup) juntar(`O que mais sustenta o avanço vem de ${sup.name}, com ${minuscula(sup.evidence || "")}.`, true);
+  if (lim) juntar(`O que mais limita está em ${lim.name}: ${minuscula(lim.risk || "")}.`);
+  if (ten) juntar(`A assimetria a verificar primeiro é ${minuscula(ten.label)}.`, true);
+  // Sem sustentador e sem limitador não é falta de informação: é a informação de
+  // que nada se destaca. Dizer isso vale mais que omitir a frase.
+  if (!sup && !lim) {
+    juntar("Nenhuma frente se destaca acima ou abaixo das outras: o que as respostas descrevem é uma evolução homogênea, sem alavanca nem gargalo evidente.");
+  }
+
+  if (gov.label) {
+    // "Na governança, governança estabelecida" seria eco; quando o próprio
+    // rótulo já diz a palavra, ele fala sozinho.
+    const jaDiz = /^governan/i.test(String(gov.label));
+    const base = jaDiz ? gov.label : `Na governança, ${minuscula(gov.label)}`;
+    juntar(r && p.restriction !== "NONE" ? `${base}, o que condiciona o avanço: ${minuscula(r.label)}.` : `${base}.`);
+  }
+  if (pos.next) juntar(`O próximo movimento é ${minuscula(pos.next)}`);
+
+  // Alvo de ~150 palavras. Passando de 175, saem as frases marcadas como
+  // opcionais, da última para a primeira — a leitura perde nuance, nunca a
+  // espinha (degrau, distância, limitador, governança, próximo movimento).
+  const contar = (lista) => lista.join(" ").split(/\s+/).filter(Boolean).length;
+  let texto = frases.map((f) => f.texto);
+  for (let i = frases.length - 1; i >= 0 && contar(texto) > 175; i--) {
+    if (frases[i].opcional) texto = frases.filter((_, j) => j !== i || !frases[j].opcional).map((f) => f.texto);
+  }
+  return texto.join(" ");
+}
+
+/** Primeira letra em minúscula, preservando siglas como "IA". */
+function minuscula(t) {
+  const s = String(t || "").trim();
+  if (!s) return "";
+  if (s.length > 1 && s[1] === s[1].toUpperCase() && /[A-ZÀ-Ý]/.test(s[1])) return s; // "IA...", sigla
+  return s[0].toLowerCase() + s.slice(1);
+}
+
 /** Restrição de escala (route.restriction) → texto explícito. */
 export function rotuloRestricao(restriction) {
   return {
@@ -609,7 +685,13 @@ export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } =
 
   // O mapa só pode ser montado depois das seções (ele lista as que existem),
   // mas é impresso logo após a capa.
-  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${mapaHtml(mapa)}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
+  const sintese = sinteseExecutiva(p);
+  const blocoSintese = sintese ? `<aside class="rh-sintese" aria-labelledby="rh-sintese-t">
+      <h2 class="rh-sintese__k" id="rh-sintese-t">A leitura em um parágrafo</h2>
+      <p class="rh-sintese__p">${escapeHtml(sintese)}</p>
+    </aside>` : "";
+
+  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${blocoSintese}${mapaHtml(mapa)}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
 }
 
 /** Tela própria para status INSUFFICIENT: mensagem do motor + gate + CTAs. */

@@ -25,6 +25,7 @@ const SCHEMA = fs.readFileSync(path.join(MIGR, "20260902143339_screener_tabelas_
 const RPC = fs.readFileSync(path.join(MIGR, "20260903120000_screener_rpc_e_papeis.sql"), "utf8");
 const RHIA = fs.readFileSync(path.join(MIGR, "20260912120000_screener_rhia_tabelas_e_rpc.sql"), "utf8");
 const SEARCHPATH = fs.readFileSync(path.join(MIGR, "20260914120000_screener_search_path_nos_triggers.sql"), "utf8");
+const PURGA = fs.readFileSync(path.join(MIGR, "20260914170000_screener_rhia_purga_por_retencao.sql"), "utf8").split("-- @@@CRON@@@")[0];
 
 const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
 const PREVIEW = "chave-rhia";
@@ -55,7 +56,7 @@ function contrato(respostas) {
 async function ambiente({ status = "public_pilot", cred = null, leadMode = "required_before_result" } = {}) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
-  await db.exec(SCHEMA); await db.exec(RPC); await db.exec(RHIA); await db.exec(SEARCHPATH);
+  await db.exec(SCHEMA); await db.exec(RPC); await db.exec(RHIA); await db.exec(SEARCHPATH); await db.exec(PURGA);
   await db.query(`insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
                   values ($1,$2,$3,$4,'inactive')`, [CODE, VERSAO, JSON.stringify(instrumento), ICS]);
   await db.query(`insert into public.screener_event_bindings
@@ -482,4 +483,100 @@ test("search_path: a migration devolve a membership temporária de screener_owne
      where papel.rolname = 'screener_owner' and membro.rolname = current_user`);
   assert.equal(rows[0].n, 0,
     "a migration pega a membership para poder alterar as funções e tem de devolvê-la");
+});
+
+// -------------------------------------------------------------------------
+// 20260914170000 — purga por retenção. O vínculo declara 180 dias para a sessão
+// e 365 para o lead; a tabela de leads é `on delete restrict` e o lead vive MAIS
+// que a sessão, então a purga tem duas fases. O que cada prazo protege é
+// diferente: 180 protegem o CONTEÚDO da avaliação, 365 protegem o CONTATO.
+// -------------------------------------------------------------------------
+
+/** Cria uma sessão com idade forjada; opcionalmente com resposta, snapshot e lead. */
+async function sessaoAntiga(db, { diasSessao, diasLead = null, comConteudo = true }) {
+  const { rows: b } = await db.query("select id from public.screener_event_bindings limit 1");
+  const { rows } = await db.query(
+    `insert into public.screener_rhia_sessions (binding_id, token_hash, status, created_at, expires_at, submitted_at)
+     values ($1, $2, 'submitted', now() - make_interval(days => $3::int), now() + interval '1 day',
+             now() - make_interval(days => $3::int))
+     returning id`,
+    [b[0].id, sha("tk-" + Math.random()), diasSessao]);
+  const id = rows[0].id;
+  if (comConteudo) {
+    await db.query(`insert into public.screener_rhia_responses (session_id, item_code, answer_code) values ($1,'EST01','E3')`, [id]);
+    await db.query(
+      `insert into public.screener_rhia_result_snapshots (session_id, event_slug, instrument_code, instrument_version,
+         scoring_version, report_version, instrument_checksum, input_checksum, result)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [id, SLUG, CODE, VERSAO, SCORING, SCORING, ICS, sha("entrada-" + id),
+       JSON.stringify({ public: { version: SCORING } })]);
+  }
+  if (diasLead !== null) {
+    await db.query(
+      `insert into public.screener_rhia_leads (session_id, email, email_normalized, created_at)
+       values ($1,$2,$2, now() - make_interval(days => $3::int))`,
+      [id, `p${Math.random()}@exemplo.com`, diasLead]);
+  }
+  return id;
+}
+const conta = async (db, t, id) =>
+  (await db.query(`select count(*)::int n from public.${t} where ${t === "screener_rhia_sessions" ? "id" : "session_id"} = $1`, [id])).rows[0].n;
+
+test("purga: sessão vencida SEM lead sai inteira", async () => {
+  const db = await ambiente();
+  const id = await sessaoAntiga(db, { diasSessao: 200 });
+  await db.query("select public.screener_rhia_purga()");
+  assert.equal(await conta(db, "screener_rhia_sessions", id), 0, "a sessão devia ter saído");
+  assert.equal(await conta(db, "screener_rhia_responses", id), 0);
+  assert.equal(await conta(db, "screener_rhia_result_snapshots", id), 0);
+});
+
+test("purga: sessão vencida COM lead vivo perde o conteúdo, mas o contato sobrevive", async () => {
+  const db = await ambiente();
+  const id = await sessaoAntiga(db, { diasSessao: 200, diasLead: 200 });
+  await db.query("select public.screener_rhia_purga()");
+  // 180 dias protegem o conteúdo: respostas e resultado saem no prazo
+  assert.equal(await conta(db, "screener_rhia_responses", id), 0, "as respostas venceram aos 180");
+  assert.equal(await conta(db, "screener_rhia_result_snapshots", id), 0, "o resultado venceu aos 180");
+  // 365 dias protegem o contato: ele e a casca anônima da sessão ficam
+  assert.equal(await conta(db, "screener_rhia_leads", id), 1, "o lead ainda não venceu");
+  assert.equal(await conta(db, "screener_rhia_sessions", id), 1, "a casca fica só porque o lead aponta para ela");
+});
+
+test("purga: quando o contato vence, ele e a casca saem juntos", async () => {
+  const db = await ambiente();
+  const id = await sessaoAntiga(db, { diasSessao: 400, diasLead: 400 });
+  await db.query("select public.screener_rhia_purga()");
+  assert.equal(await conta(db, "screener_rhia_leads", id), 0, "o lead venceu aos 365");
+  assert.equal(await conta(db, "screener_rhia_sessions", id), 0, "a casca sai junto com ele");
+});
+
+test("purga: sessão dentro do prazo não é tocada", async () => {
+  const db = await ambiente();
+  const id = await sessaoAntiga(db, { diasSessao: 30, diasLead: 30 });
+  const r = (await db.query("select public.screener_rhia_purga() as r")).rows[0].r;
+  assert.equal(await conta(db, "screener_rhia_sessions", id), 1);
+  assert.equal(await conta(db, "screener_rhia_responses", id), 1);
+  assert.equal(await conta(db, "screener_rhia_result_snapshots", id), 1);
+  assert.equal(await conta(db, "screener_rhia_leads", id), 1);
+  assert.equal(r.sessoes, 0, "nada a purgar");
+});
+
+test("purga: os prazos vêm do VÍNCULO, não do código", async () => {
+  const db = await ambiente();
+  // encurta a política para 10 dias e uma sessão de 30 passa a estar vencida
+  await db.query("update public.screener_event_bindings set session_retention_days = 10, lead_retention_days = 20");
+  const id = await sessaoAntiga(db, { diasSessao: 30, diasLead: 30 });
+  await db.query("select public.screener_rhia_purga()");
+  assert.equal(await conta(db, "screener_rhia_sessions", id), 0,
+    "mudar o vínculo tem de mudar a purga, sem migration nova");
+});
+
+test("purga: nenhum papel público alcança a função", async () => {
+  const db = await ambiente();
+  for (const papel of ["anon", "authenticated", "service_role", "screener_runtime"]) {
+    const { rows } = await db.query(
+      "select has_function_privilege($1, 'public.screener_rhia_purga()', 'execute') as pode", [papel]);
+    assert.equal(rows[0].pode, false, `${papel} não pode executar a purga`);
+  }
 });

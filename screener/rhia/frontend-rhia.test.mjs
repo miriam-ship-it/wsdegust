@@ -28,6 +28,7 @@ import {
   formatarData, mensagemErro, descreverErro,
   chaveArmazenamento, guardarSessao, lerSessao, limparSessao,
   telaDoHash, criarRastreador, criarCliente, renderResultado, renderInsuficiente,
+  sinteseExecutiva,
 } from "../../frontend/rhia.mjs";
 // SÓ NO TESTE: o motor e o instrumento do pacote (o app nunca os importa).
 import { buildResultContractV2 } from "./pacote/src/output-engine-v2.mjs";
@@ -509,4 +510,51 @@ test("rhia.mjs não importa nada (autocontido em frontend/) e a página carrega 
   assert.ok(!/#[0-9a-f]{3,8}\b/i.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), "hex solto em rhia.css — use tokens");
   assert.ok(!/font-weight:\s*(700|800|900|bold)/.test(css), "bold não existe na Boomit");
   assert.ok(css.includes("@media print") && css.includes("break-inside: avoid") && css.includes("prefers-reduced-motion"));
+});
+
+// -------------------------------------------------------------------------
+// SÍNTESE EXECUTIVA — a leitura inteira num parágrafo. Não pode inventar nada:
+// cada frase tem de carregar uma palavra que o motor já emitiu.
+// -------------------------------------------------------------------------
+
+test("síntese: compõe a partir do contrato, sem inventar e sem vazar", () => {
+  const pub = publico(respostas({ porDimensao: { [DIMS[0]]: "E4", [DIMS[1]]: "E3", [DIMS[2]]: "E2", [DIMS[3]]: "E3", [DIMS[4]]: "E4", [DIMS[5]]: "E2" }, gates: "E2", ctx: [0, 2, 2] }));
+  const t = sinteseExecutiva(pub);
+  const palavras = t.split(/\s+/).filter(Boolean).length;
+  assert.ok(palavras >= 80 && palavras <= 175, `síntese com ${palavras} palavras, fora da faixa`);
+  // tudo o que ela afirma tem de vir do contrato
+  assert.ok(t.includes(pub.positioning.stage), "cita o degrau");
+  assert.ok(t.includes(pub.supporters[0].name), "cita o sustentador principal");
+  assert.ok(t.includes(pub.limiters[0].name), "cita o limitador principal");
+  assert.ok(/governan/i.test(t), "fala de governança");
+  assertSemVazamento(t, "síntese");
+  assert.ok(!/\d+\s*%|\d+\s*\/\s*100/.test(t), "sem número nem porcentagem");
+});
+
+test("síntese: degrada sozinha quando não há tensão nem destaque", () => {
+  const pub = publico(respostas({ ctx: [4, 0, 4], gates: "E4" }));
+  assert.equal(pub.supporters.length, 0);
+  assert.equal(pub.tensions.length, 0);
+  const t = sinteseExecutiva(pub);
+  assert.ok(t.includes(pub.positioning.stage), "ainda diz o degrau");
+  assert.ok(/homogênea/.test(t), "diz que nada se destaca, em vez de omitir");
+  assert.ok(!/undefined|null|\[object/.test(t), "sem buraco de template");
+});
+
+test("síntese: sem degrau não há síntese (INSUFFICIENT e entrada vazia)", () => {
+  assert.equal(sinteseExecutiva(null), "");
+  assert.equal(sinteseExecutiva({}), "");
+  const pub = publico(respostas({ na: { [DIMS[2]]: 2 }, gates: "NA" }));
+  assert.equal(pub.status, "INSUFFICIENT");
+  assert.equal(sinteseExecutiva(pub), "", "no ramo insuficiente não se resume o que não existe");
+});
+
+test("renderResultado: a síntese entra logo depois da capa e antes do mapa", () => {
+  const pub = publico(respostas({ porDimensao: { [DIMS[0]]: "E4", [DIMS[5]]: "E2" }, gates: "E3" }));
+  const html = renderResultado(pub);
+  const iCapa = html.indexOf("Sua leitura orientativa");
+  const iSintese = html.indexOf("A leitura em um parágrafo");
+  const iMapa = html.indexOf("O que esta leitura traz");
+  assert.ok(iCapa < iSintese && iSintese < iMapa, "ordem: capa, síntese, mapa");
+  assertSemVazamento(html, "render com síntese");
 });
