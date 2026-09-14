@@ -82,11 +82,23 @@ test("teclado: percorrer não avança, escolher avança", { skip: navegador ? fa
   await cmd("Page.navigate", { url: base + "/rhia.html" }); await dormir(2000);
 
   await js(`
-    document.querySelector('[data-acao="comecar"]').click(); await new Promise(z=>setTimeout(z,1500));
-    const esc = async (v) => { const e=[...document.querySelectorAll('input[type=radio]')].find(x=>x.value===v); if(e){e.click(); await new Promise(z=>setTimeout(z,700));} };
+    document.querySelector('[data-acao="comecar"]').click(); await new Promise(z=>setTimeout(z,1800));
+    // O contexto também é uma pergunta por vez e avança ao escolher: não há
+    // botão para clicar, então esperamos a tela trocar sozinha.
+    const cnt = () => (document.querySelector(".sc-progress__count")||{}).textContent || "";
+    const esc = async (v) => {
+      const e=[...document.querySelectorAll('input[type=radio]')].find(x=>x.value===v);
+      if(!e) return false;
+      // Esperar o CONTADOR mudar, não o texto da página: o primeiro repinte
+      // (marcar a alternativa) já muda o texto, e sairíamos antes do avanço.
+      const antes = cnt();
+      e.click();
+      for (let t=0;t<60;t++){ await new Promise(z=>setTimeout(z,120)); if (cnt() !== antes) return true; }
+      return false;
+    };
     await esc("HR_LEADER"); await esc("AREA"); await esc("DECIDE_SCOPE");
-    document.querySelector('[data-acao="concluir-contexto"]').click();
-    await new Promise(z=>setTimeout(z,2000)); return location.hash;`);
+    for (let t=0;t<50 && location.hash!=="#questoes";t++) await new Promise(z=>setTimeout(z,150));
+    return location.hash;`);
 
   const primeira = await progresso();
   assert.match(String(primeira), /Pergunta 4 de 30/, "chegou à primeira pergunta");

@@ -828,11 +828,11 @@ export function iniciarApp(cfg) {
     // clique, toque ou tecla numérica. Nunca por `change` de navegação: as
     // setas ↑↓ percorrem as alternativas de um radiogroup e disparam `change` a
     // cada parada; avançar ali tornaria o teclado inutilizável.
-    if (foiEscolhaDeliberada() && st.tela === "questoes" && !st.avancando) {
+    if (foiEscolhaDeliberada() && (st.tela === "questoes" || st.tela === "contexto") && !st.avancando) {
       escolhaDeliberadaEm = 0;   // uma escolha, um avanço
       st.avancando = true;
       // A pausa é para a pessoa VER a escolha marcar antes de a tela trocar.
-      setTimeout(() => { st.avancando = false; if (st.tela === "questoes") avancar(); }, 340);
+      setTimeout(() => { st.avancando = false; if (st.tela === "questoes") avancar(); else if (st.tela === "contexto") avancarContexto(); }, 340);
     }
   }
   // Texto livre: sai para o servidor só quando válido (o servidor recusa 2–120 inválido).
@@ -957,12 +957,28 @@ export function iniciarApp(cfg) {
   const foiEscolhaDeliberada = () =>
     Date.now() - escolhaDeliberadaEm < 1500 && Date.now() - navegandoPorSetaEm > 900;
 
+  /** Avança dentro do contexto; no último item, conclui e vai às práticas. */
+  function avancarContexto() {
+    const it = st.contexto[st.posCtx]; if (!it) return;
+    // "Outro" abriu o campo: não empurra ninguém para frente antes de escrever.
+    if (st.cf && it.id === st.cf.itemId && st.respostas[it.id] === st.cf.opcao) {
+      if (validarTextoOutro(st.textoOutro, st.cf)) { focar("#rh-texto-outro"); return; }
+    }
+    if (st.posCtx >= st.contexto.length - 1) return concluirContexto();
+    st.posCtx += 1; persistir(); pintar(); scrollTopo();
+  }
+  function voltarContexto() {
+    if (st.posCtx <= 0) return irPara("abertura");
+    st.posCtx -= 1; persistir(); pintar(); scrollTopo();
+  }
+
   function avancar() {
     if (st.pos >= st.flat.length - 1) { st.pos = st.flat.length - 1; persistir(); return irPara("revisao"); }
     st.pos += 1; persistir(); pintar(); scrollTopo();
   }
   function voltar() {
-    if (st.pos <= 0) return irPara("contexto");
+    if (st.tela === "contexto") return voltarContexto();
+    if (st.pos <= 0) { st.posCtx = st.contexto.length - 1; return irPara("contexto"); }
     st.pos -= 1; persistir(); pintar(); scrollTopo();
   }
   function editarItem(id) {
@@ -1032,52 +1048,57 @@ export function iniciarApp(cfg) {
     </div>`;
   }
 
-  // ---------- render: contexto (3 itens numa tela) ----------
+  // ---------- render: contexto (uma por vez, como as demais) ----------
+  // Eram três numa tela só, com um botão "Avançar". Agora seguem a mesma
+  // mecânica das outras 27: uma pergunta em evidência, vizinhos esmaecidos e
+  // avanço ao escolher. A ÚNICA exceção é o campo de texto de "Outro": ali o
+  // avanço espera o texto ficar válido, senão a pessoa seria empurrada para
+  // frente antes de escrever.
   function telaContexto() {
+    if (st.posCtx == null) st.posCtx = Math.max(0, primeiraNaoRespondida(st.contexto, st.respostas));
+    if (st.posCtx > st.contexto.length - 1) st.posCtx = st.contexto.length - 1;
+    const it = st.contexto[st.posCtx]; if (!it) return carregando();
     const cf = st.cf;
-    const campos = st.contexto.map((it) => {
-      const escolhido = st.respostas[it.id];
-      let texto = "";
-      if (cf && it.id === cf.itemId && escolhido === cf.opcao) {
-        const erro = st.textoErro ? mensagemTextoOutro(st.textoErro, cf) : "";
-        texto = `<div class="sc-field rh-texto">
-          <label class="sc-label" for="rh-texto-outro">${escapeHtml(cf.prompt)}</label>
-          <input class="sc-input" id="rh-texto-outro" type="text" autocomplete="organization-title" maxlength="${cf.max}" value="${escapeHtml(st.textoOutro)}" data-acao="texto-outro" aria-describedby="rh-texto-ajuda${erro ? " rh-texto-erro" : ""}" ${erro ? 'aria-invalid="true"' : ""} required>
-          <p class="sc-help" id="rh-texto-ajuda">Entre ${cf.min} e ${cf.max} caracteres. Guardado ao sair do campo.</p>
-          ${erro ? `<p class="rh-field__erro" id="rh-texto-erro" role="alert">${ICONE.info}<span>${escapeHtml(erro)}</span></p>` : ""}
-        </div>`;
-      }
-      // O nome acessível do grupo é o ENUNCIADO (aria-labelledby), não a palavra
-      // "Alternativas": com três grupos na mesma tela, quem usa leitor de tela
-      // ouviria o mesmo rótulo três vezes, sem a pergunta (WCAG 1.3.1 / 4.1.2).
-      const idPrompt = `rh-ctx-p-${escapeHtml(it.id)}`;
-      return `<fieldset class="rh-ctx">
-        <legend class="rh-ctx__prompt" id="${idPrompt}">${escapeHtml(it.prompt)}</legend>
-        <div class="sc-opts rh-ctx__opts" role="radiogroup" aria-labelledby="${idPrompt}">${opcoesHtml(it, escolhido, false)}</div>
-        ${texto}
-      </fieldset>`;
-    }).join("");
-    const c = contextoCompleto(st.contexto, st.respostas, st.textoOutro, st.cf);
-    return `${progressoHtml("Contexto", `Itens 1 a ${st.contexto.length} de ${st.itens.length}`)}
+    const escolhido = st.respostas[it.id];
+    const abriuTexto = !!(cf && it.id === cf.itemId && escolhido === cf.opcao);
+    const erro = abriuTexto && st.textoErro ? mensagemTextoOutro(st.textoErro, cf) : "";
+    const texto = abriuTexto ? `<div class="sc-field rh-texto">
+        <label class="sc-label" for="rh-texto-outro">${escapeHtml(cf.prompt)}</label>
+        <input class="sc-input" id="rh-texto-outro" type="text" autocomplete="organization-title" maxlength="${cf.max}" value="${escapeHtml(st.textoOutro)}" data-acao="texto-outro" aria-describedby="rh-texto-ajuda${erro ? " rh-texto-erro" : ""}" ${erro ? 'aria-invalid="true"' : ""} required>
+        <p class="sc-help" id="rh-texto-ajuda">Entre ${cf.min} e ${cf.max} caracteres. Ao sair do campo, a leitura continua.</p>
+        ${erro ? `<p class="rh-field__erro" id="rh-texto-erro" role="alert">${ICONE.info}<span>${escapeHtml(erro)}</span></p>` : ""}
+      </div>` : "";
+
+    const anterior = st.posCtx > 0 ? st.contexto[st.posCtx - 1] : null;
+    const proxima = st.posCtx < st.contexto.length - 1 ? st.contexto[st.posCtx + 1] : st.flat[0];
+    const antesHtml = `<button class="rh-viz rh-viz--antes" type="button" data-acao="voltar-nav"
+        aria-label="${anterior ? `Voltar para a pergunta ${anterior.order}` : "Voltar para o início"}">
+        <span class="rh-viz__k">${anterior ? `Pergunta ${anterior.order}` : "Início"}</span>
+        <span class="rh-viz__t">${escapeHtml(anterior ? anterior.prompt : "A apresentação do diagnóstico")}</span>
+      </button>`;
+    const depoisHtml = `<p class="rh-viz rh-viz--depois" aria-hidden="true">
+        <span class="rh-viz__k">${proxima ? `Pergunta ${proxima.order}` : "A seguir"}</span>
+        <span class="rh-viz__t">${escapeHtml(proxima ? proxima.prompt : "As perguntas sobre práticas")}</span>
+      </p>`;
+
+    return `${progressoHtml("", `Pergunta ${it.order} de ${st.itens.length}`)}
       ${avisoStorage()}${noteTopo()}
-      <div class="sc-card rh-ctx-card">
-        <p class="sc-eyebrow">Contexto</p>
-        <h1 class="sc-title">Seu papel, alcance e autoridade</h1>
-        <p class="sc-lead">Seu papel muda só a lente do texto final; alcance e autoridade compõem a referência com a qual as práticas serão comparadas.</p>
-        ${campos}
+      <div class="rh-pilha">
+        ${antesHtml}
+        <article class="sc-item rh-pilha__atual" id="sc-questao" tabindex="-1" aria-label="Pergunta ${it.order} de ${st.itens.length}">
+          <p class="sc-item__prompt" id="rh-item-prompt">${escapeHtml(it.prompt)}</p>
+          <div class="sc-opts" role="radiogroup" aria-labelledby="rh-item-prompt">${opcoesHtml(it, escolhido, true)}</div>
+          ${texto}
+        </article>
+        ${depoisHtml}
       </div>
-      <div class="sc-nav">
-        <button class="sc-btn sc-btn--ghost" type="button" data-acao="voltar-abertura">${ICONE.volta} Voltar</button>
-        ${autosaveHtml()}
-        <button class="sc-btn sc-btn--primary" type="button" data-acao="concluir-contexto" ${c.ok ? "" : 'aria-disabled="true"'}>Avançar ${ICONE.seta}</button>
-      </div>`;
+      <p class="sc-kbd">Escolher já avança · <kbd>1</kbd>–<kbd>${it.options.length}</kbd> escolhe · <kbd>↑</kbd><kbd>↓</kbd> percorrem · <kbd>Espaço</kbd> confirma · <kbd>←</kbd> volta</p>
+      <div class="sc-nav rh-nav--simples">${autosaveHtml()}</div>`;
   }
 
   // ---------- render: questões (uma por tela) ----------
   function telaQuestoes() {
     const it = st.flat[st.pos]; if (!it) return carregando();
-    const grupo = (st.groups.find((g) => g.code === it.group) || {}).name || "";
-    const dim = it.dimension_name ? ` · ${escapeHtml(it.dimension_name)}` : "";
     const escolhido = st.respostas[it.id];
     const ultimo = st.pos === st.flat.length - 1;
     // Vizinhos esmaecidos: dão contexto do percurso sem competir com a questão
@@ -1094,7 +1115,11 @@ export function iniciarApp(cfg) {
         <span class="rh-viz__k">${proxima ? `Pergunta ${proxima.order}` : "Para encerrar"}</span>
         <span class="rh-viz__t">${escapeHtml(proxima ? proxima.prompt : "Conferir as respostas e enviar")}</span>
       </p>`;
-    return `${progressoHtml(`${escapeHtml(grupo)}${dim}`, `Pergunta ${it.order} de ${st.itens.length}`)}
+    // Sem nome de grupo nem de dimensão no alto: além de ocupar a altura que a
+    // pergunta precisa, o nome de dimensão do QUESTIONÁRIO diverge do nome que a
+    // DEVOLUTIVA usa para a mesma dimensão (divergência do pacote aprovado) — o
+    // participante lia dois nomes para a mesma coisa. Fora daqui, some o problema.
+    return `${progressoHtml("", `Pergunta ${it.order} de ${st.itens.length}`)}
       ${avisoStorage()}${noteTopo()}
       <div class="rh-pilha">
         ${antesHtml}
@@ -1315,7 +1340,14 @@ export function iniciarApp(cfg) {
       // change = ao sair do campo: valida e envia se válido, SEM recriar o DOM
       // (o blur pode estar no meio de um clique numa alternativa).
       st.textoOutro = alvo.value;
-      salvarTextoOutro().then(refrescarLeve);
+      salvarTextoOutro().then((ok) => {
+        refrescarLeve();
+        // Sem botão, o texto válido é o que continua a leitura. Só avança se
+        // gravou e continua válido — texto curto demais mantém a pessoa aqui.
+        if (ok && st.tela === "contexto" && !validarTextoOutro(st.textoOutro, st.cf)) {
+          setTimeout(() => { if (st.tela === "contexto") avancarContexto(); }, 340);
+        }
+      });
     }
   });
   raiz.addEventListener("input", (ev) => {

@@ -132,6 +132,66 @@
 /* Quem pediu menos movimento não recebe a transição de opacidade. */
 @media (prefers-reduced-motion: reduce) { .rh-viz { transition: none; } }
 
+/* --- Uma questão cabe numa tela ------------------------------------------
+   Pedido: a pergunta e as alternativas devem caber sem rolar; só as de
+   alternativas muito longas podem exigir rolagem.
+
+   Medido antes de escrever: num aparelho de 390x844 a tela de pergunta pedia
+   cerca de 1100px, sobrando ~290px para fora. A altura vinha de cinco lugares,
+   e os cinco foram tratados — pela ordem do que mais ocupava:
+     1. as cinco alternativas, que sozinhas passavam de 480px;
+     2. o cartão em volta da pergunta (borda + 40px de recheio);
+     3. o cabeçalho com marca e botão de tema, que no meio do questionário não
+        serve para nada;
+     4. o enunciado;
+     5. os vizinhos esmaecidos.
+
+   O piso que NÃO foi cruzado: corpo de 14px, altura de linha 1.4 e alvo de
+   toque de 44px. Caber não pode custar legibilidade nem precisão do dedo —
+   por isso as perguntas de alternativa muito longa ainda rolam, e isso é o
+   comportamento pedido, não uma falha. */
+.rh-tela--questoes .sc-item, .rh-tela--contexto .sc-item { padding: var(--space-4) var(--space-5); margin-top: var(--space-2); }
+.rh-tela--questoes .sc-item__prompt, .rh-tela--contexto .sc-item__prompt {
+  font-size: var(--text-lg); line-height: var(--leading-lg); margin-bottom: var(--space-4); }
+.rh-tela--questoes .sc-opts, .rh-tela--contexto .sc-opts { gap: var(--space-2); }
+.rh-tela--questoes .sc-opt, .rh-tela--contexto .sc-opt { padding: var(--space-3) var(--space-4); min-height: 2.75rem; }
+.rh-tela--questoes .sc-opt__txt, .rh-tela--contexto .sc-opt__txt { font-size: 0.9375rem; line-height: 1.375rem; }
+.rh-tela--questoes .rh-pilha, .rh-tela--contexto .rh-pilha { gap: var(--space-2); margin-top: var(--space-2); }
+.rh-tela--questoes .rh-viz, .rh-tela--contexto .rh-viz { padding: var(--space-2) var(--space-4); }
+.rh-tela--questoes .rh-viz__t, .rh-tela--contexto .rh-viz__t { -webkit-line-clamp: 1; font-size: var(--text-xs); }
+.rh-tela--questoes .sc-progress, .rh-tela--contexto .sc-progress { padding: var(--space-2) 0; }
+.rh-tela--questoes .sc-nav, .rh-tela--contexto .sc-nav { padding: var(--space-1) 0 var(--space-2); margin-top: 0; }
+
+/* No aparelho de toque o aperto é maior, e o cabeçalho sai: a marca e o botão
+   de tema não fazem falta no meio de 30 perguntas, e custam ~70px de altura. */
+@media (max-width: 48rem) {
+  .rh-tela--questoes .sc-head, .rh-tela--contexto .sc-head { display: none; }
+  .rh-tela--questoes .sc-kbd, .rh-tela--contexto .sc-kbd { display: none; }
+  /* Sem cartão: a moldura custa 40px de recheio mais a borda, e a pergunta não
+     precisa de moldura quando é a única coisa na tela. */
+  .rh-tela--questoes .sc-item, .rh-tela--contexto .sc-item {
+    background: none; border: 0; border-radius: 0; padding: var(--space-2) 0; }
+  .rh-tela--questoes .sc-item__prompt, .rh-tela--contexto .sc-item__prompt {
+    font-size: var(--text-base); line-height: var(--leading-base); margin-bottom: var(--space-3); }
+  .rh-tela--questoes .sc-opt, .rh-tela--contexto .sc-opt { padding: var(--space-2) var(--space-3); gap: var(--space-2); }
+  .rh-tela--questoes .sc-opt__txt, .rh-tela--contexto .sc-opt__txt { font-size: 0.875rem; line-height: 1.25rem; }
+  .rh-tela--questoes .rh-viz, .rh-tela--contexto .rh-viz { padding: var(--space-1) var(--space-3); }
+  .rh-tela--questoes .rh-viz__k, .rh-tela--contexto .rh-viz__k { font-size: 0.625rem; }
+}
+
+/* Tela baixa (Android menor, 360x740, ou celular deitado): aperta o que ainda
+   dá sem cruzar o piso. O vizinho de baixo sai — dos dois, é o que menos serve,
+   porque não é clicável; o de cima fica, que é o caminho de volta. Mesmo assim
+   as perguntas de alternativa mais longa continuam rolando, e é o combinado. */
+@media (max-width: 48rem) and (max-height: 800px) {
+  .rh-tela--questoes .rh-viz--depois, .rh-tela--contexto .rh-viz--depois { display: none; }
+  .rh-tela--questoes .sc-opts, .rh-tela--contexto .sc-opts { gap: 0.375rem; }
+  .rh-tela--questoes .sc-opt, .rh-tela--contexto .sc-opt { padding: 0.375rem var(--space-3); }
+  .rh-tela--questoes .sc-opt__txt, .rh-tela--contexto .sc-opt__txt { line-height: 1.2rem; }
+  .rh-tela--questoes .sc-item__prompt, .rh-tela--contexto .sc-item__prompt { margin-bottom: var(--space-2); }
+  .rh-tela--questoes .sc-progress, .rh-tela--contexto .sc-progress { padding: var(--space-1) 0; }
+}
+
 /* --- Revisão -------------------------------------------------------------- */
 .rh-rev__texto { color: var(--text-primary); }
 .rh-tela--revisao .sc-rev__linha .sc-btn { min-height: 2.75rem; }

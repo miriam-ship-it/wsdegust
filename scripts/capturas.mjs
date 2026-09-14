@@ -93,17 +93,21 @@ async function percorrer(cdp, base, sufixo, { largura, altura, mobile }) {
     await new Promise(r => setTimeout(r, 1200));
     // Cada resposta repinta a tela: consultar o DOM de novo antes de cada
     // clique, senão o nó guardado já está órfão e o clique não faz nada.
+    const cnt = () => (document.querySelector(".sc-progress__count")||{}).textContent || "";
     const escolher = async (v) => {
       const el = [...document.querySelectorAll('input[type=radio]')].find(x => x.value === v);
       if (!el) throw new Error("alternativa não encontrada: " + v);
+      // Escolher avança sozinho. Esperar o CONTADOR mudar, não o texto: o
+      // primeiro repinte (marcar a alternativa) já muda o texto.
+      const antes = cnt();
       el.click();
-      await new Promise(r => setTimeout(r, 700));
+      for (let t = 0; t < 60; t++) { await new Promise(r => setTimeout(r, 120)); if (cnt() !== antes) break; }
     };
     await escolher("HR_LEADER");
     await escolher("AREA");
     await escolher("DECIDE_SCOPE");
-    document.querySelector('[data-acao="concluir-contexto"]').click();
-    await new Promise(r => setTimeout(r, 1600));
+    // O contexto avança ao escolher, sem botão: esperamos a tela trocar.
+    for (let t = 0; t < 60 && location.hash !== "#questoes"; t++) await new Promise(r => setTimeout(r, 150));
     if (location.hash !== "#questoes") throw new Error("não avançou do contexto: " + location.hash);
     return location.hash;
   `);
