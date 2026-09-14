@@ -550,6 +550,55 @@ function escadaHtml(pos) {
     </figure>`;
 }
 
+/**
+ * NÚMEROS — decisão de produto de 14/09/2026. A arquitetura aprovada pedia
+ * devolutiva sem número; a dona do produto decidiu o contrário, porque o
+ * relatório de liderança que a Boomit já entrega é acionável justamente por
+ * quantificar. A exceção está registrada em DECISOES.md e endereçada a quem
+ * aprovou o instrumento.
+ *
+ * Barra chapada, sem degradê, sem 3D e sem sombra — o design system permite
+ * barra e proíbe as três coisas. Sem radar: além de proibido, radar com seis
+ * eixos esconde ordem, e ordem é o que a pessoa procura aqui.
+ *
+ * As dimensões saem em ordem decrescente: a leitura vira um ranking, que é a
+ * pergunta real ("onde estou melhor e onde estou pior"), não um inventário.
+ */
+function metricasHtml(m) {
+  if (!m || m.indice == null) return "";
+  const barra = (valor, forte) => `<span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill ${forte ? "is-forte" : ""}" style="width:${Math.max(0, Math.min(100, valor))}%"></span></span>`;
+  const linha = (nome, valor, extra, forte) => `<li class="rh-metrica">
+      <span class="rh-metrica__n">${escapeHtml(nome)}${extra ? `<span class="rh-metrica__x">${escapeHtml(extra)}</span>` : ""}</span>
+      ${barra(valor, forte)}
+      <span class="rh-metrica__v">${valor}</span>
+    </li>`;
+
+  const dims = [...(m.porDimensao || [])].filter((d) => d.valor != null).sort((a, b) => b.valor - a.valor);
+  const eixos = (m.eixos || []).map((e) => linha(e.nome, e.valor, `peso ${e.peso}`, true)).join("");
+
+  // Onde o índice cai dentro da faixa do próprio degrau.
+  const dentro = m.faixa && m.faixa.ate > m.faixa.de
+    ? Math.round(((m.indice - m.faixa.de) / (m.faixa.ate - m.faixa.de)) * 100) : null;
+
+  return `<div class="rh-indice">
+      <p class="rh-indice__n"><span class="rh-indice__v">${m.indice}</span><span class="rh-indice__d">de 100</span></p>
+      <div class="rh-indice__t">
+        <p class="rh-indice__degrau">${escapeHtml((m.degrau && m.degrau.nome) || "")}</p>
+        ${m.faixa ? `<p class="rh-indice__faixa">Este degrau vai de ${m.faixa.de} a ${m.faixa.ate}${dentro != null ? `, e você está a ${dentro}% de percorrê-lo` : ""}.</p>` : ""}
+        ${m.distancia != null ? `<p class="rh-indice__faixa">${m.distancia === 0
+            ? "A referência de atuação aponta para este mesmo degrau."
+            : m.distancia > 0
+              ? `As práticas estão ${m.distancia} ${m.distancia === 1 ? "degrau" : "degraus"} acima da referência de atuação.`
+              : `As práticas estão ${-m.distancia} ${m.distancia === -1 ? "degrau" : "degraus"} abaixo da referência de atuação.`}</p>` : ""}
+      </div>
+    </div>
+    <h3 class="rh-metricas__t">Como o índice se compõe</h3>
+    <ul class="rh-metricas">${eixos}</ul>
+    <p class="sc-help sc-muted">O índice é a média ponderada dos três eixos, com os pesos acima. Não é nota de pessoa nem comparação com outras empresas.</p>
+    <h3 class="rh-metricas__t">Por dimensão, da mais forte à mais frágil</h3>
+    <ul class="rh-metricas">${dims.map((d) => linha(d.nome, d.valor, d.eixo)).join("")}</ul>`;
+}
+
 function gateHtml(gov, restriction) {
   const g = gov || {};
   const t = tomGovernanca(g.id);
@@ -612,6 +661,13 @@ export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } =
       <p class="rh-prosa">${escapeHtml(pos.reading || "")}</p>
       ${pos.next ? `<p class="rh-prosa"><span class="rh-k">Próximo movimento.</span> ${escapeHtml(pos.next)}</p>` : ""}
     </div>`);
+
+  // 2b. Os números por trás da posição (decisão de 14/09)
+  const s2b = (p.metricas && p.metricas.indice != null)
+    ? sec("numeros", "Os números por trás da posição",
+        "De onde vem o degrau: seis dimensões, três eixos e um índice ponderado.",
+        metricasHtml(p.metricas))
+    : "";
 
   // 3. Referência de atuação e distância (ou inconclusiva)
   const refOk = ref.status === "VALID" && ref.stage;
@@ -691,7 +747,7 @@ export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } =
       <p class="rh-sintese__p">${escapeHtml(sintese)}</p>
     </aside>` : "";
 
-  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${blocoSintese}${mapaHtml(mapa)}${s2}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
+  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${blocoSintese}${mapaHtml(mapa)}${s2}${s2b}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
 }
 
 /** Tela própria para status INSUFFICIENT: mensagem do motor + gate + CTAs. */

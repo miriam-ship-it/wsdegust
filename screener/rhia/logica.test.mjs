@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { instrumento } from "./definicao.mjs";
 import {
   ITENS_IDS, validarResposta, validarSubmissao, canonico,
-  respostasParaMotor, calcularContrato, paraPublico,
+  respostasParaMotor, calcularContrato, paraPublico, metricas,
 } from "./logica.mjs";
 
 const scoredIds = instrumento.items.filter((x) => x.kind !== "context").map((x) => x.id);
@@ -164,4 +164,70 @@ test("paraPublico: não muta o contrato de origem e tolera generatedAt ausente",
   pub.positioning.stage = "x";
   assert.notEqual(c.public.positioning.stage, "x");
   assert.equal(paraPublico({ public: { version: "2.0.0-pilot" }, internal: {} }).emitido_em, null);
+});
+
+// -------------------------------------------------------------------------
+// MÉTRICAS NUMÉRICAS (decisão de 14/09). O valor destes testes não é conferir
+// aritmética — é garantir que os números vêm do MOTOR e não de uma segunda
+// implementação nossa, que poderia divergir dele em silêncio.
+// -------------------------------------------------------------------------
+
+test("métricas: índice, eixos e dimensões saem do motor, na escala 0–100", () => {
+  const respostas = respostasEm("E3", { EST01: "E4", EST02: "E4", EST03: "E4", EST04: "E4" });
+  const m = metricas({ instrumento, respostas });
+
+  assert.equal(m.porDimensao.length, 6, "as seis dimensões");
+  for (const d of m.porDimensao) {
+    assert.ok(d.valor >= 0 && d.valor <= 100, `${d.nome} fora de 0–100: ${d.valor}`);
+    assert.ok(["Liderança", "Processos", "IA"].includes(d.eixo), `eixo com código interno: ${d.eixo}`);
+  }
+  // E3 puro = 6667 pontos-base = 67 em cem. Se a conversão mudar, isto quebra.
+  const des = m.porDimensao.find((d) => d.nome.startsWith("Desenvolvimento"));
+  assert.equal(des.valor, 67, "E3 em toda a dimensão tem de dar 67");
+
+  // O índice é a ponderação declarada, não um número solto.
+  const [lid, proc, ia] = m.eixos.map((e) => e.valor);
+  assert.deepEqual(m.eixos.map((e) => e.peso), [35, 35, 30]);
+  const esperado = Math.round(0.35 * lid + 0.35 * proc + 0.30 * ia);
+  assert.ok(Math.abs(m.indice - esperado) <= 1,
+    `índice ${m.indice} não bate com a ponderação dos eixos (${esperado})`);
+});
+
+test("métricas: o degrau e a faixa são coerentes com o índice", () => {
+  const m = metricas({ instrumento, respostas: respostasEm("E3") });
+  assert.ok(m.degrau && m.degrau.posicao >= 1 && m.degrau.posicao <= 5);
+  assert.ok(m.indice >= m.faixa.de && m.indice <= m.faixa.ate,
+    `índice ${m.indice} fora da faixa do próprio degrau ${JSON.stringify(m.faixa)}`);
+  assert.equal(m.degraus.length, 5, "os cinco degraus, com suas faixas");
+  assert.deepEqual(m.degraus.map((d) => d.posicao), [1, 2, 3, 4, 5]);
+  // as faixas cobrem 0–100 sem buraco
+  assert.equal(m.degraus[0].de, 0);
+  assert.equal(m.degraus[4].ate, 100);
+});
+
+test("métricas: dimensão sem evidência vira null, e sem as seis não há índice", () => {
+  // dois NA na mesma dimensão invalidam-na (o motor exige 3 de 4)
+  const m = metricas({ instrumento, respostas: respostasEm("E3", { DES01: "NA", DES02: "NA" }) });
+  const des = m.porDimensao.find((d) => d.nome.startsWith("Desenvolvimento"));
+  assert.equal(des.valor, null, "ausência de evidência não pode virar zero");
+  assert.equal(m.indice, null, "sem as seis dimensões não se publica índice");
+  assert.equal(m.eixos, null);
+});
+
+test("paraPublico: leva as métricas, e nenhum ponto-base junto", () => {
+  const c = calcularContrato({ instrumento, respostas: respostasEm("E3") });
+  const pub = paraPublico(c);
+  assert.ok(pub.metricas, "a projeção pública leva as métricas");
+  assert.ok(pub.metricas.indice >= 0 && pub.metricas.indice <= 100);
+  const blob = JSON.stringify(pub.metricas);
+  for (const t of ["bp", "3333", "6667", "10000", "leadership", "process_", "ai_bp"]) {
+    assert.ok(!blob.includes(t), `métrica vazou interno: "${t}"`);
+  }
+});
+
+test("paraPublico: no ramo insuficiente NÃO existe número", () => {
+  const c = calcularContrato({ instrumento, respostas: respostasEm("E3", { DES01: "NA", DES02: "NA" }) });
+  const pub = paraPublico(c);
+  assert.equal(pub.status, "INSUFFICIENT");
+  assert.equal(pub.metricas, undefined, "sem evidência não se publica número nenhum");
 });

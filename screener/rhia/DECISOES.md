@@ -236,6 +236,52 @@ vira cartão com o rótulo da coluna.
 
 ---
 
+### 1.9b NÚMEROS na devolutiva — exceção a uma regra do pacote (14/09)
+
+**A regra que está sendo aberta.** `ARQUITETURA-DEVOLUTIVA-V2.md` §10 manda "não
+exibir radar, barras ou números por dimensão", e `LIMITES-METODOLOGICOS.md`
+dizia que o participante nunca vê nota, barra, percentual ou radar. A devolutiva
+passa a exibir índice 0–100, os três eixos com seus pesos e as seis dimensões
+com barra.
+
+**Quem decidiu e por quê.** A dona do produto, depois de a restrição ter sido
+apresentada duas vezes e mantida. A razão é de produto, e é boa: o Relatório
+Estratégico de liderança que a Boomit já entrega é analítico e acionável
+**porque quantifica**, e a devolutiva de IA ficava ao lado dele parecendo
+entregar menos. Um método que se dobra em silêncio deixa de valer; um que
+registra a exceção continua valendo — por isso esta seção existe, datada.
+
+**De onde vêm os números.** Das funções **exportadas pelo próprio motor do
+pacote**: `scoreAllDimensions`, `calculateAxes`, `calculatePosition`,
+`calculateReference`. Nada é recalculado por nós. Não existe uma segunda
+implementação da matemática para divergir da primeira em silêncio — se o pacote
+mudar, os números mudam junto.
+
+**A escala.** O motor trabalha em pontos-base (0–10000); publicamos 0–100
+dividindo por 100, que é exato e não é reescala. É o mesmo registro do relatório
+de liderança ("74/100"), o que permite os dois conviverem num documento só.
+
+**O que continua fora, porque seria invenção e não exibição:** benchmark de
+setor e percentil (o instrumento não coleta comparação); valor em reais (CDL) e
+risco em percentual (metodologia de **outro** instrumento); letra D→AAA (escala
+do diagnóstico de liderança). Dimensão sem evidência sai `null`, nunca zero, e
+no ramo insuficiente não há número nenhum.
+
+**Um teste que passava pelo motivo errado.** `frontend-rhia.test.mjs` afirmava
+`!/\d+\s*\/\s*100/` ("nota 0–100 no DOM"). Depois da mudança ele continuaria
+**verde por acaso**, porque o índice é renderizado como "74" e "de 100" em
+elementos separados, sem a barra que o padrão procurava. Foi substituído pelo
+que de fato vale agora: o índice existe, está em 0–100, e ponto-base não
+atravessa. Na mesma passagem descobriu-se que o helper `publico()` do teste
+montava o modelo à mão e **contornava `paraPublico`** — ou seja, não exercitava
+a projeção real; agora passa por ela.
+
+**Aberto com a Carolina.** Esta exceção mexe na saída do instrumento aprovado e
+está registrada em [PEDIDO-AO-INSTRUMENTO.md](./PEDIDO-AO-INSTRUMENTO.md) como
+decisão tomada, não como pedido.
+
+---
+
 ### 1.9 A devolutiva como documento (redesenho de 13/09)
 
 Pedido da dona do produto: *"o layout da entrega precisa ser profissional,

@@ -59,7 +59,7 @@ psicométrica validada.
 | Gate de governança | pior resposta entre GOV01–GOV03; qualquer NA = insuficiente; nunca altera o degrau | motor |
 
 Esses valores são internos: o participante nunca os vê, e a interface não os
-exibe em nenhuma forma (nota, barra, percentual, radar). Eles também não devem
+exibe em nenhuma forma (nota, barra, percentual, radar) — **revogado em 14/09/2026**: a devolutiva passou a exibir índice 0–100, eixos e dimensões. Ponto-base continua fora. Ver DECISOES.md §1.9b. Eles também não devem
 ser alterados silenciosamente depois que houver respostas reais — qualquer
 recalibração é explícita, versionada (`scoring_version`/`report_version`) e
 registrada.

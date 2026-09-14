@@ -32,6 +32,7 @@ import {
 } from "../../frontend/rhia.mjs";
 // SÓ NO TESTE: o motor e o instrumento do pacote (o app nunca os importa).
 import { buildResultContractV2 } from "./pacote/src/output-engine-v2.mjs";
+import { paraPublico } from "./logica.mjs";
 import instrumento from "./pacote/instrumento-rh-ia-v1.json" with { type: "json" };
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
@@ -368,9 +369,17 @@ function respostas({ porDimensao = {}, gates = "E3", ctx = [0, 2, 2], na = {} } 
   }
   return out;
 }
+/**
+ * Modelo público como a EDGE o produz. Antes este helper montava
+ * `{ ...c.public, emitido_em }` à mão, contornando `paraPublico` — e por isso
+ * não exercitava a projeção de verdade: a sanitização do ramo INSUFFICIENT e,
+ * agora, as métricas numéricas passavam ao largo do teste. Passa pela projeção
+ * real; a data é fixada no contrato para o resultado ser determinístico.
+ */
 function publico(answers) {
   const c = buildResultContractV2({ instrument: instrumento, answers });
-  return { ...c.public, emitido_em: "2026-09-12" };
+  c.internal.generatedAt = "2026-09-12T12:00:00.000Z";
+  return paraPublico(c);
 }
 const IDS_ITENS = instrumento.items.map((it) => it.id);
 // Cada string que NÃO pode aparecer no DOM público (pontos-base, escala,
@@ -406,10 +415,20 @@ test("renderResultado (perfil rico): anatomia completa na ordem, sem vazamento",
   // a referência de atuação continua dita em prosa, no bloco 3
   assert.ok(html.includes("Sua referência de atuação aponta para"));
   for (const nome of ESCADA_PUBLICA) assert.ok(html.includes(escapeHtml(nome)), nome);
-  // evidência ampla; data; versão; cabeçalho de impressão; sem notas por dimensão
+  // evidência ampla; data; versão; cabeçalho de impressão
   assert.ok(html.includes(">ampla<"));
   assert.ok(html.includes("12/09/2026") && html.includes("Instrumento 1.0.0-rc.1") && html.includes("rh-print-head"));
-  assert.ok(!/\d+\s*\/\s*100/.test(html), "nota 0–100 no DOM");
+  // Aqui havia `assert.ok(!/\d+\s*\/\s*100/.test(html), "nota 0–100 no DOM")`.
+  // A devolutiva passou a mostrar nota 0–100 por decisão de produto (14/09), e a
+  // asserção teria continuado VERDE por acaso — o índice é renderizado como
+  // "74" e "de 100" em elementos separados, sem a barra que o padrão procurava.
+  // Um teste que passa pelo motivo errado é pior que teste nenhum, então ele foi
+  // trocado pelo que de fato continua valendo: a escala é 0–100 e o ponto-base
+  // não atravessa.
+  assert.ok(/class="rh-indice__v">\d{1,3}</.test(html), "o índice 0–100 aparece");
+  const indice = Number((html.match(/class="rh-indice__v">(\d{1,3})</) || [])[1]);
+  assert.ok(indice >= 0 && indice <= 100, `índice fora de 0–100: ${indice}`);
+  assert.ok(!/\b(3333|6667|10000)\b/.test(html), "ponto-base no DOM");
   assert.ok(!/<progress|radar/i.test(html));
   // plano em tabela com 3 linhas e cabeçalhos de coluna
   assert.equal((html.match(/<tr><th scope="row"/g) || []).length, 3);

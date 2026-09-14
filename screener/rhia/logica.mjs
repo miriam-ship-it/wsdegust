@@ -14,7 +14,11 @@
 // =============================================================
 
 import { instrumento } from "./definicao.mjs";
-import { buildResultContractV2 } from "./pacote/src/output-engine-v2.mjs";
+import {
+  buildResultContractV2,
+  scoreAllDimensions, calculateAxes, calculatePosition, calculateReference,
+} from "./pacote/src/output-engine-v2.mjs";
+import { DIMENSIONS, STAGES } from "./pacote/src/output-definition-v2.mjs";
 
 /** Id do campo condicional de texto livre (CTX01 = OTHER). Lido do JSON. */
 const CAMPO_TEXTO = instrumento.items.find((it) => it.conditional_field)?.conditional_field ?? null;
@@ -140,6 +144,86 @@ export function calcularContrato({ instrumento: def = instrumento, respostas }) 
  * @param {{public:object, internal:{generatedAt:string}}} contrato
  * @returns {object}
  */
+/**
+ * MÉTRICAS NUMÉRICAS — decisão de produto de 14/09/2026, tomada pela dona do
+ * produto depois de a restrição ter sido apresentada duas vezes.
+ *
+ * O QUE MUDA. A arquitetura aprovada (ARQUITETURA-DEVOLUTIVA-V2 §10) manda
+ * "não exibir radar, barras ou números por dimensão". A devolutiva passa a
+ * exibir. A justificativa é de produto: o relatório de liderança que a Boomit
+ * já entrega é analítico e acionável PORQUE quantifica, e a devolutiva de IA
+ * ficava ao lado dele parecendo entregar menos. A exceção fica registrada,
+ * datada e endereçada a quem aprovou o instrumento — um método que se dobra em
+ * silêncio deixa de valer; um que registra a exceção continua valendo.
+ *
+ * DE ONDE VÊM OS NÚMEROS. Das funções EXPORTADAS pelo próprio motor do pacote:
+ * `scoreAllDimensions`, `calculateAxes`, `calculatePosition`,
+ * `calculateReference`. Nada é recalculado aqui e nada é estimado. Se o pacote
+ * mudar a matemática, estes números mudam junto — não existe uma segunda
+ * implementação para divergir da primeira.
+ *
+ * A ESCALA. O motor trabalha em pontos-base (0 a 10000). Publicar isso seria
+ * ilegível. Converte-se para 0 a 100 dividindo por 100 — é exato, não é
+ * reescala — que é o mesmo registro do relatório de liderança ("74/100").
+ *
+ * O QUE CONTINUA FORA, porque seria invenção e não exibição:
+ *   - benchmark de setor ou percentil: o instrumento não coleta comparação;
+ *   - valor em reais (CDL) e risco em percentual: são metodologia de OUTRO
+ *     instrumento, o de liderança;
+ *   - letra D→AAA: é a escala daquele diagnóstico, não desta.
+ *
+ * Dimensão inválida (menos de três respostas úteis) sai com `valor: null` —
+ * ausência de evidência não pode virar zero. Sem as seis válidas, o motor não
+ * sintetiza, e aqui também não se publica eixo nem índice: seriam média de
+ * coisa faltando.
+ */
+export function metricas({ instrumento: def = instrumento, respostas, respostasMotor }) {
+  // `respostasMotor` existe para `paraPublico`, que recebe o contrato pronto e
+  // já tem as respostas no formato do motor em `internal.answers`. Converter de
+  // novo seria converter o que já está convertido.
+  const ans = respostasMotor || respostasParaMotor(respostas);
+  const dims = scoreAllDimensions(def, ans);
+  const cem = (bp) => (bp == null || Number.isNaN(Number(bp)) ? null : Math.round(Number(bp) / 100));
+  const nomeDe = (s) => s.label ?? s.name ?? s.title ?? null;
+
+  // O eixo sai pelo NOME de exibição, nunca pelo código do motor ("leadership",
+  // "process", "ai"): código interno não atravessa a fronteira, mesmo quando é
+  // inofensivo — a regra vale por ser regra, e o teste de projeção a cobra.
+  const EIXO = { leadership: "Liderança", process: "Processos", ai: "IA" };
+  const porDimensao = Object.entries(DIMENSIONS).map(([code, d]) => ({
+    nome: d.name,
+    eixo: EIXO[d.axis] || null,
+    valor: dims[code] && dims[code].valid ? cem(dims[code].bp) : null,
+  }));
+  if (porDimensao.some((d) => d.valor === null)) {
+    return { porDimensao, eixos: null, indice: null, degrau: null, faixa: null,
+             referencia: null, distancia: null, degraus: null };
+  }
+
+  const eixos = calculateAxes(dims);
+  const pos = calculatePosition(eixos);
+  const ref = calculateReference(ans.CTX02, ans.CTX03);
+  const valida = ref && ref.status === "VALID";
+  return {
+    porDimensao,
+    // Os pesos aparecem porque o índice é ponderado: sem eles, três números e
+    // um quarto sem relação aritmética visível entre si.
+    eixos: [
+      { nome: "Liderança", peso: 35, valor: cem(eixos.leadership_bp) },
+      { nome: "Processos", peso: 35, valor: cem(eixos.process_bp) },
+      { nome: "IA", peso: 30, valor: cem(eixos.ai_bp) },
+    ],
+    indice: cem(pos.bp),
+    degrau: pos.stage ? { posicao: pos.stage.index, nome: nomeDe(pos.stage) } : null,
+    // A faixa do degrau responde a pergunta que vem logo depois da posição:
+    // quanto falta para o próximo.
+    faixa: pos.stage ? { de: cem(pos.stage.min), ate: cem(pos.stage.max) } : null,
+    referencia: valida ? ref.index : null,
+    distancia: valida && pos.stage ? pos.stage.index - ref.index : null,
+    degraus: STAGES.map((s) => ({ posicao: s.index, nome: nomeDe(s), de: cem(s.min), ate: cem(s.max) })),
+  };
+}
+
 export function paraPublico(contrato) {
   const gerado = contrato?.internal?.generatedAt;
   const emitido_em = typeof gerado === "string" && /^\d{4}-\d{2}-\d{2}/.test(gerado) ? gerado.slice(0, 10) : null;
@@ -157,5 +241,16 @@ export function paraPublico(contrato) {
     const { status, validItems } = pub.evidence;
     pub.evidence = { status, validItems };
   }
+
+  // Métricas numéricas (decisão de 14/09 — ver `metricas`). Derivadas das
+  // respostas que já estão no contrato, pelas funções do próprio motor. Ponto-
+  // base continua NÃO saindo: o que vai ao navegador é a escala 0–100.
+  // No ramo INSUFFICIENT não há métrica: sem evidência não se publica número.
+  const ans = contrato?.internal?.answers;
+  if (ans && pub.status !== "INSUFFICIENT") {
+    try { pub.metricas = metricas({ respostasMotor: ans }); }
+    catch { /* uma falha de cálculo não pode derrubar a devolutiva inteira */ }
+  }
+
   return { ...pub, emitido_em };
 }

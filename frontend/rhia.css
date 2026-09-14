@@ -341,6 +341,42 @@
 .rh-cite__t { margin: 0; font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: var(--weight-medium); text-wrap: balance; }
 .rh-cite__p { margin: var(--space-3) 0 0; font-size: var(--text-base); line-height: var(--leading-lg); color: var(--text-secondary); }
 
+/* --- Números (decisão de 14/09) -------------------------------------------
+   A devolutiva passou a quantificar. Barra CHAPADA: o design system permite
+   barra em gráfico e proíbe degradê, 3D e sombra — as três coisas que o deck
+   antigo usava. Sem radar, que além de proibido esconde ordem, e ordem é o que
+   a pessoa procura ao ver seis dimensões.
+
+   Hierarquia sem cor, como manda a casa: o índice é grande, os eixos levam a
+   barra mais escura por serem a composição, e as dimensões ficam um tom
+   abaixo. Nada aqui é verde "porque é bom" nem vermelho "porque é ruim" — a
+   escala não julga, descreve. */
+.rh-indice { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-5) var(--space-8); padding-bottom: var(--space-6); border-bottom: 1px solid var(--border-subtle); }
+.rh-indice__n { margin: 0; display: flex; align-items: baseline; gap: var(--space-2); }
+.rh-indice__v { font-size: var(--text-4xl); line-height: 1; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.rh-indice__d { font-size: var(--text-sm); color: var(--text-tertiary); }
+.rh-indice__t { flex: 1 1 18rem; min-width: 0; }
+.rh-indice__degrau { margin: 0; font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: var(--weight-medium); }
+.rh-indice__faixa { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
+
+.rh-metricas__t { margin: var(--space-8) 0 var(--space-3); font-size: var(--text-sm); letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
+.rh-metricas { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.rh-metrica { display: grid; grid-template-columns: minmax(0, 15rem) 1fr auto; align-items: center; gap: var(--space-3) var(--space-4); }
+.rh-metrica__n { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-primary); min-width: 0; }
+.rh-metrica__x { display: block; font-size: var(--text-xs); color: var(--text-tertiary); }
+.rh-metrica__v { font-size: var(--text-base); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; min-width: 2.25rem; text-align: right; }
+.rh-barra { display: block; height: 0.5rem; border-radius: var(--radius-full); background: var(--bg-muted); overflow: hidden; }
+.rh-barra__fill { display: block; height: 100%; border-radius: var(--radius-full); background: var(--moss-400);
+  print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.rh-barra__fill.is-forte { background: var(--moss-600); }
+[data-theme="dark"] .rh-barra__fill { background: var(--moss-500); }
+[data-theme="dark"] .rh-barra__fill.is-forte { background: var(--moss-300); }
+@media (max-width: 40rem) {
+  .rh-metrica { grid-template-columns: 1fr auto; }
+  .rh-metrica__n { grid-column: 1 / -1; }
+  .rh-indice__v { font-size: var(--text-3xl); }
+}
+
 /* --- Sustentadores / limitadores ------------------------------------------ */
 .rh-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 @media (max-width: 40rem) { .rh-cols { grid-template-columns: 1fr; } }
@@ -441,7 +477,7 @@
      papel, então aqui a medida é em `em`, que o navegador resolve na impressão. */
   .rh-result { max-width: 40em; margin: 0 auto; animation: none; }
   .rh-print-head { display: block; font-size: var(--text-xs); color: var(--boomit-preto); border-bottom: 1px solid var(--boomit-apoio-02); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
-  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada-fig, .rh-tabela tr, .rh-disclaimer, .rh-lente, .rh-cite, .rh-mapa, .rh-oferta, .rh-sintese { break-inside: avoid; page-break-inside: avoid; }
+  .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada-fig, .rh-tabela tr, .rh-disclaimer, .rh-lente, .rh-cite, .rh-mapa, .rh-oferta, .rh-sintese, .rh-indice { break-inside: avoid; page-break-inside: avoid; }
   .rh-sec { margin-top: var(--space-10); }
   .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-disclaimer, .rh-lente { box-shadow: none; }
   /* A capa é a primeira página: o miolo começa numa folha nova. */

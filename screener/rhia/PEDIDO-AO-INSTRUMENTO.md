@@ -63,6 +63,35 @@ As seis tensões, comparadas à tabela de contradições especificada:
 
 ---
 
+## Decisão já tomada: a devolutiva passou a mostrar números (14/09)
+
+Isto **não é pedido**, é aviso de uma decisão da dona do produto, para que você
+saiba que uma regra sua foi aberta e por quê.
+
+A arquitetura aprovada manda não exibir números nem barras por dimensão. A
+devolutiva passou a exibir: índice 0–100, os três eixos com seus pesos e as seis
+dimensões ordenadas, com barra chapada.
+
+O motivo é a convivência com o Relatório Estratégico de liderança, que a Boomit
+entrega hoje e que é acionável porque quantifica. Os dois vão para o mesmo
+documento agregado, e não podiam falar em registros opostos.
+
+Três salvaguardas que mantivemos, e que talvez respondam à sua objeção:
+
+- **Os números são os do seu motor**, obtidos pelas funções que ele já exporta.
+  Não reimplementamos a matemática, então não há como divergir dela.
+- **Nada foi inventado.** Ficaram de fora benchmark, percentil, valor em reais e
+  risco percentual — tudo o que o instrumento não coleta ou que pertence a outra
+  metodologia.
+- **Ausência de evidência não virou zero.** Dimensão inválida sai vazia, e no
+  ramo insuficiente não existe número algum.
+
+Se você discordar, o caminho é trocar a regra no pacote, e a devolutiva
+acompanha. O que não dá é a regra dizer uma coisa e a tela fazer outra sem
+registro — por isso isto está escrito aqui.
+
+---
+
 ## Os quatro pedidos
 
 ### 1. Três sustentadores e três limitadores, não dois
