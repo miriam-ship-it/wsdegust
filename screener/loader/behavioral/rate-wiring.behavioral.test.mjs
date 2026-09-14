@@ -18,6 +18,7 @@ const SCHEMA = rd("20260902143339_screener_tabelas_isoladas.sql");
 const RPC = rd("20260903120000_screener_rpc_e_papeis.sql");
 const RL = rd("20260904120000_screener_rate_limit.sql").split("-- @@@CRON@@@")[0]; // pula pg_cron
 const LEAD = rd("20260905120000_screener_op_lead.sql");
+const RL_PUBLICO = rd("20260914150000_screener_rate_limite_para_link_publico.sql");
 const IC = instrumento.instrument.code, IV = instrumento.instrument.version;
 import { createHash } from "node:crypto";
 const SECRET = "segredo-de-teste";
@@ -25,7 +26,7 @@ const SECRET = "segredo-de-teste";
 async function ambiente({ ativo = true, status = "public_pilot", cred = null } = {}) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
-  await db.exec(SCHEMA); await db.exec(RPC); await db.exec(RL); await db.exec(LEAD);
+  await db.exec(SCHEMA); await db.exec(RPC); await db.exec(RL); await db.exec(LEAD); await db.exec(RL_PUBLICO);
   await db.query(`insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
                   values ($1,$2,$3,$4,'inactive')`, [IC, IV, instrumento, "a".repeat(64)]);
   await db.query(`insert into public.screener_event_bindings
@@ -37,16 +38,18 @@ async function ambiente({ ativo = true, status = "public_pilot", cred = null } =
 const ipHmac = (ip) => chaveRate(SECRET, "ip", "", ip);
 const postStart = (ctx, ipk, opts = {}) => H.postStart(ctx, { event_slug: "ev", privacy_ack: true, privacy_notice_version: "v1", ipHmac: ipk, ...opts });
 
-test("wiring ativo: limite de criação de sessão por IP (start_preview 10/h → 11ª = 429)", async () => {
+// O limite de criação de sessão é chaveado por IP, e IP é COMPARTILHADO: o wifi
+// do workshop, a rede do Ibmec, o NAT da operadora no celular. O limite antigo
+// (10/h) bloqueava a 11ª pessoa da MESMA SALA — aconteceu em produção, no
+// primeiro uso real. A 20260914150000 subiu o teto; ele continua existindo, só
+// deixou de confundir plateia com ataque.
+test("uma sala inteira atrás do MESMO IP não é bloqueada", async () => {
   const ctx = await ambiente(); const ipk = await ipHmac("203.0.113.9");
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 40; i++) {
     const r = await postStart(ctx, ipk);
-    assert.equal(r.status, 201, `sessão ${i + 1}: ${JSON.stringify(r.body)}`);
+    assert.equal(r.status, 201, `pessoa ${i + 1} da mesma rede: ${JSON.stringify(r.body)}`);
   }
-  const r11 = await postStart(ctx, ipk);
-  assert.equal(r11.status, 429);
-  assert.equal(r11.body.error, "muitas_requisicoes");
-  // outro IP não é afetado
+  // outro IP segue independente
   assert.equal((await postStart(ctx, await ipHmac("198.51.100.2"))).status, 201);
 });
 

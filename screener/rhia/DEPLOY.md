@@ -796,6 +796,63 @@ verde imediatamente antes: 208/208.
 
 ---
 
+### Correção urgente — o limite tratava uma SALA como abuso · 14/09/2026
+
+**Encontrado no primeiro uso real, pela dona do produto**, que abriu o link e
+recebeu "Muitas tentativas em pouco tempo".
+
+**A causa.** `start_preview` era 10 por hora **por IP**. A política foi escrita
+quando o único vínculo era uma prévia interna, com poucas pessoas e credencial.
+O vínculo público é outra coisa: link aberto, distribuído, e quem o abre está
+quase sempre atrás de um IP compartilhado — o wifi do workshop, a rede do Ibmec,
+o NAT da operadora no celular. Com 10/hora por IP, **a 11ª pessoa da mesma sala
+era barrada**. O controle não estava contendo abuso: estava barrando o público.
+A rajada do Passo 5 consumiu a cota e escancarou o problema mais cedo.
+
+**Destravamento imediato:** contadores da janela zerados (`delete from
+screener_rate_limit`), com a membership temporária aberta e devolvida na mesma
+chamada.
+
+**Correção de causa:** `20260914150000_screener_rate_limite_para_link_publico`.
+`start_preview` passa a **5000/hora por IP** — alto o bastante para uma sala
+inteira, e ainda assim um teto que um script em série estoura em minutos. O que
+**não** mudou, de propósito: `autosave` (120/h), `submit` (10/h) e `consulta`
+(60/h) seguem iguais, porque são chaveados pelo **token da sessão** e nunca
+punem uma pessoa pelo que a sala fez — é onde a proteção de fato mora. E
+`previa_invalida` (5 por 10 min) segue igual, porque é força bruta de
+credencial e o vínculo público não tem credencial.
+
+> **Um erro meu, pego antes de aplicar.** Ao reescrever a função com
+> `create or replace`, eu havia trocado a validação da chave (de regex de hex
+> para simples comprimento — mais fraca) e a coleta amortizada (de 50 linhas com
+> `skip locked` para um `delete` sem limite, que varreria a tabela a cada
+> chamada). Conferi linha a linha contra a `20260904120000` e restaurei as duas.
+> **`create or replace` é exatamente a hora em que se reescreve sem querer o que
+> não se queria tocar.**
+
+| Verificação em produção | Observado |
+|---|---|
+| Teto de `start_preview` | **5000** |
+| Tetos de `submit` / `autosave` / `consulta` | 10 / 120 / 60, inalterados |
+| Validação da chave por regex de hex | preservada |
+| Coleta amortizada com `skip locked` | preservada |
+| `SECURITY DEFINER`, `search_path=''`, dono | sim, sim, `screener_owner` |
+| EXECUTE | só `screener_runtime`; `anon` e `service_role` **false** |
+| Resíduo do teste da própria migration | 0 |
+| Membership temporária | devolvida |
+
+A fronteira se provou de novo no caminho: **nem consegui chamar a função** para
+verificar (`permission denied for function`), porque só o runtime pode
+executá-la. A conferência foi pelo catálogo.
+
+**Teste que passa a existir:** `uma sala inteira atrás do MESMO IP não é
+bloqueada` — 40 sessões do mesmo IP, todas 201. O teste antigo afirmava a
+política que quebrou o produto; foi substituído, não remendado.
+
+Não exigiu redeploy da edge: a política vive no banco.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).

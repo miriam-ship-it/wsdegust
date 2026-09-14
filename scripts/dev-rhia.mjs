@@ -51,6 +51,11 @@ export async function prepararBanco() {
   // Carga do instrumento + vínculo público, exatamente a migration versionada.
   await db.exec(ler("20260913120000_screener_rhia_carga_publica.sql"));
   await db.exec(ler("20260914120000_screener_search_path_nos_triggers.sql"));
+  // A 20260914150000 (teto de rate para link público) NÃO entra aqui: ela
+  // depende da tabela screener_rate_limit, criada pela 20260904120000, que este
+  // servidor não aplica de propósito — em dev o rate fica inativo e o caminho
+  // exercitado é o legado (screener_rhia_op_get_binding). Quem prova a política
+  // nova é screener/loader/behavioral/rate-wiring.behavioral.test.mjs.
   // Confere que a carga deixou o banco coerente com o repositório.
   const somaRepo = createHash("sha256").update(canonicalize(instrumento), "utf8").digest("hex");
   const { rows } = await db.query(
