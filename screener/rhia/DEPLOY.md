@@ -456,6 +456,70 @@ autorizar.
 
 ---
 
+### Passo 2 — migrations aplicadas · 14/09/2026 · **passou**
+
+**Ferramenta: `supabase db push --linked`, não o `apply_migration` do MCP.**
+O motivo importa: o `apply_migration` recebe só um *nome* e grava no ledger uma
+versão com o carimbo de hora **do momento da aplicação**. As nossas migrations
+têm versão fixa no nome do arquivo (`20260904120000`…), então o ledger remoto
+ficaria com versões diferentes das locais e o repositório apareceria como
+"pendente" para sempre. O `db push` preserva a versão do arquivo — é o que
+mantém o repositório como fonte executável.
+
+Dry-run antes de escrever confirmou exatamente as quatro, na ordem. Aplicadas:
+`20260904120000`, `20260905120000`, `20260912120000`, `20260913120000`.
+
+| Verificação | Esperado | Observado |
+|---|---|---|
+| Tabelas `screener_rhia_*` | 4, dono `screener_owner`, RLS ligado | 4, `screener_owner`, RLS ligado, 0 policies |
+| RPC `screener_rhia_op_*` | 7, `SECURITY DEFINER`, `search_path=''` | 7, todas, todas |
+| EXECUTE nas 7 RPC | só `screener_runtime` | runtime true; `service_role`, `anon`, `authenticated` **false** |
+| Privilégio de TABELA do runtime | 0 | 0 |
+| Instrumento | inativo, checksum da carga | `1.0.0-rc.1`, `inactive`, `1195451e…3456f81` |
+| Vínculo | público, sem credencial | `public_pilot` / `required_before_result` / 180/365 / credencial nula |
+| Job do rate limit | agendado e ativo | `boomit_screener_rate_gc_v1`, `*/15 * * * *`, ativo |
+
+**Checksum conferido nos três lugares** e idêntico: o que o carregador calcula
+localmente, o que está escrito na migration de carga e o que ficou gravado no
+banco — `1195451e6d11c0f8245c04d4bdfacff4f86a8177a27aa5f224ab58fa33456f81`.
+
+**V1 intocado.** Sessões, respostas, leads e snapshots do V1 seguem em zero. As
+migrations 04 e 05 acrescentaram, do lado do V1, três funções
+(`screener_op_preview_authorize`, `screener_op_rate_check`,
+`screener_op_capturar_lead`) e a tabela `screener_rate_limit` — todas aditivas,
+todas `SECURITY DEFINER` com `search_path=''`, e **inertes** até a edge passar a
+chamá-las. Nenhuma função existente do V1 foi alterada.
+
+#### Advisors: o que mudou, e o que cada mudança é
+
+| Achado | Antes | Depois | Leitura |
+|---|---|---|---|
+| `rls_enabled_no_policy` | 6 | 11 | **Esperado.** +4 tabelas rhia +1 de rate limit. RLS sem policy é negação total; o acesso é só pelas RPC. |
+| `function_search_path_mutable` | 1 | 2 | **Introduzido por nós** — ver abaixo. |
+| `auth_allow_anonymous_sign_ins` em `cron.*` | — | 2 | **Falso positivo verificado** — ver abaixo. |
+
+**O achado que nós introduzimos.** A função de trigger
+`screener_rhia_snapshot_impede_update` nasceu sem `search_path` fixo, espelhando
+a mesma lacuna da equivalente do V1. Verificado: **não é `SECURITY DEFINER`**
+(roda como quem invoca) e pertence ao `screener_owner`, então não há caminho de
+escalada — mesma leitura que já valia para a do V1. Não bloqueia o roteiro.
+A correção é uma linha (`alter function … set search_path = ''`) e, pela regra 3,
+entra como **migration própria**, resolvendo as duas de uma vez. Fica proposta,
+não aplicada.
+
+**O falso positivo.** Instalar o `pg_cron` (migration 04) trouxe `cron.job` e
+`cron.job_run_details` com policies que o linter marca como "acessíveis a
+anônimo". Duas verificações mostram que não são: a policy é
+`username = CURRENT_USER`, ou seja, cada papel só enxerga os próprios jobs; e,
+mais decisivo, **nenhum** dos papéis `anon`, `authenticated`, `service_role` ou
+`screener_runtime` tem `USAGE` no schema `cron` — eles não alcançam essas
+tabelas de forma alguma.
+
+**Critério do Passo 2: bateu em tudo.** Nenhum achado novo bloqueia. Próximo é o
+Passo 3, e ele depende de você ter ligado o Force HTTPS (decisão D2).
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -463,7 +527,7 @@ autorizar.
 - [x] D3 — teste do V1 movido para fora do diretório publicado.
 - [x] Passo 0 — preflight read-only bateu (14/09/2026).
 - [x] Passo 1 — `rhia.html` ligado à edge (commitado, fora do ar).
-- [ ] Passo 2 — migrations 04, 05, 12 e 13 aplicadas; verificação bateu.
+- [x] Passo 2 — migrations 04, 05, 12 e 13 aplicadas (14/09/2026); verificação bateu.
 - [ ] Passo 3 — `SCREENER_CORS_ORIGINS` e `SCREENER_RATE_KEY_SECRET` definidos.
 - [ ] Passo 4 — edge redeployada; 200 na origem certa, 403 em outra.
 - [ ] Passo 5 — 429 sob rajada.
