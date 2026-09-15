@@ -1140,14 +1140,21 @@ async function liberarResultado() {
     try {
       const r = state.resultado;
       const id = state.identificacao;
-      // Calcula indicadores destacados para o backend
+      // ⚠️ ESTES NÚMEROS NÃO DECIDEM MAIS NADA.
+      // O servidor recalcula tudo a partir das respostas gravadas e ignora o que
+      // chega aqui — antes ele gravava o que recebia, e quem abrisse o console
+      // escolhia o próprio resultado. O que estes campos fazem agora é servir de
+      // CONFERÊNCIA: o servidor compara e registra a divergência, que é o sinal
+      // de adulteração. Por isso eles precisam usar as MESMAS fórmulas do
+      // servidor — se divergirem por descuido, todo envio vira alarme falso e o
+      // alarme verdadeiro se perde no meio.
+      // A fonte é screener/lideranca/motor.mjs.
       const score100 = Math.round(r.scoreGeral * 20);
       const grades = [[4.5,'AAA'],[4.0,'AA'],[3.5,'A'],[3.0,'B'],[2.5,'C'],[0,'D']];
       const maturidade_letra = grades.find(g => r.scoreGeral >= g[0])[1];
 
-      // CDL heurística aprox (mesma do front)
-      const porteFator = {S1: 1, S2: 3, S3: 8, S4: 25}[id.tamanho] || 5;
-      const personaFator = {A: 0.3, C: 0.7, G: 1.5, X: 3}[id.persona] || 1;
+      const porteFator = {S1: 1, S2: 3, S3: 8, S4: 25}[id.tamanho] ?? 5;
+      const personaFator = {A: 0.3, C: 0.7, G: 1.5, X: 3}[id.persona] ?? 1;
       const gapFator = (5 - r.scoreGeral) / 5;
       const cdl_min = Math.round(porteFator * personaFator * gapFator * 80000);
       const cdl_max = Math.round(porteFator * personaFator * gapFator * 350000);
@@ -1286,7 +1293,14 @@ function renderCompetencias(scores, persona) {
 }
 
 function renderRisco(scoreGeral, scores) {
-  const risco = Math.max(15, Math.min(95, Math.round((5 - scoreGeral) * 25)));
+  // ⚠️ A TELA E O PDF TÊM DE DIZER O MESMO NÚMERO.
+  // Esta linha usava `max(15, min(95, round((5 - score) * 25)))`, enquanto o PDF
+  // enviado por e-mail usava `round((5 - score) * 20)` — para score 3,7 a tela
+  // dizia 32% e o documento dizia 26%. A fórmula canônica é a do PDF, porque é a
+  // que já foi entregue a clientes. Ela agora vive em screener/lideranca/motor.mjs,
+  // no servidor, que é quem manda; aqui só a reproduzimos para a tela não
+  // discordar do documento.
+  const risco = Math.round((5 - scoreGeral) * 20);
   let level, levelClass, circleClass, texto;
   if (risco >= 60) { level='Alto'; levelClass='alto'; circleClass=''; texto='Risco elevado de não-execução do plano estratégico. As fragilidades identificadas, especialmente nas dimensões priorizadas acima, podem comprometer entregas-chave do ciclo atual. Recomenda-se intervenção estruturada nos próximos 90 dias.'; }
   else if (risco >= 40) { level='Moderado'; levelClass='moderado'; circleClass='moderado'; texto='Risco moderado. A organização tem fundamentos mas apresenta inconsistências que, se não endereçadas, podem comprometer metas mais ambiciosas. Janela favorável para ajustes preventivos.'; }
@@ -1299,12 +1313,17 @@ function renderRisco(scoreGeral, scores) {
 }
 
 function renderCDL(scoreGeral, scores, id) {
-  const fatorTam = { S1: 1, S2: 3, S3: 8, S4: 20 }[id.tamanho];
-  const multPersona = { A: 1, C: 2, G: 4, X: 10 }[id.persona];
-  const gapMedio = ['D1','D2','D3','D4','D5'].reduce((s,d) => s + (5 - scores[d].empresa), 0) / 5;
-  const base = gapMedio * fatorTam * multPersona * 5000;
-  const min = Math.round(base * 0.6 / 1000) * 1000;
-  const max = Math.round(base * 1.4 / 1000) * 1000;
+  // ⚠️ MESMO CASO DO RISCO: havia duas fórmulas de CDL, e a pessoa via uma na
+  // tela e recebia outra por e-mail. Para porte S1, C-level, score 3,7, a tela
+  // dizia R$ 39.000–91.000 e o PDF dizia R$ 62.400–273.000 — menos da metade.
+  // A canônica é a do PDF (é a que já foi entregue a clientes) e vive em
+  // screener/lideranca/motor.mjs, no servidor. Reproduzida aqui só para a tela
+  // não discordar do documento; quem manda é o servidor.
+  const porteFator = { S1: 1, S2: 3, S3: 8, S4: 25 }[id.tamanho] ?? 5;
+  const personaFator = { A: 0.3, C: 0.7, G: 1.5, X: 3 }[id.persona] ?? 1;
+  const gapFator = (5 - scoreGeral) / 5;
+  const min = Math.round(porteFator * personaFator * gapFator * 80000);
+  const max = Math.round(porteFator * personaFator * gapFator * 350000);
   const fmt = v => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
   document.getElementById('r-ppl-perda').textContent = fmt(min) + ' — ' + fmt(max);
   document.getElementById('r-ppl-porte').textContent = PORTE_NOMES[id.tamanho];
