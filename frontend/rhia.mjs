@@ -695,7 +695,7 @@ function gateHtml(gov, restriction) {
  * opções de apresentação. Puro: sem estado, sem DOM. Os CTAs saem com
  * data-acao para a delegação de eventos do app.
  */
-export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } = {}) {
+export function renderResultado(pub, { instrumentVersion = "", leadHtml = "", semCapa = false } = {}) {
   const p = pub || {};
   const pos = p.positioning || {}, ref = p.reference || {}, gap = p.gap || {}, sig = p.signature || {};
   const sup = p.supporters || [], lim = p.limiters || [], ten = p.tensions || [];
@@ -823,7 +823,134 @@ export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } =
       <p class="rh-sintese__p">${escapeHtml(sintese)}</p>
     </aside>` : "";
 
-  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${blocoSintese}${mapaHtml(mapa)}${s2}${s2b}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
+  // `semCapa`: quando esta devolutiva é a SEGUNDA PARTE de um documento maior,
+  // a capa e o cabeçalho de impressão são do documento, não desta metade. O
+  // resto — inclusive a síntese e o mapa desta parte — continua inteiro.
+  const abertura = semCapa ? "" : `${cabecalhoImpressao(p, instrumentVersion)}${s1}`;
+  const corpoHtml = `${blocoSintese}${mapaHtml(mapa)}${s2}${s2b}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}`;
+  if (semCapa) return corpoHtml;
+  return `<article class="rh-result">${abertura}${corpoHtml}</article>`;
+}
+
+/** Faixa em reais, sem centavo: a precisão que a estimativa NÃO tem. */
+export function faixaEmReais(min, max) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  const f = (v) => "R$ " + Math.round(v).toLocaleString("pt-BR");
+  return `${f(min)} – ${f(max)}`;
+}
+
+/**
+ * O DOCUMENTO ÚNICO — as duas leituras e a relação entre elas.
+ *
+ * O que justifica um documento só não é empilhar um relatório depois do outro:
+ * se fosse, bastaria grampear os PDFs. É a RELAÇÃO entre as duas medidas, e por
+ * isso ela vem primeiro, logo na capa, antes de qualquer metade.
+ *
+ * Não existe índice combinado, aqui nem em lugar nenhum: seria número novo, sem
+ * instrumento que o sustente, e ninguém decidiu o peso de cada metade. As duas
+ * medidas ficam lado a lado, na mesma escala de 0 a 100, e a ressalva de que são
+ * instrumentos distintos viaja junto da leitura — não escondida no fim.
+ */
+export function renderUnificado(r, { instrumentVersion = "", leadHtml = "" } = {}) {
+  const res = r || {};
+  const perfil = res.perfil || {};
+  const L = res.liderancaPublica || {};
+  const cruz = res.cruzamento;
+  const data = formatarData(res.ia && res.ia.emitido_em);
+
+  const quem = [perfil.nome, perfil.cargo, perfil.empresa].filter(Boolean).map(escapeHtml).join(" · ");
+
+  const capa = `<header class="rh-capa">
+      <p class="sc-eyebrow">Devolutiva</p>
+      <h1 class="sc-title sc-title--lg rh-capa__t">Diagnóstico de cenário</h1>
+      ${quem ? `<p class="rh-capa__quem">${quem}</p>` : ""}
+      <p class="sc-lead rh-capa__lead">Obrigada pelos minutos que você dedicou a responder. O que vem a seguir são duas leituras — como a liderança se estrutura e como a sua área integra pessoas, dados e IA — e, antes das duas, o que elas dizem quando lidas juntas.</p>
+      <p class="rh-capa__nota">São hipóteses orientativas sobre práticas observáveis. Não são avaliação da sua pessoa nem diagnóstico da empresa, e não decidem no seu lugar.</p>
+      ${data ? `<p class="rh-capa__data">Emitido em ${escapeHtml(data)}</p>` : ""}
+    </header>`;
+
+  const mapa = mapaHtml([
+    { id: "cruzamento", titulo: "As duas leituras, juntas" },
+    { id: "parte-lideranca", titulo: "Parte 1 · Liderança" },
+    { id: "parte-ia", titulo: "Parte 2 · RH, desenvolvimento e IA" },
+  ]);
+
+  // --- a leitura cruzada, que é o que justifica o documento -----------------
+  const barraComparativa = (rotulo, valor, forte) => `<li class="rh-metrica">
+      <span class="rh-metrica__n">${escapeHtml(rotulo)}</span>
+      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill ${forte ? "is-forte" : ""}" style="width:${Math.max(0, Math.min(100, valor))}%"></span></span>
+      <span class="rh-metrica__v">${valor}</span>
+    </li>`;
+
+  const secCruz = cruz
+    ? secao("cruzamento", "As duas leituras, juntas",
+        "O que muda decisão não é cada medida sozinha: é a distância entre elas.",
+        `${res.sintese ? `<p class="rh-prosa">${escapeHtml(res.sintese)}</p>` : ""}
+         <ul class="rh-metricas">
+           ${barraComparativa("Liderança", cruz.lideranca.valor, true)}
+           ${barraComparativa("RH, desenvolvimento e IA", cruz.ia.valor, true)}
+         </ul>
+         <div class="rh-card">
+           <h3 class="rh-card__t">${escapeHtml(cruz.padrao.titulo || "")}</h3>
+           <p class="rh-card__p">${escapeHtml(cruz.padrao.texto || "")}</p>
+           ${cruz.padrao.consequencia ? `<p class="rh-card__p">${escapeHtml(cruz.padrao.consequencia)}</p>` : ""}
+         </div>
+         <p class="sc-help sc-muted">${escapeHtml(cruz.ressalva || "")}</p>`, "", 1)
+    : secao("cruzamento", "As duas leituras, juntas",
+        "A leitura cruzada aparece quando as duas metades existem.",
+        `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
+           <h3 class="rh-card__t">Este documento traz apenas uma das duas leituras</h3>
+           <p class="rh-card__p">Ler a distância entre as duas exigiria as duas. Com meia medida, a comparação seria invenção — e por isso ela não aparece.</p>
+         </div></div>`, "", 1);
+
+  // --- parte 1: liderança ---------------------------------------------------
+  const dims = (L.dimensoes || []).map((d) => `<li class="rh-metrica rh-metrica--par">
+      <span class="rh-metrica__n">${escapeHtml(d.nome)}${d.distancia ? `<span class="rh-metrica__x">distância ${d.distancia}</span>` : ""}</span>
+      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill is-forte" style="width:${Math.max(0, Math.min(100, d.pessoa))}%"></span></span>
+      <span class="rh-metrica__v">${d.pessoa}</span>
+      <span class="rh-metrica__n rh-metrica__n--sub">na empresa</span>
+      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill" style="width:${Math.max(0, Math.min(100, d.empresa))}%"></span></span>
+      <span class="rh-metrica__v">${d.empresa}</span>
+    </li>`).join("");
+
+  const cdlFaixa = L.cdl ? faixaEmReais(L.cdl.min, L.cdl.max) : null;
+  const corpoLideranca = L.status === "OK"
+    ? `<div class="rh-indice">
+         <p class="rh-indice__n"><span class="rh-indice__v">${L.maturidade.valor}</span><span class="rh-indice__d">de 100</span></p>
+         <div class="rh-indice__t">
+           <p class="rh-indice__degrau">Estágio ${escapeHtml(L.maturidade.letra)} · ${escapeHtml(L.maturidade.label || "")}</p>
+           ${L.maturidade.diagnostico ? `<p class="rh-indice__faixa">${escapeHtml(L.maturidade.diagnostico)}</p>` : ""}
+         </div>
+       </div>
+       <h3 class="rh-metricas__t">Cada dimensão, por duas lentes</h3>
+       <p class="rh-prosa">A primeira barra é como você atua; a segunda, como você lê o que a empresa sustenta. A distância entre elas costuma dizer mais que qualquer uma sozinha.</p>
+       <ul class="rh-metricas">${dims}</ul>
+       <div class="rh-card">
+         <h3 class="rh-card__t">Risco estratégico: ${L.risco.valor}%</h3>
+         <p class="rh-card__p">Chance de o plano não acontecer com a estrutura de decisão atual. Nível ${escapeHtml(L.risco.nivel || "")}.</p>
+       </div>
+       ${cdlFaixa ? `<div class="rh-card">
+         <h3 class="rh-card__t">Custo estimado das disfunções: ${escapeHtml(cdlFaixa)} ao ano</h3>
+         <p class="rh-card__p">Uma faixa, não um número: retrabalho por decisão atrasada, saída de gente boa e execução travada não aparecem no resultado com esse nome. Nenhuma estimativa honesta sobre custo invisível dá valor exato.</p>
+       </div>` : ""}`
+    : `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
+         <h3 class="rh-card__t">Metade de liderança incompleta</h3>
+         <p class="rh-card__p">Faltam respostas para compor esta leitura${(L.faltantes || []).length ? ` (${L.faltantes.length})` : ""}. O que está aqui é o que foi respondido — nada foi estimado no lugar do que falta.</p>
+       </div></div>`;
+
+  const secLideranca = secao("parte-lideranca", "Parte 1 · Liderança",
+    "Em que estágio a estrutura de decisão joga hoje, nas cinco dimensões avaliadas.",
+    corpoLideranca, "", 2);
+
+  // --- parte 2: a devolutiva de IA, inteira, sem a capa dela ----------------
+  const secIA = res.ia
+    ? `<section class="rh-sec" id="parte-ia">
+         <h2 class="rh-sec__t"><span class="rh-sec__n">3</span>Parte 2 · RH, desenvolvimento e IA</h2>
+         ${renderResultado(res.ia, { instrumentVersion, leadHtml, semCapa: true })}
+       </section>`
+    : "";
+
+  return `<article class="rh-result">${cabecalhoImpressao(res.ia || {}, instrumentVersion)}${capa}${mapa}${secCruz}${secLideranca}${secIA}</article>`;
 }
 
 /** Tela própria para status INSUFFICIENT: mensagem do motor + gate + CTAs. */
@@ -1459,6 +1586,11 @@ export function iniciarApp(cfg) {
     const leadHtml = (st.leadMode === "optional_after_submit")
       ? `<section class="rh-sec rh-sec--lead"><div class="sc-card sc-card--lead">${formLeadHtml("Vamos conversar?", "Se quiser aprofundar esta leitura com a Boomit, deixe seu contato.")}</div></section>` : "";
     const version = st.instrument && st.instrument.version;
+    // O formato do resultado decide qual documento sai. Quando a metade de
+    // liderança vem junto, o que se entrega é o documento único — e a leitura
+    // cruzada, que é o que justifica juntar, abre o documento.
+    const ehUnificado = st.resultado && (st.resultado.liderancaPublica || st.resultado.cruzamento);
+    if (ehUnificado) return renderUnificado(st.resultado, { instrumentVersion: version, leadHtml });
     return renderResultado(st.resultado, { instrumentVersion: version, leadHtml });
   }
   function telaInsuficiente() {

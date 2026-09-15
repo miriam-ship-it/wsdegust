@@ -29,7 +29,10 @@ import {
   chaveArmazenamento, guardarSessao, lerSessao, limparSessao,
   telaDoHash, criarRastreador, criarCliente, renderResultado, renderInsuficiente,
   sinteseExecutiva, convitePresenteNaUrl, urlSemConvite, perfilFaltantes,
+  renderUnificado, faixaEmReais,
 } from "../../frontend/rhia.mjs";
+import { calcularUnificado } from "../unificado/composicao.mjs";
+import itensLideranca from "../unificado/lideranca-itens.json" with { type: "json" };
 // SÓ NO TESTE: o motor e o instrumento do pacote (o app nunca os importa).
 import { buildResultContractV2 } from "./pacote/src/output-engine-v2.mjs";
 import { paraPublico } from "./logica.mjs";
@@ -659,4 +662,103 @@ test("rota por hash: sessão submetida não volta para o perfil", () => {
   // Depois do submit o resultado já foi calculado com o porte que havia; deixar
   // voltar ao perfil ali sugeriria que trocá-lo mudaria a conta.
   assert.equal(telaDoHash("perfil", { temSessao: true, submitido: true, perfilOk: false }), "resultado");
+});
+
+// -------------------------------------------------------------------------
+// O DOCUMENTO ÚNICO — as duas leituras e a relação entre elas
+// -------------------------------------------------------------------------
+
+const PERFIL_DOC = { nome: "Ana Souza", empresa: "Boomit", cargo: "Head de RH", nivel: "G", porte: "S3", setor: "V1" };
+
+function respostasDasDuasMetades() {
+  const R = { CTX01: "OTHER", CTX01_OTHER_TEXT: "Consultor de RH", CTX02: "AREA", CTX03: "DECIDE_SCOPE" };
+  const dims = {
+    EST: ["E3", "E3", "E4", "E3"], TAL: ["E2", "E3", "E3", "E2"], DES: ["E3", "E3", "E2", "E3"],
+    INF: ["E3", "E4", "E3", "E3"], DAD: ["E2", "E2", "E3", "E2"], IA: ["E2", "E1", "E2", "NA"],
+  };
+  for (const [d, vs] of Object.entries(dims)) vs.forEach((v, i) => { R[`${d}0${i + 1}`] = v; });
+  R.GOV01 = "E3"; R.GOV02 = "E2"; R.GOV03 = "E3";
+  itensLideranca.items.forEach((it, i) => { R[`LID_${it.id}`] = it.options[i % 4].id; });
+  return R;
+}
+const docCompleto = () => calcularUnificado({ perfil: PERFIL_DOC, respostas: respostasDasDuasMetades() });
+
+test("documento único: uma capa só, as duas partes e a leitura cruzada ANTES delas", () => {
+  const html = renderUnificado(docCompleto(), { instrumentVersion: "1.0.0" });
+
+  assert.equal((html.match(/rh-capa__t/g) || []).length, 1, "duas capas é sinal de dois relatórios grampeados");
+  assert.ok(html.includes("Diagnóstico de cenário"));
+  assert.ok(html.includes("Ana Souza") && html.includes("Head de RH") && html.includes("Boomit"));
+
+  const iCruz = html.indexOf("As duas leituras, juntas");
+  const iLid = html.indexOf("Parte 1 · Liderança");
+  const iIA = html.indexOf("Parte 2 · RH");
+  assert.ok(iCruz > 0 && iLid > iCruz && iIA > iLid,
+    "a relação entre as medidas vem primeiro: é ela que justifica um documento só");
+});
+
+test("documento único: a metade de liderança mostra as duas lentes e a faixa em reais", () => {
+  const r = docCompleto();
+  const html = renderUnificado(r, {});
+  for (const d of r.liderancaPublica.dimensoes) {
+    assert.ok(html.includes(escapeHtml(d.nome)), `faltou a dimensão ${d.nome}`);
+  }
+  assert.ok(html.includes("na empresa"), "sem a segunda lente, some a distância que é o achado");
+  assert.ok(html.includes(`${r.liderancaPublica.risco.valor}%`));
+  assert.ok(html.includes(faixaEmReais(r.liderancaPublica.cdl.min, r.liderancaPublica.cdl.max)));
+});
+
+test("documento único: NÃO existe índice combinado nem soma das duas metades", () => {
+  const html = renderUnificado(docCompleto(), {});
+  for (const proibido of ["índice geral", "indice geral", "nota final", "média das duas", "pontuação total"]) {
+    assert.ok(!html.toLowerCase().includes(proibido.toLowerCase()),
+      `"${proibido}" seria número novo, sem instrumento que o sustente`);
+  }
+  // e a ressalva de que são instrumentos distintos viaja JUNTO, não escondida no fim
+  assert.ok(html.includes("instrumentos distintos"));
+});
+
+test("documento único: nada de ponto-base, código de estágio ou id de item", () => {
+  const html = renderUnificado(docCompleto(), {});
+  for (const p of ["_bp", "10000", "3333", "6667", '"E1"', '"E2"', '"E3"', "EST01", "GOV01", "LID_q1"]) {
+    assert.ok(!html.includes(p), `vazou "${p}" para o documento`);
+  }
+});
+
+test("documento único: com meia medida, a leitura cruzada ADMITE em vez de afirmar", () => {
+  const todas = respostasDasDuasMetades();
+  const soIA = Object.fromEntries(Object.entries(todas).filter(([k]) => !k.startsWith("LID_")));
+  const html = renderUnificado(calcularUnificado({ perfil: PERFIL_DOC, respostas: soIA }), {});
+
+  assert.ok(html.includes("apenas uma das duas leituras"));
+  assert.ok(html.includes("Metade de liderança incompleta"));
+  assert.ok(!html.includes("Liderança está à frente"), "sem as duas medidas não há distância a declarar");
+  assert.ok(html.includes("Parte 2 · RH"), "a metade que existe continua inteira");
+});
+
+test("documento único: o que a pessoa digitou no perfil é escapado", () => {
+  const r = docCompleto();
+  r.perfil = { ...PERFIL_DOC, empresa: '<img src=x onerror="alert(1)">' };
+  const html = renderUnificado(r, {});
+  assert.ok(!html.includes("<img src=x"), "nome de empresa é texto, nunca markup");
+  assert.ok(html.includes("&lt;img"));
+});
+
+test("faixa em reais: sem centavo, e sem faixa quando não há número", () => {
+  assert.equal(faixaEmReais(211200, 924000), "R$ 211.200 – R$ 924.000");
+  assert.equal(faixaEmReais(null, 10), null);
+  assert.equal(faixaEmReais(1.4, 2.6), "R$ 1 – R$ 3");
+});
+
+test("a devolutiva de IA sabe ser a segunda parte de um documento maior", () => {
+  const r = docCompleto();
+  const sozinha = renderResultado(r.ia, { instrumentVersion: "1.0.0" });
+  const embutida = renderResultado(r.ia, { instrumentVersion: "1.0.0", semCapa: true });
+
+  assert.ok(sozinha.includes("rh-capa__t"), "sozinha, ela abre com a própria capa");
+  assert.ok(!embutida.includes("rh-capa__t"), "embutida, a capa é do documento");
+  assert.ok(!embutida.startsWith("<article"), "embutida, o <article> também é do documento");
+  // e o corpo continua inteiro
+  assert.ok(embutida.includes("Onde as práticas se situam"));
+  assert.ok(embutida.length > sozinha.length * 0.7);
 });

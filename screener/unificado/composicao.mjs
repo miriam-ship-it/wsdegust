@@ -290,6 +290,57 @@ export const perfilParaMotor = (perfil) => ({
 });
 
 /**
+ * A metade de liderança NO MODELO PÚBLICO — o que pode chegar ao navegador.
+ *
+ * Duas coisas mudam em relação ao que o motor devolve:
+ *
+ * 1. A ESCALA. O motor trabalha em 1–5, que é a régua interna do instrumento. O
+ *    que sai é 0–100, por multiplicação exata — a mesma escala da metade de IA e
+ *    da leitura cruzada. Réguas diferentes no mesmo documento é como se criam
+ *    comparações que ninguém fez.
+ * 2. OS NOMES. O navegador não tem a definição de liderança (ela é privada, e é
+ *    ela que guarda os pontos), então o nome de cada dimensão viaja junto.
+ *
+ * O `gap` entre as duas lentes vai como número, não como julgamento: "você vê
+ * mais do que a empresa sustenta" é leitura, e leitura é do documento.
+ */
+export function paraPublicoLideranca(res, { lideranca = itensLideranca } = {}) {
+  if (!res || res.status !== "OK") {
+    return { status: res?.status ?? "INCOMPLETO", faltantes: res?.faltantes ?? [] };
+  }
+  const nomes = new Map((lideranca.dimensoes ?? []).map((d) => [d.code, d.name]));
+  const cem = (v) => (Number.isFinite(v) ? Math.round(v * 20) : null);
+
+  return {
+    status: "OK",
+    maturidade: {
+      letra: res.maturidade.letra,
+      valor: res.maturidade.score100,
+      label: res.maturidade.label,
+      diagnostico: res.maturidade.diagnostico,
+    },
+    risco: { valor: res.risco_estrategico, nivel: nivelDeRisco(res.risco_estrategico) },
+    cdl: { min: res.cdl.min, max: res.cdl.max },
+    dimensoes: Object.entries(res.scores).map(([code, v]) => ({
+      codigo: code,
+      nome: nomes.get(code) ?? code,
+      pessoa: cem(v.pessoa),
+      empresa: cem(v.empresa),
+      media: cem(v.media),
+      distancia: cem(Math.abs(v.gap)),
+    })),
+  };
+}
+
+/** Faixa do risco estratégico, em palavra. A mesma régua do e-mail de fecho. */
+export function nivelDeRisco(valor) {
+  if (!Number.isFinite(valor)) return null;
+  if (valor >= 60) return "alto";
+  if (valor >= 40) return "moderado";
+  return "baixo";
+}
+
+/**
  * O resultado das duas metades e a relação entre elas.
  *
  * Devolve as duas SEPARADAS e o cruzamento ao lado — nunca um índice combinado.
@@ -338,6 +389,9 @@ export function calcularUnificado({ perfil, respostas, ia = instrumentoIA, lider
   return {
     perfil: perfil ?? null,
     lideranca: resLideranca,
+    // O que o documento renderiza é o modelo PÚBLICO: 0–100, com os nomes das
+    // dimensões junto. `lideranca` (cru, em 1–5) fica para quem calcula.
+    liderancaPublica: paraPublicoLideranca(resLideranca, { lideranca }),
     ia: pubIA,
     cruzamento,
     sintese: cruzamento ? sinteseCruzada({ lideranca: metadeLideranca, ia: metadeIA, cruzamento }) : null,
