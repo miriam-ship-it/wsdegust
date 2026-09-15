@@ -67,12 +67,23 @@ ar. Se alguém editar as perguntas lá, este teste reprova.
    Carolina. Hoje cada dimensão se apoia em 4 itens; cortar para 2 deixa cada
    uma descansando em duas respostas. Quando o conjunto existir, é um **pacote
    novo**, e nada deste módulo muda.
-2. **A trilha no banco** — vínculo, instrumento e itens do formulário único. O
-   `stage_code` do rhia hoje só aceita `E1–E4`/`NA`; os itens de liderança usam
-   `O1–O4`. Migration nova, revisada.
-3. **O front** — um fluxo com perfil, e a pilha de uma pergunta por vez que já
+2. ~~A trilha do perfil no banco~~ — escrita em
+   `supabase/migrations/20260916120000_screener_rhia_perfil_do_formulario_unico.sql`,
+   com 20 testes comportamentais. **Ainda não aplicada** — está no revisor.
+
+   *Correção de uma afirmação anterior deste arquivo:* a tabela do rhia **não**
+   tem lista cravada de respostas. `answer_code` é texto livre até 120 caracteres
+   e a validação é contra a definição guardada (`options[].id`). O
+   `stage_code in ('E1'..'E4','NA')` é da tabela do **V1**, outra. Os itens de
+   liderança, com `O1–O4`, já passariam hoje sem tocar em CHECK nenhum.
+
+3. **A carga** — o instrumento unificado e o vínculo. Fica para quando o conteúdo
+   da metade de IA fechar (25/09): carregar antes seria pôr no ar a versão que
+   será substituída, e o gerador de carga falha quando a versão existe com
+   checksum diferente. `definicaoParaBanco()` já produz o formato que ele espera.
+4. **O front** — um fluxo com perfil, e a pilha de uma pergunta por vez que já
    existe no rhia.
-4. **O documento** — capa, síntese cruzada, as duas partes, fecho. E **um**
+5. **O documento** — capa, síntese cruzada, as duas partes, fecho. E **um**
    caminho de PDF: hoje a liderança sai por `browserless` na edge e o de IA pela
    impressão do navegador.
 
