@@ -512,6 +512,12 @@ proveniência da ligação já está em `screener_rhia_vinculos.origem`. Com **t
 prazo absurdo faria o ponteiro viver para sempre — e o teto na tabela vale para
 qualquer escritor futuro, não só para a função de hoje.
 
+**Ler o vínculo devolve os flags da sessão; vincular recusa.** A assimetria é a
+da casa: `op_resume` e `op_get_result` devolvem `status`, `expires_at` e
+`revoked_at` e deixam a edge decidir. Recusar na leitura e devolver flags nas
+outras faria duas leituras do mesmo banco discordarem sobre o que é sessão
+válida.
+
 **Vincular não trabalha sobre sessão morta.** Sem essa checagem, quem abrisse o
 link numa aba velha queimaria o convite numa sessão expirada, reabriria direito e
 receberia `convite_ja_usado` — ficando sem ponte para sempre, sem erro e sem log.

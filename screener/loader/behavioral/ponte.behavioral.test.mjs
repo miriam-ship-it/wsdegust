@@ -77,7 +77,7 @@ create policy "respondentes_admin_select_dos_seus" on public.respondentes
   for select to authenticated using (true);
 `;
 
-async function ambiente({ respondentePrevio = null } = {}) {
+async function ambiente({ respondentePrevio = null, mutarPonte = null } = {}) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
   await db.exec(SCHEMA);
@@ -91,7 +91,7 @@ async function ambiente({ respondentePrevio = null } = {}) {
     await db.query("insert into public.respondentes (nome, empresa, email) values ('Ana','Boomit',$1)",
       [respondentePrevio]);
   }
-  await db.exec(PONTE);
+  await db.exec(mutarPonte ? mutarPonte(PONTE) : PONTE);
   await db.query(`insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
                   values ($1,$2,$3,$4,'inactive')`, [CODE, VERSAO, JSON.stringify(instrumento), ICS]);
   await db.query(`insert into public.screener_event_bindings
@@ -158,16 +158,30 @@ test("harness: o dublê de respondentes tem RLS ligada e só policies de anon/au
     "nenhuma policy alcança screener_owner — é exatamente esta a dificuldade que a ponte resolve");
 });
 
-test("migration: a guarda 7c prova, no apply, que a ponte ENXERGA um respondente real", async () => {
-  // Esta é a guarda que faltava em 15/09: a estrutural (7a) dizia "está tudo
-  // certo" enquanto a RLS filtrava tudo. Com uma linha preexistente, a migration
-  // só aplica se o auxiliar, rodando como screener_owner, vir aquela linha.
+test("migration: com um respondente preexistente, a ponte o enxerga", async () => {
   const db = await ambiente({ respondentePrevio: "ana@boomit.com.br" });
   await db.query("set role screener_owner");
   const { rows } = await db.query("select quantos from public.screener_ponte_respondente_por_email($1)",
     ["ana@boomit.com.br"]);
   await db.query("reset role");
   assert.equal(rows[0].quantos, 1, "a ponte precisa enxergar quem já estava lá");
+});
+
+test("migration: a guarda 7c ABORTA o apply se a ponte ficar cega", async () => {
+  // O teste acima prova o auxiliar; este prova o BLOCO. Sem ele, a 7c podia ser
+  // apagada da migration sem que nada aqui reclamasse — e ela é justamente a
+  // guarda que faltava em 15/09, quando a 7a dizia "está tudo estruturalmente
+  // certo" e a RLS filtrava cada linha.
+  // A mutação cega o auxiliar SEM mexer em dono, security definer ou
+  // search_path, para que a 7a passe e só a 7c tenha o que dizer.
+  await assert.rejects(
+    ambiente({
+      respondentePrevio: "ana@boomit.com.br",
+      mutarPonte: (sql) => sql.replace(
+        "and lower(trim(r.email)) = p_email_normalizado",
+        "and false and lower(trim(r.email)) = p_email_normalizado"),
+    }),
+    /enxerga ZERO linhas de respondentes/);
 });
 
 // -------------------------------------------------------------------------
@@ -475,9 +489,20 @@ test("convite: o prazo tem TETO, senão um convite nunca venceria e nunca seria 
   const r0 = await criarRespondente(db, "a@b.com");
   assert.equal((await call(db, "screener_rhia_op_emitir_convite", [r0.token_sessao, sha("c"), 2000000000])).status, "ok");
   const { rows } = await db.query(
-    "select expira_em <= criado_em + interval '90 days' as dentro from public.screener_rhia_convites");
+    "select expira_em <= criado_em + interval '2160 hours' as dentro from public.screener_rhia_convites");
   assert.equal(rows[0].dentro, true,
     "sem teto, a FASE 3 da purga nunca alcançaria o convite e o ponteiro para PII ficaria para sempre");
+
+  // O teto da RPC conta HORAS; o CHECK precisa contar a mesma coisa. Se ele
+  // dissesse `interval '90 days'`, num fuso com horário de verão 90 dias
+  // valeriam 2159 horas de relógio e a emissão no limite estouraria o CHECK —
+  // erro cru de banco, 500 na edge, em vez de status. O fuso padrão do pglite
+  // tem offset fixo e não pegaria isso.
+  await db.exec("set time zone 'Australia/Sydney'");
+  const outro = await criarRespondente(db, "b@c.com");
+  assert.equal((await call(db, "screener_rhia_op_emitir_convite", [outro.token_sessao, sha("limite"), 2160])).status,
+    "ok", "emitir no limite exato do teto não pode virar violação de CHECK");
+  await db.exec("set time zone 'UTC'");
 
   // e a regra vale para qualquer escritor, não só para a RPC
   await assert.rejects(

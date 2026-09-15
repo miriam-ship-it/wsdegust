@@ -87,7 +87,12 @@ create table public.screener_rhia_convites (
   -- um ponteiro para PII para sempre — desmontando o argumento da seção 6 de que
   -- "o prazo vem do próprio registro". Na tabela, a regra vale para qualquer
   -- escritor futuro, não só para a RPC de hoje.
-  constraint screener_rhia_convite_prazo_maximo check (expira_em <= criado_em + interval '90 days')
+  -- 2160 horas = 90 dias. EM HORAS, e não em dias, porque `+ interval '90 days'`
+  -- sobre `timestamptz` é aritmética de CALENDÁRIO: num fuso com horário de
+  -- verão, 90 dias podem valer 2159 horas de relógio, e o teto da RPC (que conta
+  -- horas) estouraria este CHECK em vez de devolver status. Com as duas pontas
+  -- na mesma unidade, a igualdade é exata em qualquer fuso.
+  constraint screener_rhia_convite_prazo_maximo check (expira_em <= criado_em + interval '2160 hours')
 );
 create index idx_screener_rhia_convites_resp on public.screener_rhia_convites (respondente_id);
 comment on table public.screener_rhia_convites is
@@ -337,13 +342,27 @@ create function public.screener_rhia_op_ler_vinculo(
   p_token_hash text
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_sess public.screener_rhia_sessions%rowtype; v_vin public.screener_rhia_vinculos%rowtype;
+        v_sessao jsonb;
 begin
   select * into v_sess from public.screener_rhia_sessions where token_hash = p_token_hash;
   if v_sess.id is null then return jsonb_build_object('status', 'sessao_nao_encontrada'); end if;
+
+  -- AQUI NÃO SE RECUSA POR ESTADO, ao contrário das duas RPC de escrita — e a
+  -- assimetria é a da casa, não descuido. `screener_rhia_op_resume` e
+  -- `op_get_result` devolvem `status`, `expires_at` e `revoked_at` no objeto
+  -- `session` e deixam a edge decidir; esta faz o mesmo. Recusar aqui e devolver
+  -- flags lá deixaria duas leituras do mesmo banco discordando sobre o que é uma
+  -- sessão válida. Quem escreve a edge tem os flags na mão e não tem desculpa.
+  v_sessao := jsonb_build_object('id', v_sess.id, 'status', v_sess.status,
+                                 'expires_at', v_sess.expires_at, 'revoked_at', v_sess.revoked_at,
+                                 'submitted_at', v_sess.submitted_at);
+
   select * into v_vin from public.screener_rhia_vinculos where session_id = v_sess.id;
-  if v_vin.session_id is null then return jsonb_build_object('status', 'sem_vinculo'); end if;
+  if v_vin.session_id is null then
+    return jsonb_build_object('status', 'sem_vinculo', 'session', v_sessao); end if;
   return jsonb_build_object('status', 'ok', 'respondente_id', v_vin.respondente_id,
-                            'origem', v_vin.origem, 'confianca', v_vin.confianca);
+                            'origem', v_vin.origem, 'confianca', v_vin.confianca,
+                            'session', v_sessao);
 end $$;
 
 -- 5) PROPRIEDADE E PRIVILÉGIOS -------------------------------------------------
@@ -465,9 +484,17 @@ reset role;
 -- alcançável por `anon`. A guarda cobre os dois caminhos.
 do $$
 begin
-  if pg_get_userbyid((select proowner from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-                       where n.nspname = 'public' and p.proname = 'screener_rhia_purga')) <> 'screener_owner' then
-    raise exception 'a purga ficou com dono errado depois do replace';
+  -- `coalesce` porque `pg_get_userbyid(null) <> 'x'` é NULL, e um `if` sobre NULL
+  -- não dispara: sem ele, a guarda seria cega a uma função que não existe.
+  if coalesce(pg_get_userbyid((select proowner from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                       where n.nspname = 'public' and p.proname = 'screener_rhia_purga')),
+              'ausente') <> 'screener_owner' then
+    raise exception 'a purga ficou com dono errado, ou sumiu, depois do replace';
+  end if;
+  -- E o outro lado da guarda: conferir só quem NÃO pode aplaudiria uma purga que
+  -- perdeu o EXECUTE do executor do cron e parou de rodar, calada, toda noite.
+  if not has_function_privilege(current_user, 'public.screener_rhia_purga()', 'execute') then
+    raise exception 'o executor do cron perdeu o EXECUTE na purga';
   end if;
   if has_function_privilege('anon', 'public.screener_rhia_purga()', 'execute')
      or has_function_privilege('authenticated', 'public.screener_rhia_purga()', 'execute')
