@@ -81,7 +81,13 @@ create table public.screener_rhia_convites (
   -- Como `screener_rhia_purga()` é uma função só, numa transação só, o LOTE
   -- INTEIRO abortaria, toda noite, em silêncio dentro do cron.
   -- O ponteiro pode sumir; o fato de ter sido usado, não.
-  constraint screener_rhia_convite_uso_coerente check (usado_por is null or usado_em is not null)
+  constraint screener_rhia_convite_uso_coerente check (usado_por is null or usado_em is not null),
+  -- TETO DE PRAZO, na tabela e não só na RPC. A FASE 3 da purga só alcança o
+  -- que venceu; um convite emitido com prazo absurdo nunca venceria e guardaria
+  -- um ponteiro para PII para sempre — desmontando o argumento da seção 6 de que
+  -- "o prazo vem do próprio registro". Na tabela, a regra vale para qualquer
+  -- escritor futuro, não só para a RPC de hoje.
+  constraint screener_rhia_convite_prazo_maximo check (expira_em <= criado_em + interval '90 days')
 );
 create index idx_screener_rhia_convites_resp on public.screener_rhia_convites (respondente_id);
 comment on table public.screener_rhia_convites is
@@ -197,8 +203,18 @@ begin
   -- IDEMPOTENTE: reenviar o e-mail de fecho da liderança não pode multiplicar
   -- convites para a mesma pessoa. O mesmo código para OUTRA pessoa é outra
   -- coisa — é conflito, e se recusa.
+  --
+  -- Uma corrida entre duas chamadas simultâneas com o MESMO código para a MESMA
+  -- pessoa devolve `codigo_em_uso`: o `do nothing` não espera o concorrente e o
+  -- `select` seguinte, em READ COMMITTED, não vê a linha ainda não commitada.
+  -- Com código de 256 bits isso só acontece em reenvio da mesma requisição, e a
+  -- tentativa seguinte acerta. Fica registrado em vez de resolvido com lock.
+  --
+  -- `least(2160, ...)` é o mesmo teto do CHECK da tabela, em horas (90 dias):
+  -- aqui devolve resultado; lá é a regra que vale para qualquer escritor.
   insert into public.screener_rhia_convites (codigo_hash, respondente_id, expira_em)
-       values (p_codigo_hash, v_resp, now() + make_interval(hours => greatest(1, coalesce(p_horas, 720))))
+       values (p_codigo_hash, v_resp,
+               now() + make_interval(hours => least(2160, greatest(1, coalesce(p_horas, 720)))))
   on conflict (codigo_hash) do nothing
   returning id into v_id;
   if v_id is not null then return jsonb_build_object('status', 'ok', 'convite_id', v_id); end if;
@@ -220,6 +236,15 @@ declare
 begin
   select * into v_sess from public.screener_rhia_sessions where token_hash = p_token_hash;
   if v_sess.id is null then return jsonb_build_object('status', 'sessao_nao_encontrada'); end if;
+  -- MESMA CHECAGEM DE `screener_rhia_op_capturar_lead`, e pelo mesmo motivo:
+  -- sem ela, quem abre o link numa aba velha QUEIMA o convite numa sessão
+  -- morta, reabre direito e recebe `convite_ja_usado` — sem ponte, sem erro e
+  -- sem log. Não se exige `submitted` aqui: o vínculo por convite acontece no
+  -- COMEÇO do rhia, não no portão.
+  if v_sess.revoked_at is not null
+     or (v_sess.expires_at is not null and v_sess.expires_at <= now()) then
+    return jsonb_build_object('status', 'sessao_invalida');
+  end if;
 
   select * into v_conv from public.screener_rhia_convites
    where codigo_hash = p_codigo_hash for update;
@@ -265,6 +290,10 @@ declare
 begin
   select * into v_sess from public.screener_rhia_sessions where token_hash = p_token_hash;
   if v_sess.id is null then return jsonb_build_object('status', 'sessao_nao_encontrada'); end if;
+  if v_sess.revoked_at is not null
+     or (v_sess.expires_at is not null and v_sess.expires_at <= now()) then
+    return jsonb_build_object('status', 'sessao_invalida');
+  end if;
 
   -- Nunca rebaixa uma ligação certa para provável.
   if exists (select 1 from public.screener_rhia_vinculos v
@@ -421,7 +450,32 @@ begin
     'sessoes_sem_contato', v_sem_lead, 'sessoes_liberadas_pelo_contato', v_cascas,
     'contatos', v_lead, 'convites_vencidos', v_conv, 'em', now());
 end $$;
+
+-- O comentário sobrevive ao `create or replace`, e por isso passaria a mentir
+-- por omissão: ele só falava das fases 1 e 2.
+comment on function public.screener_rhia_purga() is
+  'Purga por retencao do rhia. Prazos vem do vinculo; vinculo sem retencao declarada nao e purgado. 180 dias apagam o conteudo da avaliacao (respostas e snapshot) de todos; a linha de sessao de quem deixou contato sobrevive ate os 365 dias do contato, porque continua ligada a PII pelo session_id unico do lead — ela NAO e anonima. Fase 3 (20260915120000): apaga convites da ponte cujo expira_em ja passou, prazo que o proprio convite declarou.';
 reset role;
+
+-- A `20260914170000` usou `create function`, e não `or replace`, de propósito: a
+-- função apaga PII e não pode nascer com o EXECUTE para PUBLIC que toda função
+-- nova ganha. Aqui o `or replace` é necessário — mas num banco que ainda não
+-- tenha aquela migration (branch, preview, replay interrompido, ou reaplicação
+-- depois do rollback dela) este comando CRIARIA a função, e ela nasceria
+-- alcançável por `anon`. A guarda cobre os dois caminhos.
+do $$
+begin
+  if pg_get_userbyid((select proowner from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                       where n.nspname = 'public' and p.proname = 'screener_rhia_purga')) <> 'screener_owner' then
+    raise exception 'a purga ficou com dono errado depois do replace';
+  end if;
+  if has_function_privilege('anon', 'public.screener_rhia_purga()', 'execute')
+     or has_function_privilege('authenticated', 'public.screener_rhia_purga()', 'execute')
+     or has_function_privilege('service_role', 'public.screener_rhia_purga()', 'execute')
+     or has_function_privilege('screener_runtime', 'public.screener_rhia_purga()', 'execute') then
+    raise exception 'a purga ficou alcancavel por papel que nao deveria executa-la';
+  end if;
+end $$;
 
 -- 7) GUARDAS DE ACEITAÇÃO ------------------------------------------------------
 
@@ -500,6 +554,29 @@ begin
      or has_table_privilege('screener_runtime', 'public.screener_rhia_vinculos',
                          'select,insert,update,delete,truncate,references,trigger') then
     raise exception 'o runtime ganhou privilegio de tabela na ponte';
+  end if;
+end $$;
+
+-- 7c) A PROVA COMPORTAMENTAL — a guarda 7a é estrutural, e o defeito de 15/09
+-- era exatamente "está tudo estruturalmente certo e nada aparece". Com as 108
+-- linhas que já existem, dá para provar de verdade: rodando COMO `screener_owner`,
+-- o auxiliar tem de enxergar pelo menos uma. Num banco sem respondentes com
+-- e-mail (branch, replay do zero) não há o que provar, e a guarda se cala em vez
+-- de inventar uma falha.
+do $$
+declare v_email text; v_visto int;
+begin
+  select lower(trim(r.email)) into v_email
+    from public.respondentes r where r.email is not null
+   order by r.iniciado_em desc limit 1;
+  if v_email is null then return; end if;
+
+  set local role screener_owner;
+  select quantos into v_visto from public.screener_ponte_respondente_por_email(v_email);
+  reset role;
+
+  if coalesce(v_visto, 0) = 0 then
+    raise exception 'a ponte enxerga ZERO linhas de respondentes — o defeito de 15/09 voltou';
   end if;
 end $$;
 

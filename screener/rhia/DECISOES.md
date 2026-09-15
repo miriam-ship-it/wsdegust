@@ -507,4 +507,13 @@ devolvem um id e *contagens* de nomes/empresas distintos — nunca o texto.
 **O convite vive até `expira_em`**, e a purga noturna apaga os vencidos. O prazo
 vem do próprio registro, como em 20260914170000: nenhuma constante de retenção
 escondida no código. Um convite vencido é só um ponteiro para PII sem uso — a
-proveniência da ligação já está em `screener_rhia_vinculos.origem`.
+proveniência da ligação já está em `screener_rhia_vinculos.origem`. Com **teto de
+90 dias na tabela**, não só na RPC: a purga só alcança o que venceu, então um
+prazo absurdo faria o ponteiro viver para sempre — e o teto na tabela vale para
+qualquer escritor futuro, não só para a função de hoje.
+
+**Vincular não trabalha sobre sessão morta.** Sem essa checagem, quem abrisse o
+link numa aba velha queimaria o convite numa sessão expirada, reabriria direito e
+receberia `convite_ja_usado` — ficando sem ponte para sempre, sem erro e sem log.
+É a mesma checagem que `screener_rhia_op_capturar_lead` já fazia; não se exige
+`submitted`, porque o vínculo por convite acontece no começo do rhia.

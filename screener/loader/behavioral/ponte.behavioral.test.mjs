@@ -17,6 +17,14 @@
 //
 // O dublê agora tem RLS ligada e as policies que sobreviveram no banco real. A
 // regra que isso deixa escrita: **dublê não cobre o que o dublê não tem**.
+//
+// E O QUE ESTE ARQUIVO AINDA NÃO PROVA, para não prometer demais: no pglite o
+// `postgres` é SUPERUSUÁRIO, então os auxiliares escapam da RLS por serem de
+// superusuário — e não por serem do DONO da tabela, que é o mecanismo do qual
+// produção depende. Um `respondentes` com outro dono, ou em FORCE ROW LEVEL
+// SECURITY, passaria por aqui. Quem cobre isso é a guarda 7a da própria
+// migration, que compara os donos e aborta; e a 7c, que no apply pergunta a uma
+// linha real se ela é vista.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -69,7 +77,7 @@ create policy "respondentes_admin_select_dos_seus" on public.respondentes
   for select to authenticated using (true);
 `;
 
-async function ambiente() {
+async function ambiente({ respondentePrevio = null } = {}) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
   await db.exec(SCHEMA);
@@ -77,6 +85,12 @@ async function ambiente() {
   await db.exec(RHIA);
   await db.exec(RESPONDENTES_DUBLE);
   await db.exec(PURGA);
+  // Um respondente que já existia ANTES da ponte é o que faz a guarda 7c da
+  // migration ter o que provar: num banco vazio ela se cala de propósito.
+  if (respondentePrevio) {
+    await db.query("insert into public.respondentes (nome, empresa, email) values ('Ana','Boomit',$1)",
+      [respondentePrevio]);
+  }
   await db.exec(PONTE);
   await db.query(`insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
                   values ($1,$2,$3,$4,'inactive')`, [CODE, VERSAO, JSON.stringify(instrumento), ICS]);
@@ -142,6 +156,18 @@ test("harness: o dublê de respondentes tem RLS ligada e só policies de anon/au
     "sem RLS no dublê, estes testes não cobrem o caminho que existe em produção");
   assert.deepEqual(rows[0].papeis, ["anon", "authenticated"],
     "nenhuma policy alcança screener_owner — é exatamente esta a dificuldade que a ponte resolve");
+});
+
+test("migration: a guarda 7c prova, no apply, que a ponte ENXERGA um respondente real", async () => {
+  // Esta é a guarda que faltava em 15/09: a estrutural (7a) dizia "está tudo
+  // certo" enquanto a RLS filtrava tudo. Com uma linha preexistente, a migration
+  // só aplica se o auxiliar, rodando como screener_owner, vir aquela linha.
+  const db = await ambiente({ respondentePrevio: "ana@boomit.com.br" });
+  await db.query("set role screener_owner");
+  const { rows } = await db.query("select quantos from public.screener_ponte_respondente_por_email($1)",
+    ["ana@boomit.com.br"]);
+  await db.query("reset role");
+  assert.equal(rows[0].quantos, 1, "a ponte precisa enxergar quem já estava lá");
 });
 
 // -------------------------------------------------------------------------
@@ -287,6 +313,23 @@ test("e-mail: nomes divergentes no mesmo e-mail continuam AMBÍGUOS", async () =
     "juntar a metade da pessoa errada é pior que ficar sem a metade");
 });
 
+test("e-mail: espaço interno a mais não faz duas empresas", async () => {
+  // Sem a normalização de espaços internos, "Boomit  Brasil" e "Boomit Brasil"
+  // contariam como divergência e recusariam a mesma pessoa. `trim()` sozinho
+  // não pega isto — é o que o `regexp_replace` existe para resolver.
+  const db = await ambiente();
+  await criarRespondente(db, "ana@empresa.com",
+    { nome: "Ana  Souza", empresa: "Boomit  Brasil", em: "2025-01-01T10:00:00Z" });
+  const novo = await criarRespondente(db, "ana@empresa.com",
+    { nome: "Ana Souza", empresa: "Boomit Brasil", em: "2026-01-01T10:00:00Z" });
+  const th = await abrir(db, "tk1");
+  await darContato(db, th, "ana@empresa.com");
+
+  const r = await call(db, "screener_rhia_op_vincular_por_email", [th]);
+  assert.equal(r.status, "ok");
+  assert.equal((await call(db, "screener_rhia_op_ler_vinculo", [th])).respondente_id, novo.id);
+});
+
 test("e-mail: empresas divergentes também são ambiguidade", async () => {
   const db = await ambiente();
   await criarRespondente(db, "ana@gmail.com", { nome: "Ana", empresa: "Boomit" });
@@ -425,6 +468,60 @@ test("purga: convite vencido some, e com ele o ponteiro para a pessoa", async ()
   const { rows } = await db.query("select codigo_hash from public.screener_rhia_convites");
   assert.deepEqual(rows.map((x) => x.codigo_hash), [sha("vivo")],
     "o convite declara o próprio prazo; passado ele, guardar um ponteiro para PII não serve a nada");
+});
+
+test("convite: o prazo tem TETO, senão um convite nunca venceria e nunca seria purgado", async () => {
+  const db = await ambiente();
+  const r0 = await criarRespondente(db, "a@b.com");
+  assert.equal((await call(db, "screener_rhia_op_emitir_convite", [r0.token_sessao, sha("c"), 2000000000])).status, "ok");
+  const { rows } = await db.query(
+    "select expira_em <= criado_em + interval '90 days' as dentro from public.screener_rhia_convites");
+  assert.equal(rows[0].dentro, true,
+    "sem teto, a FASE 3 da purga nunca alcançaria o convite e o ponteiro para PII ficaria para sempre");
+
+  // e a regra vale para qualquer escritor, não só para a RPC
+  await assert.rejects(
+    db.query(`insert into public.screener_rhia_convites (codigo_hash, respondente_id, expira_em)
+              values ($1, $2, now() + interval '400 days')`, [sha("eterno"), r0.id]),
+    /screener_rhia_convite_prazo_maximo/);
+});
+
+test("convite: sessão rhia expirada não QUEIMA o convite", async () => {
+  const db = await ambiente();
+  const r0 = await criarRespondente(db, "a@b.com");
+  const th = await abrir(db, "tk1");
+  await call(db, "screener_rhia_op_emitir_convite", [r0.token_sessao, sha("c"), 720]);
+  // o CHECK exige expires_at > created_at: envelhece-se a sessão inteira, que é
+  // o que o tempo faria numa aba deixada aberta de ontem
+  await db.query(`update public.screener_rhia_sessions
+                     set created_at = now() - interval '2 hours',
+                         expires_at = now() - interval '1 hour'`);
+
+  assert.equal((await call(db, "screener_rhia_op_vincular_por_convite", [th, sha("c")])).status, "sessao_invalida");
+  const { rows } = await db.query("select usado_em from public.screener_rhia_convites");
+  assert.equal(rows[0].usado_em, null,
+    "queimar o convite numa aba velha deixaria a pessoa sem ponte para sempre");
+
+  // e a rede por e-mail também não trabalha sobre sessão morta
+  await darContato(db, th, "a@b.com");
+  assert.equal((await call(db, "screener_rhia_op_vincular_por_email", [th])).status, "sessao_invalida");
+});
+
+test("purga: o `create or replace` da ponte não afrouxa dono nem alcance", async () => {
+  // A 20260914170000 usou `create function` justamente porque função nova nasce
+  // com EXECUTE para PUBLIC. Num banco sem aquela migration, o `or replace`
+  // desta aqui CRIA a função — e ela nasceria alcançável por anon.
+  const db = await ambiente();
+  const { rows: d } = await db.query(`
+    select pg_get_userbyid(p.proowner) as dono
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname='public' and p.proname='screener_rhia_purga'`);
+  assert.equal(d[0].dono, "screener_owner", "SECURITY DEFINER com dono errado não alcança as tabelas");
+  for (const papel of ["anon", "authenticated", "service_role", "screener_runtime"]) {
+    const { rows } = await db.query(
+      "select has_function_privilege($1, 'public.screener_rhia_purga()', 'execute') as pode", [papel]);
+    assert.equal(rows[0].pode, false, `${papel} não pode apagar PII`);
+  }
 });
 
 // -------------------------------------------------------------------------
