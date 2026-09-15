@@ -1038,6 +1038,56 @@ aceita `respondente_id` — o id é derivado dentro do banco.
 
 ---
 
+### Perfil do formulário único — migration aplicada · 16/09/2026 · **aplicada**
+
+Migration `20260916120000_screener_rhia_perfil_do_formulario_unico.sql`, commit
+`717f1ea`. Prepara a trilha do **formulário único** (decisão de 16/09: as duas
+metades na mesma sentada): tabela do perfil, as duas RPC, e a purga passando a
+apagar perfil no prazo da **sessão** — ele é insumo da avaliação, não contato.
+
+Duas rodadas com o revisor. A primeira apontou **quatro frestas de PII**, todas
+reproduzidas em Postgres, e todas corrigidas antes do apply:
+
+| | O que passava |
+|---|---|
+| Evento fechado | parava as **respostas** e continuava aceitando nome, empresa e cargo |
+| Prévia sem retenção | PII guardada **sem prazo**, e a purga não toca vínculo sem prazo |
+| Definição malformada | `opcoes: null` num campo de texto derrubaria o **primeiro passo** com erro 500 |
+| Sessão revogada | `ler_perfil` devolvia nome, empresa e cargo de link já morto |
+
+**A segunda não era hipótese.** O preflight mostrou que
+`preview-interno-ia-v1` está em produção **com `session_retention_days` NULA** —
+e é nesse vínculo que o formulário único seria testado, com nomes de gente real.
+
+**Comando:** `npx supabase db push --linked` — dry-run antes, só ela na fila,
+aplicada na primeira tentativa (a disciplina de papel da lição de 15/09 está no
+arquivo inteiro: `set role` sempre devolvido pelo nome, nunca `reset role`).
+
+**Verificação pós-apply (toda de leitura):**
+
+| O quê | Resultado |
+|---|---|
+| Ledger | `20260916120000` registrada |
+| Tabela | dono `screener_owner`, RLS ligada, **zero policy** |
+| As três funções | dono `screener_owner`; as duas RPC `definer`, a auxiliar `invoker`; `search_path` vazio em **3 de 3** |
+| Tabela de perfil | **nenhum** papel a alcança |
+| RPC | `anon`/`authenticated`/`service_role`: **nenhum**; runtime: as 2 |
+| Auxiliar | runtime **não** alcança (não é RPC) |
+| Purga | fase de perfis presente; dono e ACL intactos; cron ativo |
+| `CREATE` em `public` | fechado |
+| Instrumentos com bloco de perfil | **0** — a migration entra inerte |
+
+**A migration entra morta, e é assim que tem de ser.** Nenhum instrumento no
+banco tem o bloco `perfil` e nenhuma edge chama as RPC novas. Ela só acorda na
+carga do instrumento unificado, depois da sessão de conteúdo de 25/09.
+
+**Para o checklist da carga:** o portão que mantém o link público do rhia
+anônimo é por **instrumento**, e o que é público é o **vínculo**. Na migration de
+carga isso precisa virar guarda de aceitação — recusar se qualquer vínculo fora
+do formulário único apontar para instrumento que colete perfil.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -1054,3 +1104,4 @@ aceita `respondente_id` — o id é derivado dentro do banco.
 - [x] Passo 7 — smoke **45/45** (28 de rede + 17 de navegador), incluindo a prova do portão (14/09/2026).
 - [x] Passo 8 — purga agendada e verificada em produção (14/09/2026).
 - [x] Ponte com a liderança — migration aplicada e verificada (15/09/2026), depois de três rodadas de revisão.
+- [x] Perfil do formulário único — migration aplicada e verificada (16/09/2026); entra inerte até a carga do instrumento.
