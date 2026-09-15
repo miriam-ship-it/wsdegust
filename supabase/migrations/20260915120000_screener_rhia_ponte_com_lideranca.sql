@@ -54,13 +54,16 @@
 -- =============================================================
 
 grant screener_owner to current_user;
+-- `RESET ROLE` NÃO É O INVERSO DE `SET ROLE` aqui — ver a nota longa na seção 6.
+-- Guarda-se o papel corrente e devolve-se ele, nominalmente.
 do $$
+declare v_papel name := current_user;
 begin
   grant create on schema public to screener_owner;
 exception when insufficient_privilege then
   set local role pg_database_owner;
   grant create on schema public to screener_owner;
-  reset role;
+  execute format('set role %I', v_papel);
 end $$;
 
 -- 1) CONVITE — emitido ao fim da liderança, consumido ao iniciar o rhia -------
@@ -403,8 +406,21 @@ grant execute on function public.screener_rhia_op_ler_vinculo(text)             
 -- É `create or replace` do corpo da 20260914170000, mantendo o resto PALAVRA
 -- POR PALAVRA — o rollback no cabeçalho aponta para aquele arquivo, que é a
 -- fonte executável do corpo anterior. `set role` explícito porque a dona é
--- `screener_owner`: contar com herança de papel aqui passaria no pglite (onde
--- se roda como superusuário) e poderia falhar no Supabase.
+-- `screener_owner`: a membership residual de `supabase_admin` tem `inherit` e
+-- `set` falsos (DEPLOY.md, Passo 2b), então sem o `grant` do topo desta migration
+-- nem seria possível trocar de papel — e sem trocar, `postgres` não é dona e o
+-- `create or replace` seria recusado.
+--
+-- E DEVOLVE-SE O PAPEL PELO NOME, NUNCA COM `reset role`. Esta migration morreu
+-- na primeira tentativa de apply (15/09) exatamente aqui: `RESET ROLE` volta ao
+-- papel de LOGIN da sessão, e o `supabase db push` se conecta com um papel de
+-- login e depois assume outro ("Initialising login role..."). O `reset` desfazia
+-- isso, e todos os comandos seguintes rodavam com a identidade errada — o último
+-- deles, `revoke screener_owner from current_user`, morreu com `no possible
+-- grantors` e a transação inteira voltou atrás. Nada foi aplicado, mas o defeito
+-- era meu: `reset role` não é o inverso de `set role` quando alguém já havia
+-- trocado o papel antes de mim.
+select set_config('boomit.papel_da_migration', current_user, true);
 set role screener_owner;
 create or replace function public.screener_rhia_purga()
 returns jsonb language plpgsql security definer set search_path = '' as $$
@@ -474,7 +490,12 @@ end $$;
 -- por omissão: ele só falava das fases 1 e 2.
 comment on function public.screener_rhia_purga() is
   'Purga por retencao do rhia. Prazos vem do vinculo; vinculo sem retencao declarada nao e purgado. 180 dias apagam o conteudo da avaliacao (respostas e snapshot) de todos; a linha de sessao de quem deixou contato sobrevive ate os 365 dias do contato, porque continua ligada a PII pelo session_id unico do lead — ela NAO e anonima. Fase 3 (20260915120000): apaga convites da ponte cujo expira_em ja passou, prazo que o proprio convite declarou.';
-reset role;
+do $$
+declare v_papel text := nullif(current_setting('boomit.papel_da_migration', true), '');
+begin
+  if v_papel is null then raise exception 'papel da migration nao foi guardado antes do set role'; end if;
+  execute format('set role %I', v_papel);
+end $$;
 
 -- A `20260914170000` usou `create function`, e não `or replace`, de propósito: a
 -- função apaga PII e não pode nascer com o EXECUTE para PUBLIC que toda função
@@ -591,7 +612,7 @@ end $$;
 -- e-mail (branch, replay do zero) não há o que provar, e a guarda se cala em vez
 -- de inventar uma falha.
 do $$
-declare v_email text; v_visto int;
+declare v_email text; v_visto int; v_papel name := current_user;
 begin
   select lower(trim(r.email)) into v_email
     from public.respondentes r where r.email is not null
@@ -600,7 +621,7 @@ begin
 
   set local role screener_owner;
   select quantos into v_visto from public.screener_ponte_respondente_por_email(v_email);
-  reset role;
+  execute format('set role %I', v_papel);
 
   if coalesce(v_visto, 0) = 0 then
     raise exception 'a ponte enxerga ZERO linhas de respondentes — o defeito de 15/09 voltou';
@@ -609,11 +630,26 @@ end $$;
 
 -- 8) fecha a fronteira
 do $$
+declare v_papel name := current_user;
 begin
   revoke create on schema public from screener_owner;
 exception when insufficient_privilege then
   set local role pg_database_owner;
   revoke create on schema public from screener_owner;
-  reset role;
+  execute format('set role %I', v_papel);
+end $$;
+
+-- A ÚLTIMA LINHA SÓ FUNCIONA SE A IDENTIDADE FOR A MESMA DO COMEÇO. Se algum
+-- bloco acima tiver deixado o papel trocado, o revoke falharia com uma mensagem
+-- obscura (`no possible grantors`) e a transação inteira voltaria atrás no fim
+-- de uma migration longa. A guarda diz o que de fato aconteceu.
+do $$
+declare v_papel text := nullif(current_setting('boomit.papel_da_migration', true), '');
+begin
+  if v_papel is not null and current_user <> v_papel then
+    raise exception 'a migration terminaria como % em vez de % — algum bloco trocou o papel e nao devolveu',
+      current_user, v_papel;
+  end if;
 end $$;
 revoke screener_owner from current_user;
+select set_config('boomit.papel_da_migration', '', true);
