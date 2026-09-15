@@ -28,7 +28,7 @@
 
 import { instrumento as instrumentoIA } from "../rhia/definicao.mjs";
 import itensLideranca from "./lideranca-itens.json" with { type: "json" };
-import { calcularContrato, paraPublico } from "../rhia/logica.mjs";
+import { calcularContrato, paraPublico, validarResposta } from "../rhia/logica.mjs";
 import { calcularResultado } from "../lideranca/motor.mjs";
 import { cruzar, sinteseCruzada } from "../relatorio-unico/cruzamento.mjs";
 
@@ -254,6 +254,30 @@ export function perfilCompleto(valores, campos = PERFIL) {
     if (campo.tipo === "texto" && campo.maximo && texto.length > campo.maximo) faltam.push(campo.id);
   }
   return { ok: faltam.length === 0, faltam };
+}
+
+/**
+ * Valida UMA resposta antes de ela ir ao banco.
+ *
+ * A validação local existe para recusar lixo sem gastar uma ida ao banco — mas a
+ * do pacote conhece só os itens de IA, e ainda exige que todo item pontuado
+ * responda um estágio `E1..E4`/`NA`. Os itens de liderança usam `O1..O4`: com o
+ * validador do pacote, TODA resposta de liderança era recusada como
+ * "opcao_invalida", e a pessoa não conseguia passar da primeira pergunta.
+ *
+ * Cada metade é validada pelo que ela é: a de liderança contra as alternativas
+ * do próprio item; a de IA pelo validador do pacote, sem alteração.
+ */
+export function validarRespostaUnificada(item_id, value, { ia = instrumentoIA, lideranca = itensLideranca } = {}) {
+  if (ehDeLideranca(item_id)) {
+    const item = lideranca.items.find((i) => idUnificado(i) === item_id);
+    if (!item) throw new Error("item_fora_do_instrumento");
+    if (typeof value !== "string" || !(item.options || []).some((o) => o.id === value)) {
+      throw new Error("opcao_invalida");
+    }
+    return true;
+  }
+  return validarResposta(item_id, value, ia);
 }
 
 /**

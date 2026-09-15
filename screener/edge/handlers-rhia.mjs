@@ -20,14 +20,11 @@
 
 import { gerarToken, hashToken, sha256Hex, capacidades } from "./logica.mjs";
 import { chaveRate } from "./ratelimit.mjs";
-import { instrumento, checksum, apresentacaoPublica } from "../rhia/definicao.mjs";
-import { validarResposta, validarSubmissao, canonico, calcularContrato, paraPublico } from "../rhia/logica.mjs";
+import { moduloDoBinding } from "./instrumentos.mjs";
+import { canonico } from "../rhia/logica.mjs";
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
 const NOTICE_VIGENTE = "v1";            // versão vigente do aviso de privacidade
-/** Versão do modelo público do motor (output-definition-v2 VERSION). Vai em scoring/report_version. */
-const VERSAO_RESULTADO = "2.0.0-pilot";
-const TOTAL_ITENS = instrumento.items.length; // 30
 const resp = (status, body) => ({ status, body });
 
 /** Chama uma função screener_*op_* e devolve o jsonb já parseado (ou null). */
@@ -108,10 +105,15 @@ function sessaoValida(sess, now) {
   if (sess.expires_at && new Date(sess.expires_at) <= now) return false;
   return true;
 }
-/** O vínculo aponta para ESTE instrumento (código + versão do JSON do pacote)? */
+
+/**
+ * O vínculo aponta para um instrumento que esta edge sabe servir?
+ *
+ * Antes isto comparava com UM instrumento cravado. Agora pergunta ao registro —
+ * e é o que permite ao formulário único existir sem que o link público mude.
+ */
 function instrumentoConfere(binding) {
-  return binding.instrument_code === instrumento.instrument_id &&
-         binding.instrument_version === instrumento.instrument_version;
+  return moduloDoBinding(binding) !== null;
 }
 /** Traduz o raise das funções `screener_rhia_op_*` em status HTTP. */
 function mapErroSql(e) {
@@ -159,9 +161,10 @@ export async function getStartRhia(ctx, { event_slug, previewKey, ipHmac }) {
   const cap = capacidades(binding, ctx.now());
   if (!cap.autorizado) return resp(404, { error: "nao_encontrado" });
   if (!cap.podeIniciar) return resp(403, { error: "indisponivel", motivo: cap.motivo });
-  if (!instrumentoConfere(binding)) return resp(409, { error: "instrumento_indisponivel" });
+  const mod = moduloDoBinding(binding);
+  if (!mod) return resp(409, { error: "instrumento_indisponivel" });
   return resp(200, {
-    ...apresentacaoPublica(),
+    ...mod.apresentacao(),
     branding: binding.branding || {},
     status: binding.status,
     lead_capture_mode: modoLead(binding),
@@ -179,7 +182,8 @@ export async function postStartRhia(ctx, { event_slug, previewKey, privacy_ack, 
   const cap = capacidades(binding, ctx.now());
   if (!cap.autorizado) return resp(404, { error: "nao_encontrado" });
   if (!cap.podeIniciar) return resp(403, { error: "indisponivel", motivo: cap.motivo });
-  if (!instrumentoConfere(binding)) return resp(409, { error: "instrumento_indisponivel" });
+  const mod = moduloDoBinding(binding);
+  if (!mod) return resp(409, { error: "instrumento_indisponivel" });
   // consentimento: exige ciência E o aviso VIGENTE (cliente não fabrica versão/horário)
   if (privacy_ack !== true) return resp(400, { error: "aviso_de_privacidade_obrigatorio" });
   const vigente = noticeVigente(binding);
@@ -198,7 +202,7 @@ export async function postStartRhia(ctx, { event_slug, previewKey, privacy_ack, 
   return resp(201, {
     session_id: criada.session_id,
     token, // devolvido UMA vez; o banco só tem o hash
-    ...apresentacaoPublica(),
+    ...mod.apresentacao(),
   });
 }
 
@@ -213,13 +217,18 @@ export async function getSessionRhia(ctx, { token, previewKey }) {
   const cap = capacidades(binding, ctx.now());
   if (!cap.autorizado) return resp(404, { error: "sessao_nao_encontrada" });
   if (!sessaoValida(sess, ctx.now())) return resp(410, { error: "sessao_expirada" });
+  const mod = moduloDoBinding(binding);
+  if (!mod) return resp(409, { error: "instrumento_indisponivel" });
+  const apres = mod.apresentacao();
   const answered = mapaRespostas(data.responses);
-  // progresso conta só os 30 itens do instrumento (o texto livre não é item)
-  const respondidos = instrumento.items.filter((it) => answered[it.id] !== undefined).length;
+  // O progresso conta os itens DESTE instrumento (o texto livre não é item).
+  // Antes contava os 30 do pacote, cravados — e o formulário único, com outra
+  // quantidade, mostraria "30 de 30" faltando dez perguntas.
+  const respondidos = apres.items.filter((it) => answered[it.id] !== undefined).length;
   return resp(200, {
-    ...apresentacaoPublica(),
+    ...apres,
     answered,
-    progress: { answered: respondidos, total: TOTAL_ITENS },
+    progress: { answered: respondidos, total: apres.items.length },
     pode_responder: cap.podeEscrever && sess.status === "open",
     submitted: sess.status === "submitted",
     lead_capture_mode: modoLead(binding),
@@ -231,12 +240,6 @@ export async function putResponseRhia(ctx, { token, item_id, value, previewKey }
   const rl = await checarRateToken(ctx, "autosave", token);
   if (rl) return rl;
   if (typeof item_id !== "string" || !item_id) return resp(400, { error: "campos_obrigatorios" });
-  // validação local antes da RPC (a função revalida contra a definição gravada)
-  try { validarResposta(item_id, value); }
-  catch (e) {
-    const m = String(e.message);
-    return resp(400, { error: m === "texto_invalido" ? "texto_invalido" : "opcao_invalida" });
-  }
   const th = await hashToken(token || "");
   const previewHash = await previaHash(previewKey);
   const data = await rpc(ctx, "screener_rhia_op_resume", [th, previewHash]);
@@ -244,6 +247,16 @@ export async function putResponseRhia(ctx, { token, item_id, value, previewKey }
   const binding = data.binding, sess = data.session;
   const cap = capacidades(binding, ctx.now());
   if (!cap.autorizado) return resp(404, { error: "sessao_nao_encontrada" });
+  const mod = moduloDoBinding(binding);
+  if (!mod) return resp(409, { error: "instrumento_indisponivel" });
+  // A validação local (que poupa uma ida ao banco com lixo) precisa saber QUAL
+  // instrumento é — por isso vem depois de resolver o vínculo. Antes ela usava o
+  // pacote de IA sempre, e recusava toda resposta de liderança.
+  try { mod.validarResposta(item_id, value); }
+  catch (e) {
+    const m = String(e.message);
+    return resp(400, { error: m === "texto_invalido" ? "texto_invalido" : "opcao_invalida" });
+  }
   if (sess.status === "submitted") return resp(409, { error: "resposta_impossivel_apos_submissao" });
   if (!cap.podeEscrever) return resp(403, { error: "escrita_indisponivel", motivo: cap.motivo });
   if (!sessaoValida(sess, ctx.now())) return resp(410, { error: "sessao_expirada" });
@@ -252,7 +265,9 @@ export async function putResponseRhia(ctx, { token, item_id, value, previewKey }
   try {
     saved = await rpc(ctx, "screener_rhia_op_save_response", [th, item_id, value, previewHash]);
   } catch (e) { return mapErroSql(e); } // função trava a sessão e revalida atomicamente
-  return resp(200, { ok: true, progress: { answered: saved.answered, total: TOTAL_ITENS } });
+  // O total é o do instrumento DESTE vínculo, não o do pacote: com o formulário
+  // único, um total cravado mostraria a barra cheia faltando dez perguntas.
+  return resp(200, { ok: true, progress: { answered: saved.answered, total: moduloDoBinding(binding).apresentacao().items.length } });
 }
 
 // ---------- POST /rhia/submit (finalizar submissão) ----------
@@ -271,35 +286,46 @@ export async function postSubmitRhia(ctx, { token, previewKey }) {
   const comPortao = binding.lead_capture_mode === "required_before_result";
 
   // já submetida → idempotente: consulta o snapshot e espelha o gate
+  const mod = moduloDoBinding(binding);
+  if (!mod) return resp(409, { error: "instrumento_indisponivel" });
+
   if (sess.status === "submitted") {
     const got = await rpc(ctx, "screener_rhia_op_get_result", [th, previewHash]);
     if (got && got.lead_required) return resp(200, { submitted: true, lead_required: true });
     if (!got || !got.result) return resp(409, { error: "submetida_sem_snapshot" });
-    return resp(200, paraPublico(got.result));
+    return resp(200, mod.paraPublico(got.result));
   }
   if (!cap.podeEscrever) return resp(403, { error: "escrita_indisponivel", motivo: cap.motivo });
   if (!sessaoValida(sess, ctx.now())) return resp(410, { error: "sessao_expirada" });
+  // Recusa EXPLÍCITA em vez de erro cru no último clique: o CHECK do snapshot
+  // ainda não aceita a forma do documento único (ver instrumentos.mjs). Melhor
+  // recusar aqui do que deixar a pessoa responder 40 itens e bater num erro de
+  // banco no último clique.
+  if (!mod.podeFinalizar) return resp(409, { error: "resultado_nao_suportado", instrumento: mod.code });
 
   // ler → validar → calcular (motor do pacote) → finalizar (função atômica). Se as
   // respostas mudarem entre a leitura e a finalização, a função rejeita e a edge
   // relê/recalcula (até 3 vezes).
-  const instrument_checksum = await checksum();
+  const instrument_checksum = await mod.checksum();
+  // O perfil só existe em instrumento que o declara; para o link público
+  // anônimo, `lerPerfil` não é chamado e nada muda.
+  const perfil = mod.temPerfil ? (await rpc(ctx, "screener_rhia_op_ler_perfil", [th, previewHash]))?.perfil ?? null : null;
   for (let tentativa = 0; tentativa < 3; tentativa++) {
     const atual = tentativa === 0 ? data : await rpc(ctx, "screener_rhia_op_resume", [th, previewHash]);
     if (!atual) return resp(404, { error: "sessao_nao_encontrada" });
     const respostas = mapaRespostas(atual.responses);
-    try { validarSubmissao(respostas); }
+    try { mod.validar(respostas, perfil); }
     catch (e) { return resp(400, { error: "submissao_incompleta", detalhe: String(e.message) }); }
 
-    const contrato = calcularContrato({ respostas }); // {public, internal} — o snapshot guarda os dois
+    const contrato = mod.calcular({ respostas, perfil }); // {public, internal} — o snapshot guarda os dois
     const canon = canonico(respostas);                 // idêntico ao string_agg da função
     const input_checksum = await sha256Hex(canon);
     try {
       const fin = await rpc(ctx, "screener_rhia_op_finalize",
-        [th, canon, contrato, instrument_checksum, input_checksum, VERSAO_RESULTADO, VERSAO_RESULTADO, previewHash]);
+        [th, canon, contrato, instrument_checksum, input_checksum, mod.versaoResultado, mod.versaoResultado, previewHash]);
       // com portão, retém o resultado (sessão recém-submetida ainda não tem lead)
       if (comPortao) return resp(200, { submitted: true, lead_required: true });
-      return resp(200, paraPublico(fin.result));
+      return resp(200, mod.paraPublico(fin.result));
     } catch (e) {
       if (String(e.message).includes("respostas_mudaram")) continue; // relê
       return mapErroSql(e);
@@ -321,11 +347,13 @@ export async function getResultRhia(ctx, { token, previewKey }) {
   if (!cap.autorizado) return resp(404, { error: "sessao_nao_encontrada" });
   if (!cap.podeLerResultado) return resp(403, { error: "leitura_indisponivel" });
   if (!sessaoValida(sess, ctx.now())) return resp(410, { error: "sessao_expirada" });
+  const mod = moduloDoBinding(binding);
+  if (!mod) return resp(409, { error: "instrumento_indisponivel" });
   if (!data.result) {
     if (data.lead_required) return resp(403, { error: "lead_required" }); // portão: falta capturar o lead
     return resp(404, { error: "sem_resultado" });
   }
-  return resp(200, paraPublico(data.result));
+  return resp(200, mod.paraPublico(data.result));
 }
 
 // ---------- POST /rhia/lead (capturar lead — degustação pública) ----------
