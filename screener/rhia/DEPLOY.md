@@ -975,6 +975,69 @@ devolve numa tabela de rastro.
 
 ---
 
+### Ponte com a liderança — migration aplicada · 15/09/2026 · **aplicada na segunda tentativa**
+
+Migration `20260915120000_screener_rhia_ponte_com_lideranca.sql`, commit
+`c9584e6`. Autorizada pela Miriam depois de **três rodadas de revisão** — a
+primeira reprovou (a ponte enxergaria zero linhas por RLS, e a purga noturna
+abortaria), as outras duas aprovaram com ressalvas, todas corrigidas antes do
+apply.
+
+**A primeira tentativa falhou, e nada ficou no banco.**
+
+```
+ERROR: no possible grantors (SQLSTATE XX000)
+At statement: 47 -> revoke screener_owner from current_user
+```
+
+`RESET ROLE` não devolve o papel que estava valendo — devolve o papel de **login**
+da sessão. O `supabase db push` conecta com um papel de login e depois assume
+outro (ele imprime "Initialising login role..."), e cada `reset role` do arquivo
+desfazia essa troca. Os comandos seguintes rodavam com a identidade errada, e o
+último não achava a membership que devia revogar. **Lição para as próximas
+migrations desta casa: devolva o papel pelo nome** — `current_user` guardado numa
+variável dentro de bloco plpgsql, ou num `set_config` transacional no nível de
+cima. Os tratadores de exceção das migrations já aplicadas têm a mesma armadilha
+latente; nunca dispararam porque o caminho de exceção nunca correu.
+
+Conferido **antes de qualquer outra ação** que a transação voltou atrás por
+inteiro: nenhuma tabela criada, purga com o corpo original, migration fora do
+ledger.
+
+**Comando:** `npx supabase db push --linked` — dry-run antes, só ela na fila.
+
+**Verificação pós-apply (toda de leitura):**
+
+| O quê | Resultado |
+|---|---|
+| Ledger | `20260915120000` registrada |
+| Tabelas da ponte | dono `screener_owner`, RLS ligada, **zero policy** |
+| Auxiliares de leitura | dono `postgres` — o dono de `respondentes`, que é o que os faz escapar da RLS |
+| RPCs | dono `screener_owner` |
+| `anon` / `authenticated` / `service_role` | **nenhum** alcança as 4 RPC nem os 2 auxiliares |
+| `screener_runtime` | alcança as 4 RPC; **zero** privilégio de tabela; **não** alcança os auxiliares |
+| Purga | fase 3 presente; dono e ACL intactos (o `postgres` do cron manteve o EXECUTE) |
+| Cron | `boomit_screener_rhia_purga_v1` @ `17 3 * * *`, ativo |
+| CREATE em `public` | revogado (era transitório) |
+| Membership transitória | revogada; sobrou só a residual de 03 |
+| Grant em `respondentes` | **NENHUM** |
+
+**A prova de que a ponte enxerga gente** é a guarda 7c da própria migration: ela
+roda no apply contra os 94 respondentes com e-mail e aborta se o auxiliar,
+atuando como `screener_owner`, vir zero linhas. Ela passou. Se a RLS ainda
+estivesse filtrando tudo — o defeito que reprovou a primeira versão — o apply
+teria parado ali.
+
+**O que isto muda no comportamento vivo:** quase nada. Nenhuma edge chama as
+quatro RPC ainda. A única mudança é a purga noturna passar a apagar convites
+vencidos, de uma tabela que nasceu vazia.
+
+**Próximo passo:** emitir o convite no fim do fluxo de liderança
+(`gate-and-send`), com o `token_sessao` lido do cabeçalho `x-sessao`. A RPC não
+aceita `respondente_id` — o id é derivado dentro do banco.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -990,3 +1053,4 @@ devolve numa tabela de rastro.
 - [ ] Passo 6 — merge para `main`; Netlify publicou.
 - [x] Passo 7 — smoke **45/45** (28 de rede + 17 de navegador), incluindo a prova do portão (14/09/2026).
 - [x] Passo 8 — purga agendada e verificada em produção (14/09/2026).
+- [x] Ponte com a liderança — migration aplicada e verificada (15/09/2026), depois de três rodadas de revisão.
