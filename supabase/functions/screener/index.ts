@@ -106,6 +106,8 @@ Deno.serve(async (req: Request) => {
     else if (req.method === "GET" && rota === "/rhia/result") r = await HR.getResultRhia(ctx, a);
     else if (req.method === "POST" && rota === "/rhia/lead") r = await HR.postLeadRhia(ctx, a);
     else if (req.method === "POST" && rota === "/rhia/vincular") r = await HR.postVincularRhia(ctx, a);
+    else if (req.method === "POST" && rota === "/rhia/perfil") r = await HR.postPerfilRhia(ctx, a);
+    else if (req.method === "GET" && rota === "/rhia/perfil") r = await HR.getPerfilRhia(ctx, a);
     else return json(404, { error: "rota_desconhecida" }, cors);
     return json(r.status, r.body, cors);
   } catch (e) {

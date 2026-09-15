@@ -177,6 +177,86 @@ export function apresentacaoPublica(instr = montarInstrumento()) {
 }
 
 /**
+ * A apresentação do formulário único, NO MESMO CONTRATO que o front já consome.
+ *
+ * Esta é a decisão que evita um segundo front. `frontend/rhia.mjs` monta a tela a
+ * partir de `{ instrument, groups, items }`, com `items[].group`, `order`,
+ * `prompt` e `options[{id,label}]` — e filtra o contexto pelo grupo. Se a
+ * apresentação unificada obedecer a esse contrato, a pilha de perguntas, a
+ * retomada, o progresso e a navegação por teclado funcionam sem uma linha nova.
+ *
+ * O que É novo vai num campo novo: `perfil`. O front só mostra a tela de perfil
+ * quando ele vem — e o instrumento do link público não o tem. O código entra
+ * inerte e o DADO decide, como a migration.
+ *
+ * Nenhum `score` atravessa: as alternativas saem com id e rótulo, e o ponto é
+ * resolvido no servidor por `separarRespostas`.
+ */
+export function apresentacaoUnificada({ ia = instrumentoIA, lideranca = itensLideranca } = {}) {
+  const instr = montarInstrumento({ ia, lideranca });
+  const nomeDimIA = new Map((ia.dimensions ?? []).map((d) => [d.id, d.name]));
+  const nomeDimLid = new Map((lideranca.dimensoes ?? []).map((d) => [d.code, d.name]));
+
+  let ordem = 0;
+  const items = instr.blocos.flatMap((bloco) => bloco.itens.map((it) => {
+    ordem += 1;
+    const pub = { id: it.id, order: ordem, kind: it.kind, group: bloco.id, prompt: it.prompt };
+    // O nome da dimensão é informativo e não aparece no alto da pergunta (ver a
+    // nota em telaQuestoes): vai junto porque a revisão e o resultado o usam.
+    const nome = bloco.id === "lideranca" ? nomeDimLid.get(it.dimension) : nomeDimIA.get(it.dimension);
+    if (nome) pub.dimension_name = nome;
+    pub.options = (it.options || []).map((o) => ({ id: o.id, label: o.label }));
+    if (it.conditional_field) pub.conditional_field = structuredClone(it.conditional_field);
+    return pub;
+  }));
+
+  return {
+    instrument: {
+      id: CODIGO_UNIFICADO,
+      version: "1.0.0",
+      title: "Diagnóstico de cenário",
+      purpose: ia.purpose,
+      disclaimer: ia.disclaimer,
+      // Derivado, nunca cravado: encurtar a metade de IA tem de encurtar isto junto.
+      estimated_minutes: estimativaEmMinutos(instr.totais.itens),
+    },
+    groups: [
+      { code: "contexto", name: "Contexto" },
+      { code: "lideranca", name: "Liderança" },
+      { code: "ia", name: "RH e IA" },
+    ],
+    perfil: instr.perfil,
+    items,
+    totais: instr.totais,
+  };
+}
+
+/** Faixa em minutos a partir da contagem de itens, arredondada para fora. */
+export function estimativaEmMinutos(itens, porMinuto = 3) {
+  const base = Math.max(1, Math.round(itens / porMinuto));
+  return `${base}–${base + 3}`;
+}
+
+/**
+ * O perfil está completo? O front pergunta antes de deixar seguir, e o servidor
+ * pergunta de novo — a resposta aqui é conveniência, não autoridade.
+ */
+export function perfilCompleto(valores, campos = PERFIL) {
+  const faltam = [];
+  for (const campo of campos) {
+    if (!campo.obrigatorio) continue;
+    const v = valores ? valores[campo.id] : null;
+    const texto = typeof v === "string" ? v.trim() : "";
+    if (!texto) { faltam.push(campo.id); continue; }
+    if (campo.tipo === "escolha" && !(campo.opcoes || []).some((o) => o.id === texto)) {
+      faltam.push(campo.id); continue;
+    }
+    if (campo.tipo === "texto" && campo.maximo && texto.length > campo.maximo) faltam.push(campo.id);
+  }
+  return { ok: faltam.length === 0, faltam };
+}
+
+/**
  * Separa as respostas do formulário único no que cada motor espera.
  *
  * Os dois motores continuam existindo inteiros e intocados: o do pacote de IA e

@@ -19,6 +19,7 @@ import { PGlite } from "@electric-sql/pglite";
 import instrumentoIA from "../../rhia/pacote/instrumento-rh-ia-v1.json" with { type: "json" };
 import { checksum } from "../../rhia/definicao.mjs";
 import { definicaoParaBanco, CODIGO_UNIFICADO } from "../../unificado/composicao.mjs";
+import * as HR from "../../edge/handlers-rhia.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const MIGR = path.resolve(AQUI, "..", "..", "..", "supabase", "migrations");
@@ -439,4 +440,82 @@ test("perfil: sessão expirada também não devolve o perfil", async () => {
   await db.query(`update public.screener_rhia_sessions
                      set created_at = now() - interval '2 hours', expires_at = now() - interval '1 hour'`);
   assert.equal((await call(db, "screener_rhia_op_ler_perfil", [th, null])).status, "sessao_invalida");
+});
+
+// -------------------------------------------------------------------------
+// As rotas que o front usa: POST e GET /rhia/perfil.
+// -------------------------------------------------------------------------
+
+const contexto = (db) => ({ q: (sql, params = []) => db.query(sql, params), now: () => new Date(), rate: { ativo: false, secret: null } });
+const CAMPOS = { nome: "Ana Souza", empresa: "Boomit", cargo: "Head de RH", nivel: "G", porte: "S3", setor: "V1" };
+
+test("rota: grava o perfil e devolve o que foi declarado", async () => {
+  const db = await ambiente();
+  const ctx = contexto(db);
+  await abrir(db, "tk1");
+
+  const r = await HR.postPerfilRhia(ctx, { token: "tk1", ...CAMPOS });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { ok: true });
+
+  const lido = await HR.getPerfilRhia(ctx, { token: "tk1" });
+  assert.equal(lido.status, 200);
+  assert.deepEqual(lido.body.perfil, CAMPOS);
+});
+
+test("rota: sessão sem perfil devolve 200 com nulo, não 404", async () => {
+  // O front usa isto ao RETOMAR para saber se ainda falta preencher. Um 404 aqui
+  // seria confundido com "sessão não existe" e mandaria a pessoa para a abertura.
+  const db = await ambiente();
+  const r = await HR.getPerfilRhia(contexto(db), { token: await abrir(db, "tk1") && "tk1" });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.perfil, null);
+});
+
+test("rota: o NUL é limpo pela EDGE, antes de chegar ao banco", async () => {
+  // O Postgres recusa o byte no protocolo, abortando a transação com um erro de
+  // encoding. Se a edge não limpar, a pessoa vê um 500 sem explicação.
+  const db = await ambiente();
+  const ctx = contexto(db);
+  await abrir(db, "tk1");
+  const r = await HR.postPerfilRhia(ctx, { token: "tk1", ...CAMPOS, nome: "An a Souza" });
+  assert.equal(r.status, 200);
+  assert.equal((await HR.getPerfilRhia(ctx, { token: "tk1" })).body.perfil.nome, "Ana Souza");
+});
+
+test("rota: instrumento anônimo recusa perfil, e o motivo é de CONFIGURAÇÃO", async () => {
+  const db = await ambiente({ definicao: instrumentoIA });
+  await abrir(db, "tk1");
+  const r = await HR.postPerfilRhia(contexto(db), { token: "tk1", ...CAMPOS });
+  assert.equal(r.status, 409, "não é culpa de quem responde: é vínculo apontando para o instrumento errado");
+  assert.equal(r.body.error, "instrumento_sem_perfil");
+});
+
+test("rota: valor fora da definição vira 400 dizendo o campo", async () => {
+  const db = await ambiente();
+  await abrir(db, "tk1");
+  const r = await HR.postPerfilRhia(contexto(db), { token: "tk1", ...CAMPOS, porte: "S9" });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error, "valor_invalido");
+  assert.equal(r.body.campo, "porte", "a tela precisa saber qual campo pôr em evidência");
+});
+
+test("rota: campo obrigatório vazio e sessão morta têm respostas distintas", async () => {
+  const db = await ambiente();
+  const ctx = contexto(db);
+  await abrir(db, "tk1");
+  assert.equal((await HR.postPerfilRhia(ctx, { token: "tk1", ...CAMPOS, nome: "  " })).body.error, "campo_obrigatorio");
+
+  await db.query(`update public.screener_rhia_sessions
+                     set created_at = now() - interval '2 hours', expires_at = now() - interval '1 hour'`);
+  assert.equal((await HR.postPerfilRhia(ctx, { token: "tk1", ...CAMPOS })).status, 403);
+  assert.equal((await HR.getPerfilRhia(ctx, { token: "tk1" })).status, 403,
+    "ler também recusa: é nome, empresa e cargo");
+});
+
+test("rota: sessão que não existe não vaza a diferença", async () => {
+  const db = await ambiente();
+  const ctx = contexto(db);
+  assert.equal((await HR.postPerfilRhia(ctx, { token: "nao-existe", ...CAMPOS })).status, 404);
+  assert.equal((await HR.getPerfilRhia(ctx, { token: "nao-existe" })).status, 404);
 });

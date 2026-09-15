@@ -390,4 +390,61 @@ export async function postVincularRhia(ctx, { token, convite }) {
   return resp(409, { error: String(r.status) });
 }
 
-export const rotasRhia = { getStartRhia, postStartRhia, getSessionRhia, putResponseRhia, postSubmitRhia, getResultRhia, postLeadRhia, postVincularRhia };
+// ---------- POST /rhia/perfil (identificação do formulário único) ----------
+//
+// Só existe para instrumento que traz o bloco `perfil`. O link público é anônimo
+// e a definição dele não tem o bloco — a RPC recusa com `instrumento_sem_perfil`,
+// e é essa recusa que mantém a anonimidade sendo uma propriedade do DADO, não uma
+// disciplina de quem escreve rota.
+//
+// O texto é limpo AQUI antes do banco, como no lead: o NUL não chega à função
+// (o Postgres o recusa no protocolo, abortando a transação com um erro de
+// encoding que não tem por que chegar ao navegador).
+export async function postPerfilRhia(ctx, { token, previewKey, nome, empresa, cargo, nivel, porte, setor }) {
+  const rl = await checarRateToken(ctx, "autosave", token);
+  if (rl) return rl;
+  const th = await hashToken(token || "");
+  const previewHash = await previaHash(previewKey);
+  const texto = (v) => (typeof v === "string" ? v.replace(CONTROLE, "") : null);
+  const escolha = (v) => (typeof v === "string" ? v.replace(CONTROLE, "").trim() : null);
+
+  let r;
+  try {
+    r = await rpc(ctx, "screener_rhia_op_salvar_perfil",
+      [th, previewHash, texto(nome), texto(empresa), texto(cargo), escolha(nivel), escolha(porte), escolha(setor)]);
+  } catch (e) { return mapErroSql(e); }
+  if (!r) return resp(404, { error: "sessao_nao_encontrada" });
+
+  if (r.status === "ok") return resp(200, { ok: true });
+  if (r.status === "sessao_nao_encontrada") return resp(404, { error: "sessao_nao_encontrada" });
+  if (r.status === "sessao_invalida") return resp(403, { error: "sessao_invalida" });
+  if (r.status === "sessao_nao_aberta") return resp(409, { error: "sessao_nao_aberta" });
+  if (r.status === "indisponivel") return resp(403, { error: "indisponivel" });
+  if (r.status === "fora_de_vigencia") return resp(403, { error: "fora_de_vigencia" });
+  // Vínculo sem prazo de retenção e instrumento sem bloco de perfil são erros de
+  // CONFIGURAÇÃO, não de quem responde: 409, e o motivo vai no corpo para o log.
+  if (r.status === "retencao_nao_declarada" || r.status === "instrumento_sem_perfil"
+      || r.status === "instrumento_ausente") return resp(409, { error: String(r.status) });
+  if (r.status === "valor_invalido") return resp(400, { error: "valor_invalido", campo: r.campo ?? null });
+  if (r.status === "campo_obrigatorio" || r.status === "campo_longo_demais") {
+    return resp(400, { error: String(r.status) });
+  }
+  return resp(400, { error: String(r.status) });
+}
+
+// ---------- GET /rhia/perfil (o que já foi declarado) ----------
+export async function getPerfilRhia(ctx, { token, previewKey }) {
+  const rl = await checarRateToken(ctx, "consulta", token);
+  if (rl) return rl;
+  let r;
+  try {
+    r = await rpc(ctx, "screener_rhia_op_ler_perfil", [await hashToken(token || ""), await previaHash(previewKey)]);
+  } catch (e) { return mapErroSql(e); }
+  if (!r) return resp(404, { error: "sessao_nao_encontrada" });
+  if (r.status === "sessao_nao_encontrada") return resp(404, { error: "sessao_nao_encontrada" });
+  if (r.status === "sessao_invalida") return resp(403, { error: "sessao_invalida" });
+  if (r.status === "sem_perfil") return resp(200, { perfil: null });
+  return resp(200, { perfil: r.perfil });
+}
+
+export const rotasRhia = { getStartRhia, postStartRhia, getSessionRhia, putResponseRhia, postSubmitRhia, getResultRhia, postLeadRhia, postVincularRhia, postPerfilRhia, getPerfilRhia };

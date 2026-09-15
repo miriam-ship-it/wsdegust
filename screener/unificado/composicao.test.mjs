@@ -8,6 +8,7 @@ import { instrumento as instrumentoIA } from "../rhia/definicao.mjs";
 import {
   PERFIL, PREFIXO_LIDERANCA, montarInstrumento, apresentacaoPublica,
   separarRespostas, perfilParaMotor, calcularUnificado,
+  apresentacaoUnificada, estimativaEmMinutos, perfilCompleto,
 } from "./composicao.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
@@ -236,4 +237,59 @@ test("sem perfil, a liderança não inventa faixa de CDL", () => {
   // o motor usa padrões quando porte/nível faltam — o que não pode é o número
   // sumir em silêncio ou virar NaN
   assert.ok(Number.isFinite(r.lideranca.cdl.min) && Number.isFinite(r.lideranca.cdl.max));
+});
+
+// -------------------------------------------------------------------------
+// A APRESENTAÇÃO — obedece ao contrato que o front já consome
+// -------------------------------------------------------------------------
+
+test("a apresentação fala a mesma língua que o front já entende", () => {
+  // É esta conformidade que evita um segundo front: a pilha de perguntas, o
+  // progresso, a retomada e o teclado do rhia funcionam sem uma linha nova.
+  const a = apresentacaoUnificada();
+  assert.ok(a.instrument && a.instrument.id && a.instrument.version);
+  assert.deepEqual(a.groups.map((g) => g.code), ["contexto", "lideranca", "ia"]);
+  for (const it of a.items) {
+    assert.equal(typeof it.id, "string");
+    assert.equal(typeof it.prompt, "string");
+    assert.ok(["contexto", "lideranca", "ia"].includes(it.group));
+    assert.ok(Array.isArray(it.options) && it.options.length > 0);
+    for (const o of it.options) assert.deepEqual(Object.keys(o).sort(), ["id", "label"]);
+  }
+  // o front filtra o contexto por `group`, e a ordem é a da leitura
+  assert.equal(a.items.filter((i) => i.group === "contexto").length, 3);
+  assert.ok(a.items.every((i, n) => i.order === n + 1), "ordem com furo quebra o progresso");
+});
+
+test("a apresentação NÃO leva ponto nenhum", () => {
+  const blob = JSON.stringify(apresentacaoUnificada());
+  assert.ok(!blob.includes('"score"'), "o ponto é resolvido no servidor, contra a definição privada");
+});
+
+test("a apresentação leva o bloco de perfil — e é ele que liga a tela", () => {
+  const a = apresentacaoUnificada();
+  assert.ok(Array.isArray(a.perfil) && a.perfil.length === PERFIL.length);
+  // e o instrumento anônimo NÃO tem o bloco: é essa ausência que mantém o link
+  // público sem nome e sem empresa
+  assert.equal(instrumentoIA.perfil, undefined);
+});
+
+test("a estimativa de tempo é derivada, não cravada", () => {
+  const cheio = apresentacaoUnificada();
+  const enxuto = apresentacaoUnificada({
+    ia: { ...instrumentoIA, items: instrumentoIA.items.filter((i) => i.kind === "context" || /01$/.test(i.id)) },
+  });
+  assert.notEqual(enxuto.instrument.estimated_minutes, cheio.instrument.estimated_minutes,
+    "encurtar o instrumento tem de encurtar o tempo anunciado junto");
+  assert.equal(estimativaEmMinutos(30, 3), "10–13");
+  assert.equal(estimativaEmMinutos(0), "1–4", "nunca anuncia zero minuto");
+});
+
+test("perfil completo: exige os obrigatórios e recusa valor fora da lista", () => {
+  const cheio = { nome: "Ana", empresa: "Boomit", cargo: "Head", nivel: "G", porte: "S3", setor: "V1" };
+  assert.deepEqual(perfilCompleto(cheio), { ok: true, faltam: [] });
+  assert.deepEqual(perfilCompleto({ ...cheio, nome: "   " }).faltam, ["nome"], "espaço não é nome");
+  assert.deepEqual(perfilCompleto({ ...cheio, nivel: "Z" }).faltam, ["nivel"], "nível inventado não passa");
+  assert.deepEqual(perfilCompleto({ ...cheio, empresa: "A".repeat(200) }).faltam, ["empresa"]);
+  assert.equal(perfilCompleto(null).faltam.length, PERFIL.filter((c) => c.obrigatorio).length);
 });

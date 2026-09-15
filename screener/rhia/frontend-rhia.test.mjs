@@ -28,7 +28,7 @@ import {
   formatarData, mensagemErro, descreverErro,
   chaveArmazenamento, guardarSessao, lerSessao, limparSessao,
   telaDoHash, criarRastreador, criarCliente, renderResultado, renderInsuficiente,
-  sinteseExecutiva, convitePresenteNaUrl, urlSemConvite,
+  sinteseExecutiva, convitePresenteNaUrl, urlSemConvite, perfilFaltantes,
 } from "../../frontend/rhia.mjs";
 // SÓ NO TESTE: o motor e o instrumento do pacote (o app nunca os importa).
 import { buildResultContractV2 } from "./pacote/src/output-engine-v2.mjs";
@@ -607,4 +607,56 @@ test("renderResultado: a síntese entra logo depois da capa e antes do mapa", ()
   const iMapa = html.indexOf("O que esta leitura traz");
   assert.ok(iCapa < iSintese && iSintese < iMapa, "ordem: capa, síntese, mapa");
   assertSemVazamento(html, "render com síntese");
+});
+
+// -------------------------------------------------------------------------
+// O PERFIL — existe só quando o instrumento traz o bloco
+// -------------------------------------------------------------------------
+
+const CAMPOS_PERFIL = [
+  { id: "nome", tipo: "texto", obrigatorio: true, maximo: 120 },
+  { id: "nivel", tipo: "escolha", obrigatorio: true, opcoes: [{ id: "G" }, { id: "X" }] },
+  { id: "observacao", tipo: "texto", obrigatorio: false, maximo: 120 },
+];
+
+test("perfil: diz o que FALTA, não um sim ou não", () => {
+  // "está incompleto" não ajuda ninguém a terminar; a tela precisa apontar o campo.
+  assert.deepEqual(perfilFaltantes(CAMPOS_PERFIL, {}), ["nome", "nivel"]);
+  assert.deepEqual(perfilFaltantes(CAMPOS_PERFIL, { nome: "Ana", nivel: "G" }), []);
+  assert.deepEqual(perfilFaltantes(CAMPOS_PERFIL, { nome: "  ", nivel: "G" }), ["nome"]);
+  assert.deepEqual(perfilFaltantes(CAMPOS_PERFIL, { nome: "Ana", nivel: "Z" }), ["nivel"],
+    "valor fora da lista é ausência, não escolha");
+  assert.deepEqual(perfilFaltantes(CAMPOS_PERFIL, { nome: "A".repeat(200), nivel: "G" }), ["nome"]);
+  assert.deepEqual(perfilFaltantes(CAMPOS_PERFIL, { nome: "Ana", nivel: "G", observacao: "" }), [],
+    "campo opcional vazio não trava ninguém");
+});
+
+test("perfil: SEM bloco no instrumento, não há nada a completar", () => {
+  // É assim que o link público anônimo segue igual: a ausência do bloco, e não
+  // um `if` escrito em algum lugar do fluxo.
+  assert.deepEqual(perfilFaltantes([], { qualquer: "coisa" }), []);
+  assert.deepEqual(perfilFaltantes(undefined, null), []);
+});
+
+test("rota por hash: o perfil pendente segura a pessoa, e o fluxo anônimo não muda", () => {
+  const aberta = { temSessao: true, submitido: false, contextoOk: true };
+  // sem perfil declarado, `perfilOk` nasce true — o comportamento de hoje, intacto
+  assert.equal(telaDoHash("questoes", aberta), "questoes");
+  assert.equal(telaDoHash("contexto", aberta), "contexto");
+
+  // com perfil pendente, qualquer hash cai no perfil
+  const pendente = { ...aberta, perfilOk: false };
+  for (const h of ["questoes", "contexto", "revisao", "", "resultado"]) {
+    assert.equal(telaDoHash(h, pendente), "perfil", `#${h} não podia passar por cima do perfil`);
+  }
+  // preenchido, o hash do perfil ainda leva ao perfil (dá para voltar e corrigir)
+  assert.equal(telaDoHash("perfil", { ...aberta, perfilOk: true }), "perfil");
+  // e sem sessão, nada disso importa
+  assert.equal(telaDoHash("perfil", { temSessao: false, perfilOk: false }), "abertura");
+});
+
+test("rota por hash: sessão submetida não volta para o perfil", () => {
+  // Depois do submit o resultado já foi calculado com o porte que havia; deixar
+  // voltar ao perfil ali sugeriria que trocá-lo mudaria a conta.
+  assert.equal(telaDoHash("perfil", { temSessao: true, submitido: true, perfilOk: false }), "resultado");
 });

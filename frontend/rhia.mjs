@@ -111,6 +111,33 @@ export function urlSemConvite(href) {
 }
 
 /**
+ * O PERFIL — só existe quando o instrumento traz o bloco.
+ *
+ * O link público do diagnóstico é anônimo e a definição dele não tem `perfil`,
+ * então esta tela simplesmente não acontece lá. O código entra inerte e o DADO
+ * decide — a mesma regra que governa a tabela no banco.
+ *
+ * Devolve o que FALTA, nunca um booleano solto: a tela precisa dizer qual campo
+ * está pendente, e "está incompleto" não ajuda ninguém a terminar. A validação
+ * aqui é conveniência; a autoridade é o servidor, que confere de novo contra a
+ * definição guardada.
+ */
+export function perfilFaltantes(campos, valores) {
+  const faltam = [];
+  for (const campo of campos || []) {
+    if (!campo || !campo.obrigatorio) continue;
+    const bruto = valores ? valores[campo.id] : null;
+    const texto = typeof bruto === "string" ? bruto.trim() : "";
+    if (!texto) { faltam.push(campo.id); continue; }
+    if (campo.tipo === "escolha" && !(campo.opcoes || []).some((o) => o.id === texto)) {
+      faltam.push(campo.id); continue;
+    }
+    if (campo.tipo === "texto" && campo.maximo && texto.length > campo.maximo) faltam.push(campo.id);
+  }
+  return faltam;
+}
+
+/**
  * Cabeçalhos de uma requisição à edge. A credencial só em `x-preview-key`; o
  * token só em `x-session-token`. `content-type` só quando há corpo.
  */
@@ -445,7 +472,7 @@ export function limparSessao(evento, store) {
 
 /** Hash de cada tela (telas transitórias não tocam a URL). */
 export const HASH_DA_TELA = Object.freeze({
-  abertura: "abertura", contexto: "contexto", questoes: "questoes", revisao: "revisao",
+  abertura: "abertura", perfil: "perfil", contexto: "contexto", questoes: "questoes", revisao: "revisao",
   lead_gate: "resultado", resultado: "resultado", insuficiente: "resultado", erro: "erro",
 });
 
@@ -454,10 +481,15 @@ export const HASH_DA_TELA = Object.freeze({
  * sessão → abertura; #revisao sem sessão → abertura; sessão aberta só anda
  * entre contexto/questões/revisão; sessão submetida só vê resultado/revisão.
  */
-export function telaDoHash(hash, { temSessao = false, submitido = false, contextoOk = false } = {}) {
+export function telaDoHash(hash, { temSessao = false, submitido = false, contextoOk = false, perfilOk = true } = {}) {
   const h = String(hash || "").replace(/^#/, "");
   if (!temSessao) return "abertura";
   if (submitido) return h === "revisao" ? "revisao" : "resultado";
+  // O perfil vem antes de tudo: sem porte e nível não existe faixa de CDL, e
+  // descobrir isso no fim obrigaria a pessoa a voltar. `perfilOk` nasce `true`
+  // para que o fluxo anônimo — que não tem perfil — não mude de comportamento.
+  if (!perfilOk) return "perfil";
+  if (h === "perfil") return "perfil";
   if (h === "contexto") return "contexto";
   if (h === "questoes" || h === "revisao") return contextoOk ? h : "contexto";
   return contextoOk ? "questoes" : "contexto";
@@ -507,6 +539,8 @@ export function criarCliente({ edgeUrl, anonKey, transporte } = {}) {
     // O convite vai no CORPO, nunca em query: é de uso único e não tem por que
     // ficar em log de servidor.
     vincular: (previewKey, token, convite) => chamar("POST", "/rhia/vincular", { corpo: { convite }, previewKey, token }),
+    salvarPerfil: (previewKey, token, valores) => chamar("POST", "/rhia/perfil", { corpo: valores, previewKey, token }),
+    lerPerfil: (previewKey, token) => chamar("GET", "/rhia/perfil", { previewKey, token }),
   };
 }
 
@@ -834,6 +868,7 @@ export function iniciarApp(cfg) {
     salvando: 0, salvoRecente: false, erroTopo: null, tentandoEnviar: false,
     erro: null, storageOk: true, ignorarHash: false,
     convite: null, avisoPonte: null,
+    perfilCampos: [], perfilValores: {}, perfilErro: null, perfilFaltam: [], perfilSalvando: false,
   };
 
   // --- o convite da liderança, se a pessoa chegou por ele ---
@@ -894,10 +929,38 @@ export function iniciarApp(cfg) {
   }
   const persistir = () => { const ok = guardarSessao(evento, { token: st.token, pos: st.pos, tela: st.tela, convite: st.convite }, store); if (!ok) st.storageOk = false; };
   const contextoOk = () => contextoCompleto(st.contexto, st.respostas, st.textoOutro, st.cf).ok;
+  /** Sem bloco de perfil, não há o que completar — e o fluxo anônimo segue igual. */
+  const perfilOk = () => !st.perfilCampos.length || perfilFaltantes(st.perfilCampos, st.perfilValores).length === 0;
+
+  async function concluirPerfil() {
+    const faltam = perfilFaltantes(st.perfilCampos, st.perfilValores);
+    st.perfilFaltam = faltam;
+    if (faltam.length) {
+      st.perfilErro = null; pintar();
+      return focar(`#rh-perfil-${faltam[0]}`);
+    }
+    st.perfilSalvando = true; st.perfilErro = null; pintar();
+    const r = await cliente.salvarPerfil(st.previewKey, st.token, st.perfilValores);
+    st.perfilSalvando = false;
+    if (r.status !== 200) {
+      // O servidor confere de novo, contra a definição guardada. Quando ele
+      // recusa um campo, é esse campo que precisa ficar em evidência.
+      const campo = r.body && r.body.campo;
+      st.perfilFaltam = campo && campo !== 'tamanho' ? [campo] : [];
+      st.perfilErro = mensagemErro(r.status, r.body);
+      pintar();
+      return focar(campo ? `#rh-perfil-${campo}` : null);
+    }
+    st.perfilErro = null; st.perfilFaltam = [];
+    persistir(); irPara('contexto');
+  }
 
   // --- rede ---
   function aplicarApresentacao(body) {
     st.instrument = body.instrument; st.groups = body.groups || []; st.itens = body.items || [];
+    // Ausente no instrumento anônimo — e é essa ausência que mantém a tela
+    // de perfil fora do caminho de quem responde o link público.
+    if (Array.isArray(body.perfil)) st.perfilCampos = body.perfil;
     st.contexto = st.itens.filter((it) => it.group === "contexto");
     st.flat = st.itens.filter((it) => it.group !== "contexto");
     st.cf = campoCondicional(st.itens);
@@ -920,9 +983,10 @@ export function iniciarApp(cfg) {
     if (r.status !== 201) { st.erroTopo = mensagemErro(r.status, r.body); return pintar(); }
     st.token = r.body.token; aplicarApresentacao(r.body);
     st.respostas = {}; st.textoOutro = ""; st.textoErro = null; st.pos = 0; st.submitido = false; st.resultado = null; st.leadEnviado = false; st.modoLeitura = false;
-    st.tela = "contexto"; persistir();
+    const primeira = st.perfilCampos.length ? "perfil" : "contexto";
+    st.tela = primeira; persistir();
     rastrear("assessment_started");
-    irPara("contexto");
+    irPara(primeira);
     trocarConvite().then(pintar, () => {});
   }
   async function retomar(salva) {
@@ -938,8 +1002,16 @@ export function iniciarApp(cfg) {
     if (st.submitido) return carregarResultado();
     const nova = primeiraNaoRespondida(st.flat, st.respostas);
     st.pos = Math.min(Number.isFinite(salva.pos) ? salva.pos : nova, Math.max(0, st.flat.length - 1));
+    // Quem retoma pode ter fechado a aba antes de preencher o perfil: quem sabe
+    // se ele existe é o servidor, não o armazenamento local.
+    if (st.perfilCampos.length) {
+      const pf = await cliente.lerPerfil(st.previewKey, st.token);
+      if (pf.status === 200 && pf.body && pf.body.perfil) st.perfilValores = { ...pf.body.perfil };
+    }
     const hashAtual = String(loc.hash || "").replace(/^#/, "");
-    const alvo = telaDoHash(hashAtual || salva.tela || "", { temSessao: true, submitido: false, contextoOk: contextoOk() });
+    const alvo = telaDoHash(hashAtual || salva.tela || "", {
+      temSessao: true, submitido: false, contextoOk: contextoOk(), perfilOk: perfilOk(),
+    });
     persistir(); irPara(alvo);
     trocarConvite().then(pintar, () => {});
   }
@@ -1194,6 +1266,43 @@ export function iniciarApp(cfg) {
   // avanço ao escolher. A ÚNICA exceção é o campo de texto de "Outro": ali o
   // avanço espera o texto ficar válido, senão a pessoa seria empurrada para
   // frente antes de escrever.
+  function telaPerfil() {
+    const campo = (c) => {
+      const pendente = st.perfilFaltam.includes(c.id);
+      const idHtml = `rh-perfil-${escapeHtml(c.id)}`;
+      const valor = st.perfilValores[c.id] || "";
+      const aria = pendente ? `aria-invalid="true" aria-describedby="${idHtml}-erro"` : "";
+      const erro = pendente
+        ? `<p class="rh-field__erro" id="${idHtml}-erro" role="alert">${ICONE.info}<span>Preencha para continuar.</span></p>` : "";
+      const controle = c.tipo === "escolha"
+        ? `<select class="sc-input" id="${idHtml}" data-acao="perfil" data-campo="${escapeHtml(c.id)}" ${aria} required>
+             <option value="">Selecione…</option>
+             ${(c.opcoes || []).map((o) => `<option value="${escapeHtml(o.id)}" ${o.id === valor ? "selected" : ""}>${escapeHtml(o.rotulo)}</option>`).join("")}
+           </select>`
+        : `<input class="sc-input" id="${idHtml}" type="text" data-acao="perfil" data-campo="${escapeHtml(c.id)}"
+             value="${escapeHtml(valor)}" maxlength="${c.maximo || 120}" autocomplete="${c.id === "nome" ? "name" : c.id === "empresa" ? "organization" : "organization-title"}" ${aria} required>`;
+      return `<div class="sc-field">
+        <label class="sc-label" for="${idHtml}">${escapeHtml(c.rotulo)}</label>
+        ${controle}${erro}
+      </div>`;
+    };
+    const erroTopo = st.perfilErro
+      ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.perfilErro)}</span></div>` : "";
+    return `<div class="sc-card">
+      ${progressoHtml("", "Antes de começar")}
+      <p class="sc-eyebrow">Antes de começar</p>
+      <h1 class="sc-title">Sobre você e a sua empresa</h1>
+      <p class="sc-lead">Porte e nível de decisão mudam a leitura: a mesma resposta significa coisas diferentes numa equipe de dez e numa de mil.</p>
+      ${avisoStorage()}${erroTopo}
+      <form class="sc-leadform" data-acao="form-perfil" novalidate>
+        ${st.perfilCampos.map(campo).join("")}
+        <div class="sc-actions">
+          <button class="sc-btn sc-btn--primary" type="submit" ${st.perfilSalvando ? "disabled" : ""}>${st.perfilSalvando ? "Salvando…" : `Continuar ${ICONE.seta}`}</button>
+        </div>
+      </form>
+    </div>`;
+  }
+
   function telaContexto() {
     if (st.posCtx == null) st.posCtx = Math.max(0, primeiraNaoRespondida(st.contexto, st.respostas));
     if (st.posCtx > st.contexto.length - 1) st.posCtx = st.contexto.length - 1;
@@ -1383,6 +1492,7 @@ export function iniciarApp(cfg) {
   function corpo() {
     switch (st.tela) {
       case "abertura": return telaAbertura();
+      case "perfil": return telaPerfil();
       case "contexto": return telaContexto();
       case "questoes": return telaQuestoes();
       case "revisao": return telaRevisao();
@@ -1446,7 +1556,9 @@ export function iniciarApp(cfg) {
     const acao = alvo.getAttribute("data-acao");
     if (alvo.getAttribute("aria-disabled") === "true") { if (acao === "concluir-contexto") concluirContexto(); return; }
     const fns = {
-      tema: alternarTema, comecar, continuar: () => irPara(contextoOk() ? "questoes" : "contexto"),
+      tema: alternarTema, comecar,
+      continuar: () => irPara(!perfilOk() ? "perfil" : contextoOk() ? "questoes" : "contexto"),
+      "concluir-perfil": concluirPerfil,
       "voltar-abertura": () => irPara("abertura"), "concluir-contexto": concluirContexto,
       "voltar-nav": voltar, "avancar-nav": avancar, "voltar-item": () => irPara("questoes"),
       enviar, recomecar: () => recomecar(true), "recomecar-sem-confirmar": () => recomecar(false),
@@ -1466,6 +1578,17 @@ export function iniciarApp(cfg) {
   raiz.addEventListener("change", (ev) => {
     const alvo = ev.target; if (!alvo.getAttribute) return;
     const acao = alvo.getAttribute("data-acao");
+    if (acao === "perfil") {
+      // Guarda e some com a marca de pendência DAQUELE campo, sem repintar a
+      // tela: repintar no meio da digitação tira o foco de quem está escrevendo.
+      const campo = alvo.getAttribute("data-campo");
+      st.perfilValores = { ...st.perfilValores, [campo]: alvo.value };
+      if (st.perfilFaltam.includes(campo) && !perfilFaltantes(st.perfilCampos, st.perfilValores).includes(campo)) {
+        st.perfilFaltam = st.perfilFaltam.filter((c) => c !== campo);
+        refrescarLeve();
+      }
+      return;
+    }
     if (acao === "resposta") {
       const item = alvo.getAttribute("data-item"), opcao = alvo.getAttribute("data-opcao");
       if (st.cf && item === st.cf.itemId) {
@@ -1492,6 +1615,10 @@ export function iniciarApp(cfg) {
   });
   raiz.addEventListener("input", (ev) => {
     const alvo = ev.target; if (!alvo.getAttribute) return;
+    if (alvo.getAttribute("data-acao") === "perfil") {
+      st.perfilValores = { ...st.perfilValores, [alvo.getAttribute("data-campo")]: alvo.value };
+      return;
+    }
     if (alvo.getAttribute("data-acao") === "texto-outro") { st.textoOutro = alvo.value; if (st.textoErro) st.textoErro = null; refrescarLeve(); }
   });
   raiz.addEventListener("submit", (ev) => {
@@ -1500,6 +1627,10 @@ export function iniciarApp(cfg) {
       ev.preventDefault();
       const nome = form.querySelector("#sc-lead-nome"); const email = form.querySelector("#sc-lead-email"); const opt = form.querySelector("#sc-lead-opt");
       enviarLead(nome && nome.value, email && email.value, opt && opt.checked);
+    }
+    if (form.getAttribute("data-acao") === "form-perfil") {
+      ev.preventDefault();
+      concluirPerfil();
     }
   });
 
