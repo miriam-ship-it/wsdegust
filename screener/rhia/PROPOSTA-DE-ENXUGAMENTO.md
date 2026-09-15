@@ -1,7 +1,10 @@
 # Enxugar a metade de IA — o que dá, o que não dá, e o que eu preciso de vocês
 
-> Rascunho para validação na sessão de conteúdo de **25/09**, com a Carolina.
-> Nada aqui está decidido nem implementado.
+> Rascunho levado à dona do produto em 16/09. **Decisão tomada: não cortar** —
+> o instrumento fica inteiro, o fluxo segue sem pausa obrigatória, e o que
+> protege quem responde é o salvamento automático. O que permanece para a sessão
+> de conteúdo de **25/09** é a conversa sobre o instrumento em si, não sobre
+> tamanho.
 
 ## A resposta curta
 
@@ -79,26 +82,35 @@ não de uma tarde.
 liderança que já rodou com 108 pessoas pede 10 respostas mais 6 campos de perfil;
 o de IA sozinho pede 30.
 
-## O que eu recomendo
+## A decisão (16/09)
 
-**Duas sentadas, e o instrumento intacto.** É reversível, não custa medida, e
-deixa a conversa sobre tamanho para onde ela pertence — o desenho do instrumento,
-com a Carolina, olhando o que cada item mede.
+**O instrumento fica inteiro, e o fluxo segue sem pausa obrigatória.** Não há
+divisão em duas sentadas imposta pelo produto: quem quiser responder de uma vez
+responde de uma vez.
 
-Se a decisão for encurtar de verdade, que seja a opção 3, assumida como projeto
-de instrumento. Encurtar por dentro do motor atual não produz um diagnóstico mais
+O que protege quem precisa parar é o **salvamento automático**, e ele já cobre o
+caminho inteiro: cada resposta vai ao servidor no instante em que é escolhida, o
+perfil é guardado assim que aceito, e o rascunho da primeira tela sobrevive a
+fechar o navegador. Voltando **no mesmo navegador**, a pessoa retoma no ponto em
+que parou.
+
+Foi essa a razão de manter tudo: a pausa não precisa ser uma regra do
+questionário quando ela já é uma propriedade dele.
+
+Se um dia a decisão mudar, que seja pela opção 3, assumida como projeto de
+instrumento. Encurtar por dentro do motor atual não produz um diagnóstico mais
 curto: produz um diagnóstico que não responde.
 
-## O que eu preciso de vocês em 25/09
+**O tamanho, para o registro:** 40 respostas (3 de contexto, 10 de liderança, 27
+de IA) mais 6 campos de perfil — 46 campos ao todo, cerca de 13 a 16 minutos.
 
-1. **A decisão sobre tamanho**, entre as quatro acima.
-2. Se for a opção 3: **quais facetas sobrevivem**. Cada dimensão cobre quatro
-   (por exemplo, em Dados: a pergunta de decisão, a qualidade do dado, o
-   raciocínio analítico e a tradução em ação). Reduzir exige escolher o que
-   deixa de ser medido — e essa escolha é de conteúdo, não minha.
-3. **O aviso de privacidade do formulário único.** A identificação passou a vir
+## O que continua sendo de vocês
+
+1. **O instrumento em si**, na sessão de 25/09: o que cada item mede, e se alguma
+   faceta deveria ser outra. É conversa de conteúdo, não de tamanho.
+2. **O aviso de privacidade do formulário único.** A identificação passou a vir
    no começo, e o aviso atual promete anonimato até o portão. Isto bloqueia a
-   primeira pessoa real, independentemente do tamanho.
+   primeira pessoa real, independentemente de tudo o mais.
 
 ## As facetas, para a conversa de conteúdo
 

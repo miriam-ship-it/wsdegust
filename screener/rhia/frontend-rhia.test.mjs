@@ -29,7 +29,7 @@ import {
   chaveArmazenamento, guardarSessao, lerSessao, limparSessao,
   telaDoHash, criarRastreador, criarCliente, renderResultado, renderInsuficiente,
   sinteseExecutiva, convitePresenteNaUrl, urlSemConvite, perfilFaltantes,
-  renderUnificado, faixaEmReais,
+  renderUnificado, faixaEmReais, rascunhoLimpo,
 } from "../../frontend/rhia.mjs";
 import { calcularUnificado } from "../unificado/composicao.mjs";
 import itensLideranca from "../unificado/lideranca-itens.json" with { type: "json" };
@@ -225,12 +225,12 @@ test("mensagemErro / descreverErro: erros da edge rhia", () => {
 
 // ---------- persistência versionada ----------
 
-test("armazenamento: chave versionada por evento; guarda só token/pos/tela/convite; round-trip", () => {
+test("armazenamento: chave versionada por evento; guarda só o combinado; round-trip", () => {
   const s = memStore();
   assert.equal(chaveArmazenamento("ev1"), "rhia:v1:ev1");
   assert.equal(guardarSessao("ev1", { token: "t", pos: 4, tela: "questoes", respostas: { a: 1 }, segredo: "x" }, s), true);
   const lido = lerSessao("ev1", s);
-  assert.deepEqual(lido, { token: "t", pos: 4, tela: "questoes", convite: null });
+  assert.deepEqual(lido, { token: "t", pos: 4, tela: "questoes", convite: null, perfil: null });
   assert.ok(!s.getItem("rhia:v1:ev1").includes("segredo"), "guardou mais do que o combinado");
   assert.equal(lerSessao("ev2", s), null);
   limparSessao("ev1", s);
@@ -730,8 +730,9 @@ test("documento único: com meia medida, a leitura cruzada ADMITE em vez de afir
   const soIA = Object.fromEntries(Object.entries(todas).filter(([k]) => !k.startsWith("LID_")));
   const html = renderUnificado(calcularUnificado({ perfil: PERFIL_DOC, respostas: soIA }), {});
 
-  assert.ok(html.includes("apenas uma das duas leituras"));
-  assert.ok(html.includes("Metade de liderança incompleta"));
+  assert.match(html, /uma das duas leituras/, "o documento tem de avisar que falta uma metade");
+  assert.match(html, /leitura de liderança ainda não fecha/, "diz que a metade não fecha, sem rotular ninguém");
+  assert.match(html, /nada foi estimado no lugar do que falta/, "e diz o que NÃO fez");
   assert.ok(!html.includes("Liderança está à frente"), "sem as duas medidas não há distância a declarar");
   assert.ok(html.includes("Parte 2 · RH"), "a metade que existe continua inteira");
 });
@@ -761,4 +762,33 @@ test("a devolutiva de IA sabe ser a segunda parte de um documento maior", () => 
   // e o corpo continua inteiro
   assert.ok(embutida.includes("Onde as práticas se situam"));
   assert.ok(embutida.length > sozinha.length * 0.7);
+});
+
+test("rascunho do perfil: sobrevive a fechar o navegador na PRIMEIRA tela", () => {
+  // São 43 respostas sem pausa. Quem digita nome, empresa e cargo e fecha o
+  // navegador antes de continuar perderia justamente o trabalho já feito.
+  const s = memStore();
+  guardarSessao("ev1", { token: "t", pos: 0, tela: "perfil", perfil: { nome: "Ana", empresa: "Boomit" } }, s);
+  assert.deepEqual(lerSessao("ev1", s).perfil, { nome: "Ana", empresa: "Boomit" });
+});
+
+test("rascunho do perfil: só texto, aparado, e nada quando não há o que guardar", () => {
+  assert.equal(rascunhoLimpo(null), null);
+  assert.equal(rascunhoLimpo({}), null);
+  assert.equal(rascunhoLimpo({ nome: "   " }), null, "espaço não é rascunho");
+  assert.deepEqual(rascunhoLimpo({ nome: "Ana", porte: 42, x: null }), { nome: "Ana" },
+    "o que não é texto não entra");
+  assert.equal(rascunhoLimpo({ nome: "A".repeat(500) }).nome.length, 200, "aparado: é armazenamento local, não banco");
+});
+
+test("rascunho do perfil: sai do aparelho assim que o servidor o aceita", () => {
+  // Nome, empresa e cargo não ficam no armazenamento local um minuto a mais que
+  // o necessário — depois de aceitos, quem manda é o servidor.
+  const s = memStore();
+  guardarSessao("ev1", { token: "t", pos: 0, tela: "perfil", perfil: { nome: "Ana" } }, s);
+  assert.ok(s.getItem("rhia:v1:ev1").includes("Ana"));
+
+  guardarSessao("ev1", { token: "t", pos: 3, tela: "contexto", perfil: null }, s);
+  assert.ok(!s.getItem("rhia:v1:ev1").includes("Ana"), "o rascunho tem de sumir do aparelho");
+  assert.equal(lerSessao("ev1", s).perfil, null);
 });

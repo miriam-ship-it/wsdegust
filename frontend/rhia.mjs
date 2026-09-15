@@ -448,11 +448,32 @@ export function guardarSessao(evento, dados, store) {
   try {
     const s = store || globalThis.localStorage;
     const min = { token: dados.token, pos: dados.pos | 0, tela: dados.tela || null,
-                  convite: FORMATO_CONVITE.test(dados.convite || "") ? dados.convite : null };
+                  convite: FORMATO_CONVITE.test(dados.convite || "") ? dados.convite : null,
+                  perfil: rascunhoLimpo(dados.perfil) };
     s.setItem(chaveArmazenamento(evento), JSON.stringify(min));
     return true;
   } catch { return false; }
 }
+/**
+ * O rascunho do perfil, aparado para caber no armazenamento local.
+ *
+ * SÓ TEXTO, E SÓ ATÉ SER ACEITO PELO SERVIDOR. É a primeira tela de um
+ * questionário de 43 respostas sem pausa: quem digita nome, empresa e cargo e
+ * fecha o navegador antes de continuar perderia justamente o trabalho que já
+ * tinha feito. O rascunho vive no aparelho da própria pessoa — o mesmo que vai
+ * exibir a devolutiva — e é apagado no instante em que o servidor o aceita.
+ */
+export function rascunhoLimpo(valores) {
+  if (!valores || typeof valores !== "object") return null;
+  const out = {};
+  for (const [k, v] of Object.entries(valores)) {
+    if (typeof k !== "string" || k.length > 40) continue;
+    if (typeof v !== "string" || !v.trim()) continue;
+    out[k] = v.slice(0, 200);
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 export function lerSessao(evento, store) {
   try {
     const s = store || globalThis.localStorage;
@@ -461,7 +482,8 @@ export function lerSessao(evento, store) {
     const d = JSON.parse(v);
     if (!d || typeof d.token !== "string" || !d.token) return null;
     return { token: d.token, pos: Number.isFinite(d.pos) ? d.pos : 0, tela: typeof d.tela === "string" ? d.tela : null,
-             convite: FORMATO_CONVITE.test(d.convite || "") ? d.convite : null };
+             convite: FORMATO_CONVITE.test(d.convite || "") ? d.convite : null,
+             perfil: rascunhoLimpo(d.perfil) };
   } catch { return null; }
 }
 export function limparSessao(evento, store) {
@@ -864,8 +886,8 @@ export function renderUnificado(r, { instrumentVersion = "", leadHtml = "" } = {
       <p class="sc-eyebrow">Devolutiva</p>
       <h1 class="sc-title sc-title--lg rh-capa__t">Diagnóstico de cenário</h1>
       ${quem ? `<p class="rh-capa__quem">${quem}</p>` : ""}
-      <p class="sc-lead rh-capa__lead">Obrigada pelos minutos que você dedicou a responder. O que vem a seguir são duas leituras — como a liderança se estrutura e como a sua área integra pessoas, dados e IA — e, antes das duas, o que elas dizem quando lidas juntas.</p>
-      <p class="rh-capa__nota">São hipóteses orientativas sobre práticas observáveis. Não são avaliação da sua pessoa nem diagnóstico da empresa, e não decidem no seu lugar.</p>
+      <p class="sc-lead rh-capa__lead">Obrigada pelos minutos que você dedicou a responder. Medimos duas coisas distintas: como a estrutura de decisão se organiza, e como a sua área integra pessoas, dados e IA. O documento abre por nenhuma das duas — abre pela <span class="rh-k">distância entre elas</span>, que costuma dizer mais do que cada uma sozinha.</p>
+      <p class="rh-capa__nota">São hipóteses orientativas sobre práticas observáveis no período. Não são avaliação da sua pessoa nem diagnóstico da empresa, e não decidem no seu lugar.</p>
       ${data ? `<p class="rh-capa__data">Emitido em ${escapeHtml(data)}</p>` : ""}
     </header>`;
 
@@ -884,7 +906,7 @@ export function renderUnificado(r, { instrumentVersion = "", leadHtml = "" } = {
 
   const secCruz = cruz
     ? secao("cruzamento", "As duas leituras, juntas",
-        "O que muda decisão não é cada medida sozinha: é a distância entre elas.",
+        "Medimos as duas na mesma escala de 0 a 100. O que muda decisão não é cada uma sozinha — é a distância entre elas.",
         `${res.sintese ? `<p class="rh-prosa">${escapeHtml(res.sintese)}</p>` : ""}
          <ul class="rh-metricas">
            ${barraComparativa("Liderança", cruz.lideranca.valor, true)}
@@ -897,10 +919,10 @@ export function renderUnificado(r, { instrumentVersion = "", leadHtml = "" } = {
          </div>
          <p class="sc-help sc-muted">${escapeHtml(cruz.ressalva || "")}</p>`, "", 1)
     : secao("cruzamento", "As duas leituras, juntas",
-        "A leitura cruzada aparece quando as duas metades existem.",
+        "A leitura cruzada existe quando as duas medidas existem.",
         `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
-           <h3 class="rh-card__t">Este documento traz apenas uma das duas leituras</h3>
-           <p class="rh-card__p">Ler a distância entre as duas exigiria as duas. Com meia medida, a comparação seria invenção — e por isso ela não aparece.</p>
+           <h3 class="rh-card__t">Este documento traz uma das duas leituras</h3>
+           <p class="rh-card__p">A distância entre as duas só pode ser lida com as duas medidas. Com meia medida, a comparação seria afirmação sem evidência — e por isso ela não aparece aqui. A leitura que existe segue inteira abaixo.</p>
          </div></div>`, "", 1);
 
   // --- parte 1: liderança ---------------------------------------------------
@@ -923,23 +945,24 @@ export function renderUnificado(r, { instrumentVersion = "", leadHtml = "" } = {
          </div>
        </div>
        <h3 class="rh-metricas__t">Cada dimensão, por duas lentes</h3>
-       <p class="rh-prosa">A primeira barra é como você atua; a segunda, como você lê o que a empresa sustenta. A distância entre elas costuma dizer mais que qualquer uma sozinha.</p>
+       <p class="rh-prosa">A primeira barra traduz como você atua; a segunda, como você lê o que a empresa sustenta. A <span class="rh-k">distância entre elas</span> é o achado desta metade: ela mostra onde a sua prática vai além do que a estrutura acompanha — e onde a estrutura oferece um espaço que ainda não está sendo ocupado.</p>
        <ul class="rh-metricas">${dims}</ul>
        <div class="rh-card">
          <h3 class="rh-card__t">Risco estratégico: ${L.risco.valor}%</h3>
-         <p class="rh-card__p">Chance de o plano não acontecer com a estrutura de decisão atual. Nível ${escapeHtml(L.risco.nivel || "")}.</p>
+         <p class="rh-card__p">Traduz a chance de o plano não acontecer com a estrutura de decisão observada no período — nível <span class="rh-k">${escapeHtml(L.risco.nivel || "")}</span>. Não é previsão: é a leitura de quanto o resultado depende hoje de esforço individual em vez de estrutura.</p>
        </div>
        ${cdlFaixa ? `<div class="rh-card">
-         <h3 class="rh-card__t">Custo estimado das disfunções: ${escapeHtml(cdlFaixa)} ao ano</h3>
-         <p class="rh-card__p">Uma faixa, não um número: retrabalho por decisão atrasada, saída de gente boa e execução travada não aparecem no resultado com esse nome. Nenhuma estimativa honesta sobre custo invisível dá valor exato.</p>
+         <h3 class="rh-card__t">Custo da disfuncionalidade: ${escapeHtml(cdlFaixa)} ao ano</h3>
+         <p class="rh-card__p">É a estimativa do que a estrutura atual deixa na mesa: retrabalho por decisão que demora, saída de gente boa e execução que trava não aparecem no resultado com esse nome. A faixa considera o porte e o nível de decisão declarados.</p>
+         <p class="rh-card__p">Uma <span class="rh-k">faixa, e não um número</span> — nenhuma estimativa honesta sobre custo invisível dá valor exato. Ela serve para dimensionar a conversa, não para fechar um orçamento.</p>
        </div>` : ""}`
     : `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
-         <h3 class="rh-card__t">Metade de liderança incompleta</h3>
-         <p class="rh-card__p">Faltam respostas para compor esta leitura${(L.faltantes || []).length ? ` (${L.faltantes.length})` : ""}. O que está aqui é o que foi respondido — nada foi estimado no lugar do que falta.</p>
+         <h3 class="rh-card__t">A leitura de liderança ainda não fecha</h3>
+         <p class="rh-card__p">Faltam ${(L.faltantes || []).length || "algumas"} respostas para compor esta metade. O que está aqui é o que foi respondido — nada foi estimado no lugar do que falta, e é por isso que o documento não apresenta um estágio.</p>
        </div></div>`;
 
   const secLideranca = secao("parte-lideranca", "Parte 1 · Liderança",
-    "Em que estágio a estrutura de decisão joga hoje, nas cinco dimensões avaliadas.",
+    "Medimos cinco dimensões por duas lentes. O estágio descreve em que patamar a estrutura de decisão joga no período — não é nota de pessoa.",
     corpoLideranca, "", 2);
 
   // --- parte 2: a devolutiva de IA, inteira, sem a capa dela ----------------
@@ -996,6 +1019,7 @@ export function iniciarApp(cfg) {
     erro: null, storageOk: true, ignorarHash: false,
     convite: null, avisoPonte: null,
     perfilCampos: [], perfilValores: {}, perfilErro: null, perfilFaltam: [], perfilSalvando: false,
+    perfilSalvo: false,
   };
 
   // --- o convite da liderança, se a pessoa chegou por ele ---
@@ -1054,7 +1078,16 @@ export function iniciarApp(cfg) {
     st.erro = { ...descreverErro(status, body), retry: retry || null };
     st.erroTopo = null; irPara("erro");
   }
-  const persistir = () => { const ok = guardarSessao(evento, { token: st.token, pos: st.pos, tela: st.tela, convite: st.convite }, store); if (!ok) st.storageOk = false; };
+  // O rascunho do perfil viaja na persistência SÓ enquanto o servidor não o
+  // tem. Depois de aceito, `st.perfilSalvo` fica true e ele para de ser gravado
+  // — nome, empresa e cargo não ficam no aparelho um minuto a mais que o preciso.
+  const persistir = () => {
+    const ok = guardarSessao(evento, {
+      token: st.token, pos: st.pos, tela: st.tela, convite: st.convite,
+      perfil: st.perfilSalvo ? null : st.perfilValores,
+    }, store);
+    if (!ok) st.storageOk = false;
+  };
   const contextoOk = () => contextoCompleto(st.contexto, st.respostas, st.textoOutro, st.cf).ok;
   /** Sem bloco de perfil, não há o que completar — e o fluxo anônimo segue igual. */
   const perfilOk = () => !st.perfilCampos.length || perfilFaltantes(st.perfilCampos, st.perfilValores).length === 0;
@@ -1079,6 +1112,7 @@ export function iniciarApp(cfg) {
       return focar(campo ? `#rh-perfil-${campo}` : null);
     }
     st.perfilErro = null; st.perfilFaltam = [];
+    st.perfilSalvo = true;   // o servidor é o dono agora; o rascunho local sai
     persistir(); irPara('contexto');
   }
 
@@ -1132,8 +1166,14 @@ export function iniciarApp(cfg) {
     // Quem retoma pode ter fechado a aba antes de preencher o perfil: quem sabe
     // se ele existe é o servidor, não o armazenamento local.
     if (st.perfilCampos.length) {
+      // O rascunho local devolve quem parou no meio da PRIMEIRA tela; o servidor
+      // vence sempre que já tem algo, porque foi ele que validou.
+      if (salva.perfil) st.perfilValores = { ...salva.perfil };
       const pf = await cliente.lerPerfil(st.previewKey, st.token);
-      if (pf.status === 200 && pf.body && pf.body.perfil) st.perfilValores = { ...pf.body.perfil };
+      if (pf.status === 200 && pf.body && pf.body.perfil) {
+        st.perfilValores = { ...pf.body.perfil };
+        st.perfilSalvo = true;
+      }
     }
     const hashAtual = String(loc.hash || "").replace(/^#/, "");
     const alvo = telaDoHash(hashAtual || salva.tela || "", {
@@ -1715,6 +1755,7 @@ export function iniciarApp(cfg) {
       // tela: repintar no meio da digitação tira o foco de quem está escrevendo.
       const campo = alvo.getAttribute("data-campo");
       st.perfilValores = { ...st.perfilValores, [campo]: alvo.value };
+      persistir(); // cada campo preenchido sobrevive a fechar o navegador
       if (st.perfilFaltam.includes(campo) && !perfilFaltantes(st.perfilCampos, st.perfilValores).includes(campo)) {
         st.perfilFaltam = st.perfilFaltam.filter((c) => c !== campo);
         refrescarLeve();
@@ -1749,6 +1790,7 @@ export function iniciarApp(cfg) {
     const alvo = ev.target; if (!alvo.getAttribute) return;
     if (alvo.getAttribute("data-acao") === "perfil") {
       st.perfilValores = { ...st.perfilValores, [alvo.getAttribute("data-campo")]: alvo.value };
+      persistir(); // o que está sendo digitado também sobrevive
       return;
     }
     if (alvo.getAttribute("data-acao") === "texto-outro") { st.textoOutro = alvo.value; if (st.textoErro) st.textoErro = null; refrescarLeve(); }
