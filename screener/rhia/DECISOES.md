@@ -475,3 +475,36 @@ O frontend lê `window.SCREENER_RHIA_CONFIG`. Em produção esse objeto vem do
 HTML publicado; em desenvolvimento, `scripts/dev-rhia.mjs` intercepta `GET
 /rhia.html` e injeta o `<script>` de configuração antes de `</head>`. O arquivo
 em disco é o mesmo que o Netlify publica.
+
+### 2.12 A ponte com a liderança (15/09)
+
+Caminho **(c) com (a) como rede**: quem termina a liderança recebe o link do
+rhia com um **convite** opaco, de uso único — ligação **certa**; quem chegou
+pelos dois lados em momentos diferentes é reconciliado pelo e-mail — ligação
+**provável**. A confiança fica gravada na ponte, e o documento único precisa
+dizer qual das duas tem nas mãos.
+
+**A emissão parte do `token_sessao`, nunca de um `respondente_id`.** O id não é
+segredo — viaja no corpo de respostas da edge antiga. A edge lê o token do
+cabeçalho `x-sessao` e o banco deriva a pessoa lá dentro. Aceitar um id pelo
+corpo deixaria qualquer chamador emitir convite para qualquer pessoa.
+
+**Ambiguidade é divergência, não contagem.** Duas linhas com o mesmo e-mail
+quase sempre são a mesma pessoa em dois eventos — a liderança roda por evento, e
+são 108 respondentes em eventos recorrentes. Contar linhas recusaria justamente
+quem a rede existe para pegar. O que indica duas pessoas atrás de um endereço
+(`contato@empresa.com`) é **nome ou empresa divergentes**; sem divergência, liga
+à linha **mais recente**, que é a que descreve a pessoa hoje — e ainda assim como
+*provável*. Campo vazio é silêncio, não contradição.
+
+**A ponte não ganha privilégio sobre `respondentes`.** `grant select` não
+bastaria: a tabela tem RLS ligada e nenhuma policy alcança `screener_owner`, que
+não é dona dela — dentro do SECURITY DEFINER ela enxergaria zero linhas e a
+ponte ficaria muda, sem erro e sem log. A leitura passa por duas funções
+auxiliares de **pergunta fechada**, cujo dono é o dono de `respondentes`, e que
+devolvem um id e *contagens* de nomes/empresas distintos — nunca o texto.
+
+**O convite vive até `expira_em`**, e a purga noturna apaga os vencidos. O prazo
+vem do próprio registro, como em 20260914170000: nenhuma constante de retenção
+escondida no código. Um convite vencido é só um ponteiro para PII sem uso — a
+proveniência da ligação já está em `screener_rhia_vinculos.origem`.

@@ -23,9 +23,34 @@
 -- E o convite, como o token, **nunca é gravado cru**: guardamos só o sha256,
 -- exatamente como `screener_rhia_sessions.token_hash`.
 --
--- ISOLAMENTO PRESERVADO. Nenhuma tabela existente muda. A ponte é uma tabela
--- nova, com chave estrangeira para os dois lados — removê-la desfaz a ligação
--- sem tocar em nenhum dos dois diagnósticos.
+-- POR QUE A EMISSÃO PARTE DO TOKEN, E NÃO DE UM `respondente_id`. A primeira
+-- versão desta migration recebia o id do respondente como parâmetro. Quem
+-- alcançasse a RPC poderia emitir convite para QUALQUER pessoa, bastando o id —
+-- e o id não é segredo: ele viaja no corpo de respostas da edge antiga. Agora a
+-- emissão parte do `token_sessao`, que é o segredo da sessão de liderança e a
+-- edge já lê do cabeçalho `x-sessao`. O id do respondente nunca entra pela
+-- porta; ele é derivado aqui dentro.
+--
+-- ISOLAMENTO PRESERVADO. Nenhuma tabela existente muda, e a ponte não ganha
+-- privilégio nenhum sobre `public.respondentes` — ver a seção 4.
+--
+-- ---------------------------------------------------------------------------
+-- ROLLBACK (completo; `drop` exige ser dono, e a dona é screener_owner):
+--
+--   grant screener_owner to current_user;
+--   drop function public.screener_rhia_op_ler_vinculo(text);
+--   drop function public.screener_rhia_op_vincular_por_email(text);
+--   drop function public.screener_rhia_op_vincular_por_convite(text, text);
+--   drop function public.screener_rhia_op_emitir_convite(uuid, text, int);
+--   drop table    public.screener_rhia_vinculos;
+--   drop table    public.screener_rhia_convites;
+--   revoke screener_owner from current_user;
+--   drop function public.screener_ponte_respondente_por_email(text);
+--   drop function public.screener_ponte_respondente_por_token(uuid);
+--   -- e a purga volta ao corpo anterior: reaplique o `create function` de
+--   -- 20260914170000_screener_rhia_purga_por_retencao.sql como `create or
+--   -- replace`, que é a fonte executável daquele corpo.
+-- ---------------------------------------------------------------------------
 -- =============================================================
 
 grant screener_owner to current_user;
@@ -49,12 +74,18 @@ create table public.screener_rhia_convites (
   usado_por       uuid references public.screener_rhia_sessions (id) on delete set null,
   constraint screener_rhia_convite_hex check (codigo_hash ~ '^[0-9a-f]{64}$'),
   constraint screener_rhia_convite_expira check (expira_em > criado_em),
-  -- uso único: ou os dois campos estão preenchidos, ou nenhum
-  constraint screener_rhia_convite_uso_coerente check ((usado_em is null) = (usado_por is null))
+  -- USO ÚNICO, e o que o marca é `usado_em`. A versão anterior exigia que os
+  -- dois campos andassem juntos — `(usado_em is null) = (usado_por is null)` — e
+  -- isso teria derrubado a purga de retenção: `usado_por` é `on delete set
+  -- null`, então apagar a sessão vencida zera o ponteiro e o CHECK estouraria.
+  -- Como `screener_rhia_purga()` é uma função só, numa transação só, o LOTE
+  -- INTEIRO abortaria, toda noite, em silêncio dentro do cron.
+  -- O ponteiro pode sumir; o fato de ter sido usado, não.
+  constraint screener_rhia_convite_uso_coerente check (usado_por is null or usado_em is not null)
 );
 create index idx_screener_rhia_convites_resp on public.screener_rhia_convites (respondente_id);
 comment on table public.screener_rhia_convites is
-  'Convite de uso unico que liga uma sessao rhia ao respondente da lideranca. Codigo so como hash. Nao da acesso a nada: apenas identifica a pessoa.';
+  'Convite de uso unico que liga uma sessao rhia ao respondente da lideranca. Codigo so como hash. Nao da acesso a nada: apenas identifica a pessoa. Vive ate expira_em; a purga noturna apaga os vencidos.';
 
 -- 2) VÍNCULO — a ponte propriamente dita --------------------------------------
 create table public.screener_rhia_vinculos (
@@ -74,30 +105,118 @@ comment on table public.screener_rhia_vinculos is
 alter table public.screener_rhia_convites enable row level security;
 alter table public.screener_rhia_vinculos enable row level security;
 
--- 3) RPCs ---------------------------------------------------------------------
+-- 3) COMO A PONTE ENXERGA `respondentes` — e por que NÃO é por grant ----------
+--
+-- O DEFEITO QUE ISTO CORRIGE. A versão anterior desta migration dava
+-- `grant select (id, email) on public.respondentes to screener_owner`. Resolvia
+-- o "permission denied" e não resolvia nada: `public.respondentes` tem RLS
+-- LIGADA desde a 20260526000001, e as únicas policies de SELECT que sobreviveram
+-- são `to anon` (pela própria sessão) e `to authenticated` (pelo evento do
+-- painel). `screener_owner` é `nologin noinherit`, não é superusuário, não tem
+-- BYPASSRLS e não é dona da tabela — dentro do SECURITY DEFINER a RLS se aplica
+-- e NENHUMA policy a alcança. O grant abria a porta de baixo; a de cima ficava
+-- fechada. Resultado medido: `respondente_nao_encontrado` e `sem_correspondencia`
+-- para todo mundo, sem erro e sem log. A ponte nasceria morta.
+--
+-- A SAÍDA. Duas funções auxiliares SECURITY DEFINER cujo dono é o DONO DE
+-- `respondentes` (`postgres`) — e dono de tabela não passa por RLS, salvo FORCE
+-- ROW LEVEL SECURITY, que a guarda no fim deste arquivo confere. Elas NÃO
+-- mudam de dono para `screener_owner`: é justamente o dono que as faz
+-- funcionarem.
+--
+-- Por que não uma policy nova em `respondentes`: `create policy` pega
+-- AccessExclusiveLock na tabela viva do app antigo, e ampliaria a superfície de
+-- leitura de forma permanente. Duas funções de pergunta fechada não tocam a
+-- tabela e são reversíveis com um `drop`.
+--
+-- O QUE ELAS DEVOLVEM É DELIBERADAMENTE POBRE: um id, e contagens. Nome e
+-- empresa saem como "quantos valores distintos existem", nunca como texto. A
+-- ponte precisa saber se os candidatos se contradizem — não precisa saber o que
+-- eles dizem. PII não cruza a fronteira.
+
+create function public.screener_ponte_respondente_por_token(p_token_sessao uuid)
+returns uuid language sql stable security definer set search_path = '' as $$
+  select r.id from public.respondentes r where r.token_sessao = p_token_sessao
+$$;
+comment on function public.screener_ponte_respondente_por_token(uuid) is
+  'Resolve o respondente da lideranca a partir do token de sessao, para a ponte do rhia. SECURITY DEFINER com dono igual ao dono de respondentes, porque a tabela tem RLS e screener_owner nao a alcanca. Execute so para screener_owner.';
+
+-- A REGRA DE AMBIGUIDADE (decisão da dona do produto, 15/09).
+-- Contar LINHAS não serve: o diagnóstico de liderança roda por evento, e quem
+-- participa de dois eventos vira duas linhas com o mesmo e-mail. Chamar isso de
+-- ambiguidade recusaria exatamente quem a rede existe para pegar — e, com 108
+-- respondentes em eventos recorrentes, esse é o caso provável, não a exceção.
+-- O que de fato indica DUAS PESSOAS atrás de um endereço (a caixa compartilhada
+-- do tipo `contato@empresa.com`) é nome ou empresa DIVERGENTES.
+-- Daí as contagens de valores distintos. Campo vazio não conta: ausência de
+-- dado é silêncio, não contradição.
+create function public.screener_ponte_respondente_por_email(p_email_normalizado text)
+returns table (respondente_id uuid, quantos int, nomes_distintos int, empresas_distintas int)
+language sql stable security definer set search_path = '' as $$
+  with cand as (
+    select r.id, r.iniciado_em,
+           nullif(regexp_replace(lower(trim(r.nome)),    '\s+', ' ', 'g'), '') as nome,
+           nullif(regexp_replace(lower(trim(r.empresa)), '\s+', ' ', 'g'), '') as empresa
+      from public.respondentes r
+     where r.email is not null
+       and lower(trim(r.email)) = p_email_normalizado
+  )
+  select
+    -- quando não há divergência, a pessoa é a mesma e vale a linha MAIS RECENTE:
+    -- é ela que descreve o cargo, o porte e a empresa de hoje.
+    (select c.id from cand c order by c.iniciado_em desc nulls last, c.id desc limit 1),
+    (select count(*) from cand)::int,
+    (select count(distinct c.nome)    from cand c where c.nome    is not null)::int,
+    (select count(distinct c.empresa) from cand c where c.empresa is not null)::int
+$$;
+comment on function public.screener_ponte_respondente_por_email(text) is
+  'Candidatos da lideranca para um e-mail normalizado, para a ponte do rhia. Devolve o id do mais recente e CONTAGENS de nomes/empresas distintos — nunca o texto. Quem decide o que e ambiguidade e a RPC da ponte. Execute so para screener_owner.';
+
+revoke all on function public.screener_ponte_respondente_por_token(uuid)
+  from public, anon, authenticated, service_role, screener_runtime;
+revoke all on function public.screener_ponte_respondente_por_email(text)
+  from public, anon, authenticated, service_role, screener_runtime;
+grant execute on function public.screener_ponte_respondente_por_token(uuid) to screener_owner;
+grant execute on function public.screener_ponte_respondente_por_email(text) to screener_owner;
+
+-- 4) RPCs ---------------------------------------------------------------------
 
 -- Emite o convite. Chamada ao fim da liderança, com o código já hasheado pela
--- edge — o código cru nunca chega ao banco.
+-- edge — o código cru nunca chega ao banco. O `p_token_sessao` tem de vir do
+-- cabeçalho `x-sessao`, derivado no servidor: NUNCA do corpo da requisição.
 create function public.screener_rhia_op_emitir_convite(
-  p_respondente_id uuid, p_codigo_hash text, p_horas int default 720
+  p_token_sessao uuid, p_codigo_hash text, p_horas int default 720
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_id uuid;
+declare v_resp uuid; v_id uuid; v_dono uuid;
 begin
   if p_codigo_hash !~ '^[0-9a-f]{64}$' then return jsonb_build_object('status', 'codigo_invalido'); end if;
-  if not exists (select 1 from public.respondentes r where r.id = p_respondente_id) then
-    return jsonb_build_object('status', 'respondente_nao_encontrado'); end if;
 
+  v_resp := public.screener_ponte_respondente_por_token(p_token_sessao);
+  if v_resp is null then return jsonb_build_object('status', 'sessao_de_lideranca_nao_encontrada'); end if;
+
+  -- IDEMPOTENTE: reenviar o e-mail de fecho da liderança não pode multiplicar
+  -- convites para a mesma pessoa. O mesmo código para OUTRA pessoa é outra
+  -- coisa — é conflito, e se recusa.
   insert into public.screener_rhia_convites (codigo_hash, respondente_id, expira_em)
-       values (p_codigo_hash, p_respondente_id, now() + make_interval(hours => greatest(1, p_horas)))
+       values (p_codigo_hash, v_resp, now() + make_interval(hours => greatest(1, coalesce(p_horas, 720))))
+  on conflict (codigo_hash) do nothing
   returning id into v_id;
-  return jsonb_build_object('status', 'ok', 'convite_id', v_id);
+  if v_id is not null then return jsonb_build_object('status', 'ok', 'convite_id', v_id); end if;
+
+  select c.id, c.respondente_id into v_id, v_dono
+    from public.screener_rhia_convites c where c.codigo_hash = p_codigo_hash;
+  if v_dono is distinct from v_resp then return jsonb_build_object('status', 'codigo_em_uso'); end if;
+  return jsonb_build_object('status', 'ok', 'convite_id', v_id, 'ja_existia', true);
 end $$;
 
 -- Consome o convite e cria o vínculo CERTO.
 create function public.screener_rhia_op_vincular_por_convite(
   p_token_hash text, p_codigo_hash text
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_sess public.screener_rhia_sessions%rowtype; v_conv public.screener_rhia_convites%rowtype;
+declare
+  v_sess public.screener_rhia_sessions%rowtype;
+  v_conv public.screener_rhia_convites%rowtype;
+  v_vin  public.screener_rhia_vinculos%rowtype;
 begin
   select * into v_sess from public.screener_rhia_sessions where token_hash = p_token_hash;
   if v_sess.id is null then return jsonb_build_object('status', 'sessao_nao_encontrada'); end if;
@@ -107,6 +226,16 @@ begin
   if v_conv.id is null then return jsonb_build_object('status', 'convite_invalido'); end if;
   if v_conv.usado_em is not null then return jsonb_build_object('status', 'convite_ja_usado'); end if;
   if v_conv.expira_em <= now() then return jsonb_build_object('status', 'convite_expirado'); end if;
+
+  -- DUAS CERTEZAS QUE SE CONTRADIZEM não se resolvem por ordem de chegada. Se
+  -- esta sessão já está ligada com certeza a OUTRA pessoa, alguma coisa está
+  -- errada a montante (link colado no lugar errado, convite reencaminhado) e o
+  -- certo é recusar, sem queimar o convite — ele ainda serve à sessão certa.
+  select * into v_vin from public.screener_rhia_vinculos where session_id = v_sess.id;
+  if v_vin.session_id is not null and v_vin.confianca = 'certa'
+     and v_vin.respondente_id <> v_conv.respondente_id then
+    return jsonb_build_object('status', 'conflito_de_vinculo', 'respondente_id', v_vin.respondente_id);
+  end if;
 
   -- A ligação certa SOBREPÕE uma provável anterior: o convite sabe quem é a
   -- pessoa, o casamento por e-mail apenas supõe.
@@ -120,14 +249,19 @@ begin
      set usado_em = now(), usado_por = v_sess.id
    where id = v_conv.id;
 
-  return jsonb_build_object('status', 'ok', 'confianca', 'certa');
+  return jsonb_build_object('status', 'ok', 'confianca', 'certa',
+                            'respondente_id', v_conv.respondente_id);
 end $$;
 
 -- A rede: reconcilia por e-mail, e marca como PROVÁVEL.
 create function public.screener_rhia_op_vincular_por_email(
   p_token_hash text
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_sess public.screener_rhia_sessions%rowtype; v_email text; v_resp_id uuid; v_quantos int;
+declare
+  v_sess public.screener_rhia_sessions%rowtype;
+  v_vin  public.screener_rhia_vinculos%rowtype;
+  v_email text;
+  v_cand record;
 begin
   select * into v_sess from public.screener_rhia_sessions where token_hash = p_token_hash;
   if v_sess.id is null then return jsonb_build_object('status', 'sessao_nao_encontrada'); end if;
@@ -142,27 +276,31 @@ begin
     from public.screener_rhia_leads l where l.session_id = v_sess.id;
   if v_email is null then return jsonb_build_object('status', 'sem_contato'); end if;
 
-  -- AMBIGUIDADE NÃO VIRA PALPITE: se o mesmo e-mail aparece em mais de um
-  -- respondente, não se escolhe um. Casamento que erra em silêncio é pior que
-  -- ausência de casamento, porque o documento fica com a metade de outra pessoa.
-  -- Conta primeiro, escolhe depois. `min()` não existe para uuid, e de todo modo
-  -- "o menor id" não seria critério: se há mais de um, não há escolha a fazer.
-  select count(*) into v_quantos
-    from public.respondentes r
-   where r.email is not null and lower(trim(r.email)) = v_email;
-  if v_quantos = 0 then return jsonb_build_object('status', 'sem_correspondencia'); end if;
-  if v_quantos > 1 then return jsonb_build_object('status', 'ambiguo', 'candidatos', v_quantos); end if;
+  select * into v_cand from public.screener_ponte_respondente_por_email(v_email);
+  if v_cand.quantos = 0 then return jsonb_build_object('status', 'sem_correspondencia'); end if;
 
-  select r.id into v_resp_id
-    from public.respondentes r
-   where r.email is not null and lower(trim(r.email)) = v_email
-   limit 1;
+  -- AMBIGUIDADE NÃO VIRA PALPITE. Duas linhas com o mesmo e-mail são a mesma
+  -- pessoa em dois eventos — a menos que nome ou empresa se contradigam, que é
+  -- a assinatura da caixa compartilhada. Aí não se escolhe: casamento que erra
+  -- em silêncio é pior que ausência de casamento, porque o documento fica com a
+  -- metade de outra pessoa.
+  if v_cand.nomes_distintos > 1 or v_cand.empresas_distintas > 1 then
+    return jsonb_build_object('status', 'ambiguo', 'candidatos', v_cand.quantos);
+  end if;
 
   insert into public.screener_rhia_vinculos (session_id, respondente_id, origem, confianca)
-       values (v_sess.id, v_resp_id, 'email', 'provavel')
+       values (v_sess.id, v_cand.respondente_id, 'email', 'provavel')
   on conflict (session_id) do nothing;
 
-  return jsonb_build_object('status', 'ok', 'confianca', 'provavel');
+  -- A RESPOSTA DESCREVE O BANCO, NÃO A INTENÇÃO. Se o `do nothing` guardou um
+  -- vínculo anterior, dizer "ok" faria a edge acreditar que ligou esta pessoa.
+  select * into v_vin from public.screener_rhia_vinculos where session_id = v_sess.id;
+  if v_vin.respondente_id <> v_cand.respondente_id then
+    return jsonb_build_object('status', 'ja_vinculado', 'confianca', v_vin.confianca,
+                              'respondente_id', v_vin.respondente_id);
+  end if;
+  return jsonb_build_object('status', 'ok', 'confianca', 'provavel',
+                            'respondente_id', v_vin.respondente_id);
 end $$;
 
 -- Lê a ponte para montar o documento único.
@@ -179,20 +317,9 @@ begin
                             'origem', v_vin.origem, 'confianca', v_vin.confianca);
 end $$;
 
--- 4) O MÍNIMO QUE A PONTE PRECISA DO LADO DA LIDERANÇA ------------------------
--- As RPC são SECURITY DEFINER e rodam como `screener_owner`, que não tem
--- privilégio nenhum em `public.respondentes` — tabela do app antigo. Sem isto,
--- toda chamada morre com "permission denied for table respondentes". Descoberto
--- pelo teste comportamental, não em produção.
---
--- O grant é por COLUNA e só de leitura: a ponte precisa saber que o respondente
--- existe (`id`) e casar por e-mail (`email`). Nome, empresa, cargo, consentimento
--- e IP continuam fora de alcance. Este privilégio é permanente, ao contrário do
--- CREATE no schema, que é transitório — por isso está declarado aqui e não junto
--- com ele.
-grant select (id, email) on public.respondentes to screener_owner;
-
 -- 5) PROPRIEDADE E PRIVILÉGIOS -------------------------------------------------
+-- Note quem NÃO está aqui: os dois auxiliares da seção 3 continuam com o dono
+-- de `respondentes`. Passá-los a `screener_owner` os quebraria em silêncio.
 alter table    public.screener_rhia_convites owner to screener_owner;
 alter table    public.screener_rhia_vinculos owner to screener_owner;
 alter function public.screener_rhia_op_emitir_convite(uuid, text, int)        owner to screener_owner;
@@ -213,7 +340,126 @@ grant execute on function public.screener_rhia_op_vincular_por_convite(text, tex
 grant execute on function public.screener_rhia_op_vincular_por_email(text)         to screener_runtime;
 grant execute on function public.screener_rhia_op_ler_vinculo(text)                to screener_runtime;
 
--- Guarda de aceitação: mesma fronteira das outras sete RPC.
+-- 6) A PURGA PASSA A APAGAR CONVITES VENCIDOS ---------------------------------
+-- O convite guarda um ponteiro para PII (`respondente_id`). Vencido, ele não
+-- serve mais a nada: não pode ser consumido, e a proveniência da ligação já está
+-- gravada em `screener_rhia_vinculos.origem`. Guardá-lo seria manter um
+-- ponteiro vivo além do prazo que ele mesmo declarou.
+--
+-- O PRAZO VEM DO PRÓPRIO REGISTRO — `expira_em` —, no mesmo princípio da
+-- 20260914170000: nenhuma constante de retenção escondida no código.
+-- Consequência assumida: depois de vencido e purgado, quem tentar o link recebe
+-- `convite_invalido` em vez de `convite_expirado`. Para quem lê, as duas frases
+-- dizem "este link não vale mais"; a diferença não paga um ponteiro para PII.
+--
+-- É `create or replace` do corpo da 20260914170000, mantendo o resto PALAVRA
+-- POR PALAVRA — o rollback no cabeçalho aponta para aquele arquivo, que é a
+-- fonte executável do corpo anterior. `set role` explícito porque a dona é
+-- `screener_owner`: contar com herança de papel aqui passaria no pglite (onde
+-- se roda como superusuário) e poderia falhar no Supabase.
+set role screener_owner;
+create or replace function public.screener_rhia_purga()
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_snap int := 0; v_resp int := 0; v_sem_lead int := 0; v_lead int := 0; v_cascas int := 0;
+  v_conv int := 0;
+begin
+  -- ---------- FASE 1 — o conteúdo da avaliação, aos 180 dias ----------
+  -- Snapshot primeiro: é ele que segura a sessão por chave estrangeira.
+  delete from public.screener_rhia_result_snapshots n
+   using public.screener_rhia_sessions s
+   join  public.screener_event_bindings b on b.id = s.binding_id
+   where n.session_id = s.id
+     and b.session_retention_days is not null
+     and s.created_at < now() - make_interval(days => b.session_retention_days);
+  get diagnostics v_snap = row_count;
+
+  delete from public.screener_rhia_responses r
+   using public.screener_rhia_sessions s
+   join  public.screener_event_bindings b on b.id = s.binding_id
+   where r.session_id = s.id
+     and b.session_retention_days is not null
+     and s.created_at < now() - make_interval(days => b.session_retention_days);
+  get diagnostics v_resp = row_count;
+
+  -- Quem nunca deixou contato sai inteiro agora.
+  delete from public.screener_rhia_sessions s
+   using public.screener_event_bindings b
+   where b.id = s.binding_id
+     and b.session_retention_days is not null
+     and s.created_at < now() - make_interval(days => b.session_retention_days)
+     and not exists (select 1 from public.screener_rhia_leads l where l.session_id = s.id);
+  get diagnostics v_sem_lead = row_count;
+
+  -- ---------- FASE 2 — o contato, no prazo dele ----------
+  delete from public.screener_rhia_leads l
+   using public.screener_rhia_sessions s
+   join  public.screener_event_bindings b on b.id = s.binding_id
+   where l.session_id = s.id
+     and b.lead_retention_days is not null
+     and l.created_at < now() - make_interval(days => b.lead_retention_days);
+  get diagnostics v_lead = row_count;
+
+  -- As sessões que só continuavam de pé porque um lead apontava para elas.
+  -- É o MESMO comando da fase 1, de novo: o que mudou foi o mundo entre os dois
+  -- — os leads vencidos saíram. A contagem fica separada de propósito, porque
+  -- "nunca teve contato" e "o contato venceu" são fatos diferentes.
+  delete from public.screener_rhia_sessions s
+   using public.screener_event_bindings b
+   where b.id = s.binding_id
+     and b.session_retention_days is not null
+     and s.created_at < now() - make_interval(days => b.session_retention_days)
+     and not exists (select 1 from public.screener_rhia_leads l where l.session_id = s.id);
+  get diagnostics v_cascas = row_count;
+
+  -- ---------- FASE 3 — o convite, no prazo que ele mesmo declarou ----------
+  delete from public.screener_rhia_convites c where c.expira_em < now();
+  get diagnostics v_conv = row_count;
+
+  return jsonb_build_object(
+    'snapshots', v_snap, 'respostas', v_resp,
+    'sessoes_sem_contato', v_sem_lead, 'sessoes_liberadas_pelo_contato', v_cascas,
+    'contatos', v_lead, 'convites_vencidos', v_conv, 'em', now());
+end $$;
+reset role;
+
+-- 7) GUARDAS DE ACEITAÇÃO ------------------------------------------------------
+
+-- 7a) A guarda que teria pego o defeito principal: um auxiliar SECURITY DEFINER
+-- só escapa da RLS de `respondentes` se o dono dele for o dono DA TABELA. Se
+-- alguém, um dia, "arrumar" isso passando os auxiliares para `screener_owner`,
+-- a migration para aqui em vez de a ponte ficar muda em produção.
+do $$
+declare v_dono_tab name; v_dono_fn name; v_secdef boolean; v_sp text[]; f text;
+begin
+  select pg_get_userbyid(c.relowner) into v_dono_tab
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relname = 'respondentes';
+  if v_dono_tab is null then raise exception 'public.respondentes nao existe'; end if;
+
+  if exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+              where n.nspname = 'public' and c.relname = 'respondentes' and c.relforcerowsecurity) then
+    raise exception 'respondentes esta em FORCE ROW LEVEL SECURITY: nem o dono escapa, e a ponte nasceria muda';
+  end if;
+
+  foreach f in array array['screener_ponte_respondente_por_token', 'screener_ponte_respondente_por_email'] loop
+    select pg_get_userbyid(p.proowner), p.prosecdef, p.proconfig
+      into v_dono_fn, v_secdef, v_sp
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = f;
+    if v_dono_fn is distinct from v_dono_tab then
+      raise exception 'auxiliar % tem dono %, e respondentes tem dono %: a RLS voltaria a filtrar tudo, em silencio',
+        f, v_dono_fn, v_dono_tab;
+    end if;
+    if not v_secdef then raise exception 'auxiliar % nao e SECURITY DEFINER', f; end if;
+    -- o literal é `search_path=""`, como confere a 20260914120000: qualquer
+    -- outro valor devolveria a função ao schema de quem a chama
+    if v_sp is null or not ('search_path=""' = any(v_sp)) then
+      raise exception 'auxiliar % sem search_path vazio', f; end if;
+  end loop;
+end $$;
+
+-- 7b) Fronteira: mesma regra das outras sete RPC.
 do $$
 declare f text;
 begin
@@ -230,15 +476,34 @@ begin
     if not has_function_privilege('screener_runtime', f, 'execute') then
       raise exception 'o runtime perdeu o execute em: %', f; end if;
   end loop;
-  -- nenhum privilégio de TABELA para o runtime: ele só alcança as RPC
-  if exists (select 1 from information_schema.role_table_grants
-              where grantee = 'screener_runtime'
-                and table_name in ('screener_rhia_convites', 'screener_rhia_vinculos')) then
+
+  -- Os auxiliares são de uso EXCLUSIVO da ponte: nem o runtime os alcança.
+  foreach f in array array[
+    'public.screener_ponte_respondente_por_token(uuid)',
+    'public.screener_ponte_respondente_por_email(text)'
+  ] loop
+    if has_function_privilege('anon', f, 'execute')
+       or has_function_privilege('authenticated', f, 'execute')
+       or has_function_privilege('service_role', f, 'execute')
+       or has_function_privilege('screener_runtime', f, 'execute') then
+      raise exception 'auxiliar de leitura de respondentes alcancavel indevidamente: %', f; end if;
+    if not has_function_privilege('screener_owner', f, 'execute') then
+      raise exception 'a ponte perdeu o execute em: %', f; end if;
+  end loop;
+
+  -- Nenhum privilégio de TABELA para o runtime: ele só alcança as RPC.
+  -- `has_table_privilege` pergunta ao Postgres o que o papel PODE;
+  -- `information_schema.role_table_grants` mostra só o que é visível a quem
+  -- consulta, e poderia calar uma concessão existente.
+  if has_table_privilege('screener_runtime', 'public.screener_rhia_convites',
+                         'select,insert,update,delete,truncate,references,trigger')
+     or has_table_privilege('screener_runtime', 'public.screener_rhia_vinculos',
+                         'select,insert,update,delete,truncate,references,trigger') then
     raise exception 'o runtime ganhou privilegio de tabela na ponte';
   end if;
 end $$;
 
--- 6) fecha a fronteira
+-- 8) fecha a fronteira
 do $$
 begin
   revoke create on schema public from screener_owner;
