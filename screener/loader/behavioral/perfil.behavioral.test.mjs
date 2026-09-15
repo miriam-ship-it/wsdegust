@@ -49,7 +49,7 @@ alter table public.respondentes enable row level security;`;
  * @param {object} [o]
  * @param {object} [o.definicao]  a definição guardada (padrão: a do formulário único)
  */
-async function ambiente({ definicao = DEF } = {}) {
+async function ambiente({ definicao = DEF, vinculo = {} } = {}) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
   await db.exec(SCHEMA);
@@ -67,9 +67,11 @@ async function ambiente({ definicao = DEF } = {}) {
   await db.query(
     `insert into public.screener_event_bindings
        (event_slug, instrument_code, instrument_version, is_current, status, result_mode, lead_capture_mode,
-        session_retention_days, lead_retention_days, preview_credential_hash)
-     values ($1,$2,$3, true, 'public_pilot', 'immediate', 'required_before_result', 180, 365, null)`,
-    [SLUG, definicao.instrument_id, definicao.instrument_version]);
+        session_retention_days, lead_retention_days, preview_credential_hash, starts_at, ends_at)
+     values ($1,$2,$3, true, $4, 'immediate', 'required_before_result', $5, 365, null, $6, $7)`,
+    [SLUG, definicao.instrument_id, definicao.instrument_version,
+     vinculo.status ?? "public_pilot", vinculo.retencaoSessao === undefined ? 180 : vinculo.retencaoSessao,
+     vinculo.startsAt ?? null, vinculo.endsAt ?? null]);
   return db;
 }
 
@@ -344,4 +346,97 @@ test("o instrumento unificado que vai ao banco tem o bloco de perfil e os itens 
   // É contra ISTO que a save_response (que está em produção e não se mexe) valida
   const lid = DEF.items.find((i) => i.id.startsWith("LID_"));
   assert.ok(lid.options.every((o) => typeof o.id === "string"));
+});
+
+// -------------------------------------------------------------------------
+// AS QUATRO FRESTAS QUE A REVISÃO ACHOU — e que os 20 primeiros testes não viam,
+// porque o ambiente deles só montava vínculo público, vigente, com retenção
+// declarada e definição bem formada.
+// -------------------------------------------------------------------------
+
+// A sessão é aberta com o evento vivo e SÓ DEPOIS o vínculo muda — é este o
+// cenário: `screener_rhia_op_start` já recusa evento fechado, então a sessão
+// nasce legítima e o evento é desligado com ela aberta.
+const mudarVinculo = (db, campos) =>
+  db.query(`update public.screener_event_bindings set ${Object.keys(campos)
+    .map((c, i) => `${c} = $${i + 1}`).join(", ")}`, Object.values(campos));
+
+test("perfil: evento FECHADO depois da sessão aberta não aceita mais nome, empresa e cargo", async () => {
+  // Desligar o evento é o botão de emergência. Sem esta checagem, ele parava as
+  // RESPOSTAS e deixava passar justamente o que carrega PII.
+  const db = await ambiente();
+  const th = await abrir(db);
+  await mudarVinculo(db, { status: "closed" });
+
+  assert.equal((await salvar(db, th)).status, "indisponivel");
+  const { rows } = await db.query("select count(*)::int n from public.screener_rhia_perfis");
+  assert.equal(rows[0].n, 0);
+});
+
+test("perfil: janela do evento encerrada depois da sessão aberta não aceita perfil", async () => {
+  const db = await ambiente();
+  const th = await abrir(db);
+  await mudarVinculo(db, { ends_at: new Date(Date.now() - 864e5).toISOString() });
+  assert.equal((await salvar(db, th)).status, "fora_de_vigencia");
+
+  await mudarVinculo(db, { ends_at: null, starts_at: new Date(Date.now() + 864e5).toISOString() });
+  assert.equal((await salvar(db, th)).status, "fora_de_vigencia");
+});
+
+test("perfil: vínculo SEM prazo de retenção não coleta PII", async () => {
+  // O CHECK do schema só exige retenção em public_pilot/published. Em prévia ela
+  // pode faltar — e a purga não toca vínculo sem prazo. Seria nome, empresa e
+  // cargo guardados para sempre, e é em prévia que este formulário vai ser
+  // testado, com gente de verdade.
+  // Prévia exige credencial, e a checagem dela vem ANTES: sem isto a RPC
+  // devolveria `sessao_nao_encontrada` e o teste passaria pelo motivo errado.
+  const db = await ambiente();
+  const th = await abrir(db);
+  const previa = sha("previa-secreta");
+  await mudarVinculo(db, {
+    status: "internal_preview", session_retention_days: null, preview_credential_hash: previa,
+  });
+
+  assert.equal((await salvar(db, th, PERFIL_OK, previa)).status, "retencao_nao_declarada");
+  const { rows } = await db.query("select count(*)::int n from public.screener_rhia_perfis");
+  assert.equal(rows[0].n, 0, "PII sem plano de apagamento não entra");
+});
+
+test("perfil: definição malformada vira recusa, não erro 500", async () => {
+  // `jsonb_array_elements` sobre coisa que não é array ESTOURA. Os campos de
+  // texto do perfil não têm `opcoes` nenhuma, e hoje só não quebram porque chave
+  // ausente vira NULL. Escrever `opcoes: null` num deles — coisa natural de se
+  // fazer ao mexer no perfil — derrubaria o primeiro passo do formulário.
+  const quebrada = JSON.parse(JSON.stringify(DEF));
+  quebrada.perfil.find((c) => c.id === "nome").opcoes = null;
+  quebrada.perfil.find((c) => c.id === "porte").opcoes = "isto nao e um array";
+  const db = await ambiente({ definicao: quebrada });
+  const th = await abrir(db);
+
+  const r = await salvar(db, th);
+  assert.equal(r.status, "valor_invalido", "o pior caso é uma recusa que a edge já trata");
+  assert.equal(r.campo, "porte");
+});
+
+test("perfil: sessão revogada não devolve mais nome, empresa e cargo", async () => {
+  // Revogar é o mecanismo de "este link morreu". `salvar_perfil` já respeitava;
+  // `ler_perfil` devolvia a PII assim mesmo.
+  const db = await ambiente();
+  const th = await abrir(db);
+  await salvar(db, th);
+  assert.equal((await call(db, "screener_rhia_op_ler_perfil", [th, null])).status, "ok");
+
+  await db.query("update public.screener_rhia_sessions set revoked_at = now()");
+  const r = await call(db, "screener_rhia_op_ler_perfil", [th, null]);
+  assert.equal(r.status, "sessao_invalida");
+  assert.equal(r.perfil, undefined, "nem um pedaço do perfil pode sair por sessão morta");
+});
+
+test("perfil: sessão expirada também não devolve o perfil", async () => {
+  const db = await ambiente();
+  const th = await abrir(db);
+  await salvar(db, th);
+  await db.query(`update public.screener_rhia_sessions
+                     set created_at = now() - interval '2 hours', expires_at = now() - interval '1 hour'`);
+  assert.equal((await call(db, "screener_rhia_op_ler_perfil", [th, null])).status, "sessao_invalida");
 });

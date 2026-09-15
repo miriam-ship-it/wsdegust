@@ -34,7 +34,8 @@
 -- RETENÇÃO. O perfil é INSUMO DA AVALIAÇÃO, como as respostas — e some com elas,
 -- no prazo da sessão declarado no vínculo. Não segue o prazo do contato: manter
 -- empresa, cargo e porte por 365 dias ao lado do e-mail seria guardar mais do
--- que o necessário para o que o contato existe. Daí a fase 4 da purga, abaixo.
+-- que o necessario para aquilo que o contato existe. O perfil entra na FASE 1
+-- da purga, junto das respostas — ver a secao 4 deste arquivo.
 --
 -- ---------------------------------------------------------------------------
 -- ROLLBACK:
@@ -52,6 +53,18 @@
 
 grant screener_owner to current_user;
 select set_config('boomit.papel_da_migration', current_user, true);
+
+-- A guarda vem AQUI, antes de criar qualquer coisa. O `is_local` depende de o
+-- `supabase db push` abrir transacao — e ele abre (a ponte, em 15/09, voltou
+-- atras por inteiro quando falhou no ultimo comando). Mas se um dia nao abrir,
+-- morrer no primeiro comando e muito melhor do que morrer depois de ja ter
+-- criado a tabela e as tres funcoes: elas ficariam com o EXECUTE para PUBLIC que
+-- toda funcao nova ganha, e uma delas e SECURITY DEFINER.
+do $$
+declare v_papel text := nullif(current_setting('boomit.papel_da_migration', true), '');
+begin
+  if v_papel is null then raise exception 'papel da migration nao foi guardado'; end if;
+end $$;
 
 -- `RESET ROLE` não é o inverso de `SET ROLE`: ele volta ao papel de LOGIN da
 -- sessão, e o `supabase db push` se conecta com um papel de login e depois assume
@@ -94,9 +107,16 @@ alter table public.screener_rhia_perfis enable row level security;
 
 -- 2) GRAVAR -------------------------------------------------------------------
 -- Mesma fronteira das outras RPC: SECURITY DEFINER, `search_path` vazio, e o
--- único caminho de escrita. Valida sessão, vigência e credencial de prévia
--- exatamente como `screener_rhia_op_capturar_lead`, e os VALORES contra a
--- definição guardada — nunca contra uma lista escrita aqui.
+-- unico caminho de escrita.
+--
+-- Os portoes sao os de RESPONDER (`screener_rhia_op_save_response`), nao os de
+-- capturar contato: sessao viva, credencial de previa, vinculo disponivel e
+-- dentro da vigencia. A primeira versao deste arquivo dizia espelhar
+-- `capturar_lead` e validar vigencia — e nao validava, porque `capturar_lead`
+-- tambem nao valida. A frase estava errada duas vezes.
+--
+-- Os VALORES de nivel/porte/setor vem da definicao guardada, nunca de lista
+-- escrita aqui.
 create function public.screener_rhia_op_salvar_perfil(
   p_token_hash text, p_preview_hash text,
   p_nome text, p_empresa text, p_cargo text,
@@ -128,6 +148,27 @@ begin
        v_bind.preview_credential_hash, v_bind.preview_expires_at, v_bind.preview_revoked_at, p_preview_hash) then
     return jsonb_build_object('status', 'sessao_nao_encontrada');
   end if;
+
+  -- O EVENTO TAMBEM MANDA, e nao so a sessao. `screener_rhia_op_save_response`
+  -- recusa quando o vinculo esta fechado ou fora de vigencia; sem estas duas
+  -- checagens, desligar o evento pararia as RESPOSTAS e continuaria aceitando
+  -- nome, empresa e cargo — o unico caminho de escrita a sobreviver ao botao de
+  -- emergencia seria justamente o que carrega PII.
+  if v_bind.status in ('inactive', 'closed') then
+    return jsonb_build_object('status', 'indisponivel'); end if;
+  if (v_bind.starts_at is not null and now() < v_bind.starts_at)
+     or (v_bind.ends_at is not null and now() > v_bind.ends_at) then
+    return jsonb_build_object('status', 'fora_de_vigencia'); end if;
+
+  -- NAO SE COLETA PII PARA A QUAL NAO HA PLANO DE APAGAMENTO. O CHECK do schema
+  -- so exige retencao declarada em `public_pilot`/`published`, entao um vinculo
+  -- `internal_preview` pode nao ter prazo — e a purga, por desenho, nao toca
+  -- vinculo sem prazo. Isso ja valia para o contato, mas mudou de tamanho: antes
+  -- a PII em previa dependia de a pessoa deixar contato no fim; agora entraria de
+  -- toda sessao, no primeiro passo. E e em previa que o formulario unico vai ser
+  -- testado, com nomes de gente de verdade.
+  if v_bind.session_retention_days is null then
+    return jsonb_build_object('status', 'retencao_nao_declarada'); end if;
 
   if v_sess.revoked_at is not null
      or (v_sess.expires_at is not null and v_sess.expires_at <= now()) then
@@ -165,6 +206,14 @@ begin
     return jsonb_build_object('status', 'instrumento_sem_perfil');
   end if;
 
+  -- Os CHECKs da tabela limitam esses campos a 40 caracteres, e o valor gravado e
+  -- o `id` da opcao vindo da DEFINICAO. Um id mais longo viraria check_violation
+  -- (erro cru, transacao abortada) em vez de status — recusar aqui devolve o
+  -- mesmo `valor_invalido` que a edge ja sabe tratar.
+  if char_length(coalesce(p_nivel, '')) > 40 or char_length(coalesce(p_porte, '')) > 40
+     or char_length(coalesce(p_setor, '')) > 40 then
+    return jsonb_build_object('status', 'valor_invalido', 'campo', 'tamanho'); end if;
+
   if not public.screener_priv_perfil_opcao_ok(v_def, 'nivel', p_nivel) then
     return jsonb_build_object('status', 'valor_invalido', 'campo', 'nivel'); end if;
   if not public.screener_priv_perfil_opcao_ok(v_def, 'porte', p_porte) then
@@ -185,14 +234,32 @@ end $$;
 -- A conferência de um valor de perfil contra a definição guardada. Separada
 -- porque são três campos com a mesma regra, e regra repetida três vezes é regra
 -- que diverge na quarta.
+--
+-- TOTAL DE PROPOSITO: definicao malformada devolve `false`, nunca erro.
+-- `jsonb_array_elements` sobre coisa que nao e array ESTOURA — e o cross join
+-- expandia `opcoes` de todos os campos. Os campos de texto do perfil (nome,
+-- empresa, cargo) nao tem `opcoes` nenhuma, e hoje isso so nao quebra porque a
+-- chave ausente vira SQL NULL e a funcao e strict. Escrever `opcoes: null` num
+-- campo de texto — coisa natural de se fazer ao mexer no perfil — transformaria
+-- o PRIMEIRO PASSO do formulario em erro 500 para todo mundo. Com os `case`, o
+-- pior caso vira `valor_invalido`, que a edge ja trata.
+--
+-- `security invoker`: quem chama ja e a dona, e um privilegio a menos e um
+-- privilegio a menos para explicar.
 create function public.screener_priv_perfil_opcao_ok(p_def jsonb, p_campo text, p_valor text)
-returns boolean language sql stable security definer set search_path = '' as $$
+returns boolean language sql stable security invoker set search_path = '' as $$
   select exists (
     select 1
-      from jsonb_array_elements(p_def -> 'perfil') campo,
-           jsonb_array_elements(campo -> 'opcoes') op
+      from jsonb_array_elements(
+             case when jsonb_typeof(p_def -> 'perfil') = 'array'
+                  then p_def -> 'perfil' else '[]'::jsonb end) campo
      where campo ->> 'id' = p_campo
-       and op ->> 'id' = p_valor
+       and exists (
+         select 1
+           from jsonb_array_elements(
+                  case when jsonb_typeof(campo -> 'opcoes') = 'array'
+                       then campo -> 'opcoes' else '[]'::jsonb end) op
+          where op ->> 'id' = p_valor)
   )
 $$;
 
@@ -216,6 +283,14 @@ begin
     return jsonb_build_object('status', 'sessao_nao_encontrada');
   end if;
 
+  -- Revogar uma sessao e o mecanismo de "este link morreu". `salvar_perfil`
+  -- respeita; esta precisa respeitar tambem. `get_result` nao confere — mas o que
+  -- ele devolve e resultado anonimo, e o que esta devolve e nome, empresa e
+  -- cargo. A assimetria e deliberada.
+  if v_sess.revoked_at is not null
+     or (v_sess.expires_at is not null and v_sess.expires_at <= now()) then
+    return jsonb_build_object('status', 'sessao_invalida'); end if;
+
   select * into v_p from public.screener_rhia_perfis where session_id = v_sess.id;
   if v_p.session_id is null then return jsonb_build_object('status', 'sem_perfil'); end if;
   return jsonb_build_object('status', 'ok', 'perfil', jsonb_build_object(
@@ -232,11 +307,6 @@ end $$;
 -- É `create or replace` do corpo em vigor, mantendo o resto PALAVRA POR PALAVRA.
 -- O corpo anterior é o da 20260915120000, que por sua vez emendou a 20260914170000
 -- — o rollback no cabeçalho aponta para o arquivo certo.
-do $$
-declare v_papel text := nullif(current_setting('boomit.papel_da_migration', true), '');
-begin
-  if v_papel is null then raise exception 'papel da migration nao foi guardado'; end if;
-end $$;
 set role screener_owner;
 create or replace function public.screener_rhia_purga()
 returns jsonb language plpgsql security definer set search_path = '' as $$
@@ -360,9 +430,12 @@ begin
   -- PII: zero privilégio de tabela para quem quer que seja além da dona.
   if has_table_privilege('screener_runtime', 'public.screener_rhia_perfis',
                          'select,insert,update,delete,truncate,references,trigger')
-     or has_table_privilege('anon', 'public.screener_rhia_perfis', 'select')
-     or has_table_privilege('authenticated', 'public.screener_rhia_perfis', 'select')
-     or has_table_privilege('service_role', 'public.screener_rhia_perfis', 'select') then
+     or has_table_privilege('anon', 'public.screener_rhia_perfis',
+                         'select,insert,update,delete,truncate,references,trigger')
+     or has_table_privilege('authenticated', 'public.screener_rhia_perfis',
+                         'select,insert,update,delete,truncate,references,trigger')
+     or has_table_privilege('service_role', 'public.screener_rhia_perfis',
+                         'select,insert,update,delete,truncate,references,trigger') then
     raise exception 'a tabela de perfil ficou alcancavel por tabela — ela guarda nome, empresa e cargo';
   end if;
 
@@ -402,7 +475,9 @@ end $$;
 do $$
 declare v_papel text := nullif(current_setting('boomit.papel_da_migration', true), '');
 begin
-  if v_papel is not null and current_user <> v_papel then
+  -- Sem `is not null`: a guarda do topo ja provou que a variavel existe, e
+  -- tolera-la ausente aqui faria esta passar calada exatamente quando falhasse.
+  if current_user <> coalesce(v_papel, '') then
     raise exception 'a migration terminaria como % em vez de % — algum bloco trocou o papel e nao devolveu',
       current_user, v_papel;
   end if;
