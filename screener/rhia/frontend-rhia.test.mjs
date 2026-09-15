@@ -28,7 +28,7 @@ import {
   formatarData, mensagemErro, descreverErro,
   chaveArmazenamento, guardarSessao, lerSessao, limparSessao,
   telaDoHash, criarRastreador, criarCliente, renderResultado, renderInsuficiente,
-  sinteseExecutiva,
+  sinteseExecutiva, convitePresenteNaUrl, urlSemConvite,
 } from "../../frontend/rhia.mjs";
 // SÓ NO TESTE: o motor e o instrumento do pacote (o app nunca os importa).
 import { buildResultContractV2 } from "./pacote/src/output-engine-v2.mjs";
@@ -222,16 +222,47 @@ test("mensagemErro / descreverErro: erros da edge rhia", () => {
 
 // ---------- persistência versionada ----------
 
-test("armazenamento: chave versionada por evento; guarda só token/pos/tela; round-trip", () => {
+test("armazenamento: chave versionada por evento; guarda só token/pos/tela/convite; round-trip", () => {
   const s = memStore();
   assert.equal(chaveArmazenamento("ev1"), "rhia:v1:ev1");
   assert.equal(guardarSessao("ev1", { token: "t", pos: 4, tela: "questoes", respostas: { a: 1 }, segredo: "x" }, s), true);
   const lido = lerSessao("ev1", s);
-  assert.deepEqual(lido, { token: "t", pos: 4, tela: "questoes" });
-  assert.ok(!s.getItem("rhia:v1:ev1").includes("segredo"), "guardou mais do que token/pos/tela");
+  assert.deepEqual(lido, { token: "t", pos: 4, tela: "questoes", convite: null });
+  assert.ok(!s.getItem("rhia:v1:ev1").includes("segredo"), "guardou mais do que o combinado");
   assert.equal(lerSessao("ev2", s), null);
   limparSessao("ev1", s);
   assert.equal(lerSessao("ev1", s), null);
+});
+
+test("armazenamento: o convite sobrevive a um recarregar, e só no formato certo", () => {
+  // Sem isto, recarregar a página entre o e-mail e o "Começar" perderia a ponte
+  // em silêncio — o convite já foi tirado da barra de endereço.
+  const s = memStore();
+  const cod = "a".repeat(64);
+  guardarSessao("ev1", { token: "t", pos: 0, tela: "abertura", convite: cod }, s);
+  assert.equal(lerSessao("ev1", s).convite, cod);
+
+  guardarSessao("ev1", { token: "t", pos: 0, tela: "abertura", convite: "nao-e-codigo" }, s);
+  assert.equal(lerSessao("ev1", s).convite, null, "o que não tem a forma de um código não é guardado");
+
+  s.setItem("rhia:v1:ev1", JSON.stringify({ token: "t", pos: 0, tela: null, convite: 42 }));
+  assert.equal(lerSessao("ev1", s).convite, null, "registro adulterado não vira tentativa de vínculo");
+});
+
+test("convite: lido da URL só no formato certo, e a barra de endereço não o guarda", () => {
+  const cod = "b3".repeat(32);
+  const base = "https://diagnosticoboomit.netlify.app/rhia.html";
+  assert.equal(convitePresenteNaUrl(`${base}?convite=${cod}`), cod);
+  assert.equal(convitePresenteNaUrl(base), null);
+  assert.equal(convitePresenteNaUrl(`${base}?convite=xyz`), null);
+  assert.equal(convitePresenteNaUrl(`${base}?convite=${cod.toUpperCase()}`), null);
+  assert.equal(convitePresenteNaUrl("isto nao e uma url"), null);
+
+  assert.equal(urlSemConvite(`${base}?convite=${cod}`), "/rhia.html");
+  assert.equal(urlSemConvite(`${base}?convite=${cod}&evento=x`), "/rhia.html?evento=x",
+    "tirar o convite não pode tirar o evento junto");
+  assert.ok(!urlSemConvite(`${base}?convite=${cod}#contexto`).includes(cod));
+  assert.equal(urlSemConvite(`${base}?convite=${cod}#contexto`), "/rhia.html#contexto");
 });
 
 test("armazenamento: registro corrompido ou sem token → null", () => {

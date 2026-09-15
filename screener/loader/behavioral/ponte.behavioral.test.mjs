@@ -34,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import instrumento from "../../rhia/pacote/instrumento-rh-ia-v1.json" with { type: "json" };
 import { checksum } from "../../rhia/definicao.mjs";
+import * as HR from "../../edge/handlers-rhia.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const MIGR = path.resolve(AQUI, "..", "..", "..", "supabase", "migrations");
@@ -617,4 +618,82 @@ test("fronteira: as tabelas da ponte são do screener_owner, com RLS e sem polic
     assert.equal(r.rls, true, `${r.relname} sem RLS`);
     assert.equal(r.policies, 0, "RLS sem policy é negação total, que é o desenho");
   }
+});
+
+// -------------------------------------------------------------------------
+// A rota que o navegador usa: POST /rhia/vincular.
+// -------------------------------------------------------------------------
+
+/** O `ctx` que os handlers da edge esperam, ligado a este banco. */
+const contexto = (db) => ({ q: (sql, params = []) => db.query(sql, params), now: () => new Date(), rate: { ativo: false, secret: null } });
+
+test("rota: o convite vira vínculo, e a resposta NÃO devolve o respondente", async () => {
+  const db = await ambiente();
+  const r0 = await criarRespondente(db, "a@b.com");
+  const th = await abrir(db, "tk1");
+  const codigo = sha("codigo-do-link");
+  await call(db, "screener_rhia_op_emitir_convite", [r0.token_sessao, sha(codigo), 720]);
+
+  const r = await HR.postVincularRhia(contexto(db), { token: "tk1", convite: codigo });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { ok: true });
+  const blob = JSON.stringify(r.body);
+  assert.ok(!blob.includes(r0.id), "o id do respondente é para montar o documento, não para o navegador");
+  assert.ok(!blob.includes("certa"), "nem a confiança precisa cruzar: o que a pessoa precisa saber é se funcionou");
+
+  assert.equal((await call(db, "screener_rhia_op_ler_vinculo", [th])).respondente_id, r0.id);
+});
+
+test("rota: código fora do formato nem chega ao banco, e responde como código inexistente", async () => {
+  const db = await ambiente();
+  let bateu = 0;
+  const ctx = { q: (sql, params = []) => { bateu++; return db.query(sql, params); }, now: () => new Date(), rate: { ativo: false, secret: null } };
+  await abrir(db, "tk1");
+
+  for (const convite of ["nao-e-codigo", "", null, undefined, 42, sha("x").toUpperCase()]) {
+    const r = await HR.postVincularRhia(ctx, { token: "tk1", convite });
+    assert.equal(r.status, 404);
+    assert.equal(r.body.error, "convite_invalido",
+      "quem tenta adivinhar não aprende nada com a diferença entre malformado e inexistente");
+  }
+  assert.equal(bateu, 0, "formato conferido antes do banco");
+});
+
+test("rota: convite já usado, expirado e sessão morta têm respostas distintas", async () => {
+  const db = await ambiente();
+  const r0 = await criarRespondente(db, "a@b.com");
+  const ctx = contexto(db);
+  await abrir(db, "tk1"); await abrir(db, "tk2");
+  const cod = sha("c");
+  await call(db, "screener_rhia_op_emitir_convite", [r0.token_sessao, sha(cod), 720]);
+
+  assert.equal((await HR.postVincularRhia(ctx, { token: "tk1", convite: cod })).status, 200);
+  const usado = await HR.postVincularRhia(ctx, { token: "tk2", convite: cod });
+  assert.equal(usado.status, 409);
+  assert.equal(usado.body.error, "convite_ja_usado");
+
+  const inexistente = await HR.postVincularRhia(ctx, { token: "tk2", convite: sha("nunca") });
+  assert.equal(inexistente.status, 404);
+
+  // sessão expirada: o convite não pode ser queimado por uma aba velha
+  const cod2 = sha("c2");
+  await call(db, "screener_rhia_op_emitir_convite", [r0.token_sessao, sha(cod2), 720]);
+  await db.query(`update public.screener_rhia_sessions
+                     set created_at = now() - interval '2 hours', expires_at = now() - interval '1 hour'
+                   where token_hash = $1`, [sha("tk2")]);
+  const morta = await HR.postVincularRhia(ctx, { token: "tk2", convite: cod2 });
+  assert.equal(morta.status, 403);
+  assert.equal(morta.body.error, "sessao_invalida");
+  const { rows } = await db.query("select usado_em from public.screener_rhia_convites where codigo_hash=$1", [sha(cod2)]);
+  assert.equal(rows[0].usado_em, null);
+});
+
+test("rota: sessão que não existe não vira vínculo", async () => {
+  const db = await ambiente();
+  const r0 = await criarRespondente(db, "a@b.com");
+  const cod = sha("c");
+  await call(db, "screener_rhia_op_emitir_convite", [r0.token_sessao, sha(cod), 720]);
+  const r = await HR.postVincularRhia(contexto(db), { token: "sessao-que-nao-existe", convite: cod });
+  assert.equal(r.status, 404);
+  assert.equal(r.body.error, "sessao_nao_encontrada");
 });

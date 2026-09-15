@@ -353,4 +353,41 @@ export async function postLeadRhia(ctx, { token, previewKey, nome, email, market
   return resp(200, { ok: true });
 }
 
-export const rotasRhia = { getStartRhia, postStartRhia, getSessionRhia, putResponseRhia, postSubmitRhia, getResultRhia, postLeadRhia };
+// ---------- POST /rhia/vincular (consome o convite da liderança) ----------
+//
+// Quem terminou o diagnóstico de liderança recebeu, no e-mail de fecho, um link
+// com um CONVITE. Aqui ele é trocado pela ligação entre as duas metades.
+//
+// O QUE ESTA ROTA NÃO DEVOLVE, e é de propósito: o `respondente_id`. A RPC o
+// devolve, porque quem monta o documento precisa dele — mas o navegador, não. O
+// que a pessoa precisa saber é se o link funcionou.
+//
+// O convite chega no CORPO, nunca em query string: a rota é POST e o código,
+// embora não dê acesso a nada, é de uso único e não tem por que ficar em log de
+// servidor nem em histórico.
+export async function postVincularRhia(ctx, { token, convite }) {
+  const rl = await checarRateToken(ctx, "consulta", token);
+  if (rl) return rl;
+  // Formato conferido ANTES do banco: o que não tem a forma de um código não
+  // vira consulta, e a mensagem é a mesma de um código que não existe — quem
+  // tenta adivinhar não aprende nada com a diferença.
+  if (typeof convite !== "string" || !/^[0-9a-f]{64}$/.test(convite)) {
+    return resp(404, { error: "convite_invalido" });
+  }
+  const th = await hashToken(token || "");
+  let r;
+  try { r = await rpc(ctx, "screener_rhia_op_vincular_por_convite", [th, await sha256Hex(convite)]); }
+  catch (e) { return mapErroSql(e); }
+  if (!r) return resp(404, { error: "sessao_nao_encontrada" });
+
+  if (r.status === "ok") return resp(200, { ok: true });
+  if (r.status === "sessao_nao_encontrada") return resp(404, { error: "sessao_nao_encontrada" });
+  if (r.status === "sessao_invalida") return resp(403, { error: "sessao_invalida" });
+  if (r.status === "convite_invalido") return resp(404, { error: "convite_invalido" });
+  if (r.status === "convite_expirado") return resp(410, { error: "convite_expirado" });
+  if (r.status === "convite_ja_usado") return resp(409, { error: "convite_ja_usado" });
+  if (r.status === "conflito_de_vinculo") return resp(409, { error: "conflito_de_vinculo" });
+  return resp(409, { error: String(r.status) });
+}
+
+export const rotasRhia = { getStartRhia, postStartRhia, getSessionRhia, putResponseRhia, postSubmitRhia, getResultRhia, postLeadRhia, postVincularRhia };

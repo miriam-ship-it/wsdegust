@@ -82,6 +82,34 @@ export function lerEvento(search, padrao = EVENTO_PADRAO) {
   return v || padrao;
 }
 
+// O CONVITE DA LIDERANÇA, na chegada.
+//
+// Estas duas funções existem também em `screener/ponte/convite.mjs`, que é quem
+// EMITE o convite do outro lado. A duplicação é deliberada: esta página é
+// servida como módulo único e sem dependências, e puxar um arquivo de fora
+// significaria publicar mais um. São dez linhas e dois testes de cada lado; o
+// formato — 64 caracteres hexa — é o mesmo que o CHECK da tabela exige.
+
+const FORMATO_CONVITE = /^[0-9a-f]{64}$/;
+
+/** Lê o convite da URL de chegada, e só se tiver a forma certa. */
+export function convitePresenteNaUrl(href) {
+  let v = null;
+  try { v = new URL(href).searchParams.get("convite"); } catch { return null; }
+  return v && FORMATO_CONVITE.test(v) ? v : null;
+}
+
+/**
+ * A mesma URL sem o convite, para trocar a barra de endereço assim que ele for
+ * lido. Enquanto está lá, o código viaja em histórico, em "compartilhar esta
+ * página" e no `Referer` de qualquer link clicado depois.
+ */
+export function urlSemConvite(href) {
+  const u = new URL(href);
+  u.searchParams.delete("convite");
+  return u.pathname + (u.searchParams.toString() ? "?" + u.searchParams.toString() : "") + u.hash;
+}
+
 /**
  * Cabeçalhos de uma requisição à edge. A credencial só em `x-preview-key`; o
  * token só em `x-session-token`. `content-type` só quando há corpo.
@@ -379,11 +407,21 @@ export function descreverErro(status, body) {
 export function chaveArmazenamento(evento) {
   return PREFIXO_ARMAZENAMENTO + (evento || EVENTO_PADRAO);
 }
-/** Guarda só { token, pos, tela }. Devolve false se o armazenamento falhar. */
+/**
+ * Guarda só { token, pos, tela, convite }. Devolve false se o armazenamento falhar.
+ *
+ * O CONVITE FICA GUARDADO ATÉ SER CONSUMIDO. Ele é tirado da barra de endereço
+ * assim que chega (lá ele viajaria em histórico, em "compartilhar" e em
+ * `Referer`), e sem guardá-lo em algum lugar um simples recarregar da página
+ * perderia a ponte em silêncio — que é exatamente a falha que a ponte inteira
+ * existe para evitar. Aqui ele não sai do aparelho da própria pessoa, e não dá
+ * acesso a nada.
+ */
 export function guardarSessao(evento, dados, store) {
   try {
     const s = store || globalThis.localStorage;
-    const min = { token: dados.token, pos: dados.pos | 0, tela: dados.tela || null };
+    const min = { token: dados.token, pos: dados.pos | 0, tela: dados.tela || null,
+                  convite: FORMATO_CONVITE.test(dados.convite || "") ? dados.convite : null };
     s.setItem(chaveArmazenamento(evento), JSON.stringify(min));
     return true;
   } catch { return false; }
@@ -395,7 +433,8 @@ export function lerSessao(evento, store) {
     if (!v) return null;
     const d = JSON.parse(v);
     if (!d || typeof d.token !== "string" || !d.token) return null;
-    return { token: d.token, pos: Number.isFinite(d.pos) ? d.pos : 0, tela: typeof d.tela === "string" ? d.tela : null };
+    return { token: d.token, pos: Number.isFinite(d.pos) ? d.pos : 0, tela: typeof d.tela === "string" ? d.tela : null,
+             convite: FORMATO_CONVITE.test(d.convite || "") ? d.convite : null };
   } catch { return null; }
 }
 export function limparSessao(evento, store) {
@@ -465,6 +504,9 @@ export function criarCliente({ edgeUrl, anonKey, transporte } = {}) {
     enviar: (previewKey, token) => chamar("POST", "/rhia/submit", { corpo: {}, previewKey, token }),
     resultado: (previewKey, token) => chamar("GET", "/rhia/result", { previewKey, token }),
     lead: (previewKey, token, dados) => chamar("POST", "/rhia/lead", { corpo: dados, previewKey, token }),
+    // O convite vai no CORPO, nunca em query: é de uso único e não tem por que
+    // ficar em log de servidor.
+    vincular: (previewKey, token, convite) => chamar("POST", "/rhia/vincular", { corpo: { convite }, previewKey, token }),
   };
 }
 
@@ -791,7 +833,40 @@ export function iniciarApp(cfg) {
     leadMode: "optional_after_submit", leadEnviado: false, leadEnviando: false, leadErro: null, leadErroCampo: false,
     salvando: 0, salvoRecente: false, erroTopo: null, tentandoEnviar: false,
     erro: null, storageOk: true, ignorarHash: false,
+    convite: null, avisoPonte: null,
   };
+
+  // --- o convite da liderança, se a pessoa chegou por ele ---
+  // Lê-se da barra de endereço e TIRA-SE DA BARRA no mesmo instante: enquanto
+  // está lá, o código viaja em histórico, em "compartilhar esta página" e no
+  // `Referer` de qualquer link clicado depois. Ele é de uso único e não dá
+  // acesso a nada — mas não há razão para deixá-lo circular.
+  st.convite = convitePresenteNaUrl(String(loc.href || "")) || (lerSessao(evento, store) || {}).convite || null;
+  if (st.convite) {
+    try {
+      const limpa = urlSemConvite(String(loc.href));
+      if (globalThis.history && globalThis.history.replaceState) globalThis.history.replaceState(null, "", limpa);
+    } catch { /* barra de endereço é conforto, não requisito */ }
+  }
+
+  /**
+   * Troca o convite pela ligação entre as duas metades. Silencioso quando não
+   * há o que fazer; nunca impede a pessoa de responder.
+   *
+   * O aviso na tela existe porque o contrário seria a falha que esta ponte
+   * inteira combate: perder a ligação sem ninguém saber. Quando o link não é
+   * aceito, dizemos o que ainda pode acontecer — a reconciliação pelo e-mail no
+   * fim — em vez de só lamentar.
+   */
+  async function trocarConvite() {
+    if (!st.convite || !st.token) return;
+    const r = await cliente.vincular(st.previewKey, st.token, st.convite);
+    // 0 é rede caída, 429/503 é temporário: guarda-se o convite para a próxima.
+    if (r.status === 0 || r.status === 429 || r.status === 503) return;
+    st.avisoPonte = r.status === 200 ? "ok" : "falhou";
+    st.convite = null;
+    persistir();
+  }
   let rastrear = criarRastreador(globalThis.SCREENER_RHIA_ANALYTICS, null);
 
   // --- tema ---
@@ -817,7 +892,7 @@ export function iniciarApp(cfg) {
     st.erro = { ...descreverErro(status, body), retry: retry || null };
     st.erroTopo = null; irPara("erro");
   }
-  const persistir = () => { const ok = guardarSessao(evento, { token: st.token, pos: st.pos, tela: st.tela }, store); if (!ok) st.storageOk = false; };
+  const persistir = () => { const ok = guardarSessao(evento, { token: st.token, pos: st.pos, tela: st.tela, convite: st.convite }, store); if (!ok) st.storageOk = false; };
   const contextoOk = () => contextoCompleto(st.contexto, st.respostas, st.textoOutro, st.cf).ok;
 
   // --- rede ---
@@ -848,6 +923,7 @@ export function iniciarApp(cfg) {
     st.tela = "contexto"; persistir();
     rastrear("assessment_started");
     irPara("contexto");
+    trocarConvite().then(pintar, () => {});
   }
   async function retomar(salva) {
     st.token = salva.token; st.tela = "carregando"; pintar();
@@ -865,6 +941,7 @@ export function iniciarApp(cfg) {
     const hashAtual = String(loc.hash || "").replace(/^#/, "");
     const alvo = telaDoHash(hashAtual || salva.tela || "", { temSessao: true, submitido: false, contextoOk: contextoOk() });
     persistir(); irPara(alvo);
+    trocarConvite().then(pintar, () => {});
   }
   // `repintar: false` = atualização leve (sem trocar o DOM). Necessário para o
   // texto livre: o blur do campo dispara `change` no MEIO de um clique numa
@@ -1056,6 +1133,13 @@ export function iniciarApp(cfg) {
     </header>`;
   }
   const noteTopo = () => st.erroTopo ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.erroTopo)}</span></div>` : "";
+  const notePonte = () => {
+    if (!st.avisoPonte) return "";
+    if (st.avisoPonte === "ok") {
+      return `<div class="sc-note" role="status">${ICONE.check}<span>Reconhecemos o seu diagnóstico de liderança. As duas leituras vão para o mesmo documento.</span></div>`;
+    }
+    return `<div class="sc-note" role="status">${ICONE.info}<span>Não foi possível usar o link do seu diagnóstico de liderança — ele vale uma vez só e por tempo limitado. Siga normalmente: no fim, o contato que você deixar pode reunir as duas leituras.</span></div>`;
+  };
   const avisoStorage = () => st.storageOk ? "" : `<div class="sc-note rh-note--warning" role="status">${ICONE.aviso}<span>Este navegador não permite guardar o progresso; se você atualizar a página, o preenchimento recomeça.</span></div>`;
   function autosaveHtml() {
     if (st.salvando > 0) return `<span class="sc-save sc-save--ativo" role="status">Salvando…</span>`;
@@ -1138,7 +1222,7 @@ export function iniciarApp(cfg) {
       </p>`;
 
     return `${progressoHtml("", `Pergunta ${it.order} de ${st.itens.length}`)}
-      ${avisoStorage()}${noteTopo()}
+      ${avisoStorage()}${noteTopo()}${notePonte()}
       <div class="rh-pilha">
         ${antesHtml}
         <article class="sc-item rh-pilha__atual" id="sc-questao" tabindex="-1" aria-label="Pergunta ${it.order} de ${st.itens.length}">
