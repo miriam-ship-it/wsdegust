@@ -26,6 +26,11 @@ const RPC = fs.readFileSync(path.join(MIGR, "20260903120000_screener_rpc_e_papei
 const RHIA = fs.readFileSync(path.join(MIGR, "20260912120000_screener_rhia_tabelas_e_rpc.sql"), "utf8");
 const SEARCHPATH = fs.readFileSync(path.join(MIGR, "20260914120000_screener_search_path_nos_triggers.sql"), "utf8");
 const PURGA = fs.readFileSync(path.join(MIGR, "20260914170000_screener_rhia_purga_por_retencao.sql"), "utf8").split("-- @@@CRON@@@")[0];
+// A restrição do contrato mudou em 20260916140000. Sem esta linha, o teste que
+// exercita a recusa do contrato continuaria rodando contra a restrição ANTIGA
+// para sempre — e o link público em produção passaria a rodar sob a nova sem um
+// teste sequer sob ela.
+const SNAP = fs.readFileSync(path.join(MIGR, "20260916140000_screener_rhia_snapshot_aceita_outros_instrumentos.sql"), "utf8");
 
 const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
 const PREVIEW = "chave-rhia";
@@ -56,7 +61,7 @@ function contrato(respostas) {
 async function ambiente({ status = "public_pilot", cred = null, leadMode = "required_before_result" } = {}) {
   const db = new PGlite();
   await db.exec("create role anon noinherit; create role authenticated noinherit; create role service_role noinherit;");
-  await db.exec(SCHEMA); await db.exec(RPC); await db.exec(RHIA); await db.exec(SEARCHPATH); await db.exec(PURGA);
+  await db.exec(SCHEMA); await db.exec(RPC); await db.exec(RHIA); await db.exec(SEARCHPATH); await db.exec(PURGA); await db.exec(SNAP);
   await db.query(`insert into public.screener_instrument_versions (instrument_code, instrument_version, definition, checksum, status)
                   values ($1,$2,$3,$4,'inactive')`, [CODE, VERSAO, JSON.stringify(instrumento), ICS]);
   await db.query(`insert into public.screener_event_bindings

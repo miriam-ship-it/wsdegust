@@ -86,7 +86,11 @@ const MODULO_UNIFICADO = Object.freeze({
     // Mesma forma de sempre: o público vai ao navegador, o interno fica no
     // snapshot. As respostas cruas continuam sendo `internal`, nunca publicadas.
     return {
-      public: { version: VERSAO_RESULTADO_UNIFICADO, ...semInterno(r) },
+      // A versão vem DEPOIS do spread: se `calcularUnificado` um dia devolver
+      // uma chave `version` de topo, ela sobrescreveria a declarada — e o CHECK
+      // do snapshot recusaria com `check_violation`, que a edge traduz em 409
+      // sem explicação. Hoje essa chave não existe; a ordem custa nada.
+      public: { ...semInterno(r), version: VERSAO_RESULTADO_UNIFICADO },
       internal: { answers: respostas, perfil: perfil ?? null },
     };
   },

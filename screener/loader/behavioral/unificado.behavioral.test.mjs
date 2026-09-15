@@ -165,8 +165,46 @@ test("SEM a migration do snapshot, finalizar morreria no banco — e é por isso
   }
 
   const fim = await HR.postSubmitRhia(ctx, { token });
-  assert.notEqual(fim.status, 200, "com o CHECK antigo, o documento único não caberia no snapshot");
+  // Crivo apertado de propósito: `notEqual(200)` passaria também com
+  // `instrumento_indisponivel` ou `resultado_nao_suportado` — ou seja,
+  // continuaria verde afirmando outra coisa se alguém desligasse `podeFinalizar`.
+  // O que se quer provar é que o BANCO recusou.
+  assert.equal(fim.status, 409);
+  assert.deepEqual(fim.body, { error: "conflito" });
+  const { rows } = await db.query("select count(*)::int n from public.screener_rhia_result_snapshots");
+  assert.equal(rows[0].n, 0, "recusa do CHECK não pode deixar meio snapshot");
 
+  await db.close?.();
+});
+
+test("COM a migration, a restrição RECUSA um contrato que mente sobre a própria versão", async () => {
+  // A metade que faltava: nenhum teste provava a recusa, que é a justificativa da
+  // migration. Sem isto, a restrição poderia estar frouxa e tudo continuaria verde.
+  const { db } = await ambiente();
+  const { rows: b } = await db.query("select id from public.screener_event_bindings limit 1");
+  await db.exec("set role screener_owner");
+  const sess = await db.query(
+    `insert into public.screener_rhia_sessions (binding_id, token_hash, status, created_at, expires_at, submitted_at)
+     values ($1, $2, 'submitted', now(), now() + interval '1 day', now()) returning id`,
+    [b[0].id, "b".repeat(64)]);
+
+  const inserir = (reportVersion, versaoNoJson) => db.query(
+    `insert into public.screener_rhia_result_snapshots
+       (session_id, event_slug, instrument_code, instrument_version, scoring_version, report_version,
+        instrument_checksum, input_checksum, result)
+     values ($1, $2, $3, '1.0.0', $4, $4, $5, $6, $7)`,
+    [sess.rows[0].id, SLUG, DEF.instrument_id, reportVersion, "c".repeat(64), "d".repeat(64),
+     JSON.stringify({ public: { version: versaoNoJson }, internal: {} })]);
+
+  await assert.rejects(inserir("unificado-1.0.0", "2.0.0-pilot"), /screener_rhia_snap_contract/);
+  await assert.rejects(inserir("unificado-1.0.0", null), /screener_rhia_snap_contract/);
+  await assert.rejects(inserir("", ""), /screener_rhia_snap_(report_version|contract)/);
+  // e o que NÃO mente passa
+  await inserir("unificado-1.0.0", "unificado-1.0.0");
+  const { rows } = await db.query("select count(*)::int n from public.screener_rhia_result_snapshots");
+  assert.equal(rows[0].n, 1);
+
+  await db.exec("set role postgres");
   await db.close?.();
 });
 

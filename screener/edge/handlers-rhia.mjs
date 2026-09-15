@@ -297,10 +297,10 @@ export async function postSubmitRhia(ctx, { token, previewKey }) {
   }
   if (!cap.podeEscrever) return resp(403, { error: "escrita_indisponivel", motivo: cap.motivo });
   if (!sessaoValida(sess, ctx.now())) return resp(410, { error: "sessao_expirada" });
-  // Recusa EXPLÍCITA em vez de erro cru no último clique: o CHECK do snapshot
-  // ainda não aceita a forma do documento único (ver instrumentos.mjs). Melhor
-  // recusar aqui do que deixar a pessoa responder 40 itens e bater num erro de
-  // banco no último clique.
+  // Instrumento que a edge serve mas ainda não sabe FINALIZAR recusa aqui, com
+  // motivo legível — melhor do que deixar a pessoa responder o formulário inteiro
+  // e bater num erro cru de banco no último clique. Hoje os dois finalizam; a
+  // porta fica para o próximo instrumento que entrar antes da trilha de banco.
   if (!mod.podeFinalizar) return resp(409, { error: "resultado_nao_suportado", instrumento: mod.code });
 
   // ler → validar → calcular (motor do pacote) → finalizar (função atômica). Se as
