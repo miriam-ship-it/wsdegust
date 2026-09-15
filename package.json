@@ -7,7 +7,7 @@
     "setup": "npm ci --prefix screener/loader/behavioral",
     "dev": "node scripts/dev-rhia.mjs",
     "preview": "node scripts/preview-static.mjs",
-    "test": "node --test screener/rhia/*.test.mjs screener/loader/gerar-carga-rhia.test.mjs screener/edge/*.test.mjs screener/motor/*.test.mjs screener/lideranca/*.test.mjs screener/relatorio-unico/*.test.mjs screener/ponte/*.test.mjs screener/loader/loader.test.mjs screener/rhia/pacote/tests/*.test.mjs",
+    "test": "node --test screener/rhia/*.test.mjs screener/loader/gerar-carga-rhia.test.mjs screener/edge/*.test.mjs screener/motor/*.test.mjs screener/lideranca/*.test.mjs screener/relatorio-unico/*.test.mjs screener/ponte/*.test.mjs screener/unificado/*.test.mjs screener/loader/loader.test.mjs screener/rhia/pacote/tests/*.test.mjs",
     "test:behavioral": "node --test screener/loader/behavioral/*.behavioral.test.mjs",
     "test:dev": "node --test scripts/dev-rhia.test.mjs scripts/teclado.test.mjs",
     "build": "npm test && node --test screener/rhia/fronteira-rhia.test.mjs",
