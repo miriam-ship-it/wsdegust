@@ -121,6 +121,38 @@ export function montarInstrumento({ ia = instrumentoIA, lideranca = itensLideran
   };
 }
 
+/** Identidade do instrumento unificado no banco. */
+export const CODIGO_UNIFICADO = "boomit_formulario_unico";
+
+/**
+ * A definição no formato que o banco guarda e que as RPC conferem.
+ *
+ * Duas exigências, e as duas vêm de código que já está em produção:
+ *  - `items` PLANO, cada um com `options[].id` — é contra isto que
+ *    `screener_rhia_op_save_response` valida, e não se mexe nela;
+ *  - `perfil` como array de campos com `opcoes[].id` — é contra isto que
+ *    `screener_rhia_op_salvar_perfil` valida.
+ *
+ * Os `score` de liderança VÃO para o banco, como os internos do pacote de IA já
+ * vão: a definição guardada é privada, e quem projeta o que o navegador vê é a
+ * edge. O que nunca pode acontecer é o score chegar à tela — ver
+ * `apresentacaoPublica`.
+ */
+export function definicaoParaBanco({ ia = instrumentoIA, lideranca = itensLideranca, versao = "1.0.0" } = {}) {
+  const instr = montarInstrumento({ ia, lideranca });
+  return {
+    instrument_id: CODIGO_UNIFICADO,
+    instrument_version: versao,
+    language: ia.language ?? "pt-BR",
+    title: "Diagnóstico de cenário — liderança, RH e IA",
+    perfil: instr.perfil,
+    // A ordem dos blocos é parte da definição: quem responde vê nesta sequência.
+    blocos: instr.blocos.map((b) => ({ id: b.id, titulo: b.titulo, itens: b.itens.map((i) => i.id) })),
+    items: instr.blocos.flatMap((b) => b.itens),
+    fontes: instr.fontes,
+  };
+}
+
 /**
  * O que o navegador pode ver: enunciado e alternativas, sem `score` nenhum.
  *
