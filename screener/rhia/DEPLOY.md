@@ -1137,6 +1137,48 @@ autorizado** — não antes. O formulário continua inerte até a carga do instr
 
 ---
 
+### Edge redeployada — seletor de instrumento e formulário único finalizável · 16/09/2026 · **passou**
+
+**Ordem respeitada:** a migration do snapshot (`20260916140000`) já estava no
+banco. As migrations de que os handlers novos dependem — ponte (`20260915120000`)
+e perfil (`20260916120000`) — também.
+
+**Referência de rollback:** função `screener` **versão 3** (14/09, 14:00 UTC),
+publicada a partir do commit `bc90ad1`. Rollback = redeploy a partir desse commit,
+ou kill switch no vínculo, que é mais rápido.
+
+**Preflight:**
+- árvore limpa, deploy de `0016db6`;
+- grafo de imports da edge sem `node:` e com JSON importado do mesmo jeito que o
+  módulo que já estava no ar; `screener/edge/handlers.mjs` (V1) **intocado**;
+- linha de base HTTP antes do deploy, incluindo o corpo inteiro de
+  `GET /rhia/start` do link público (25.738 bytes) para comparar depois — a
+  lição do Passo 4, de não ter um A/B, virou procedimento aqui.
+
+**Deploy:** `npx supabase functions deploy screener` → **versão 4**.
+
+| Verificação | Antes (v3) | Depois (v4) |
+|---|---|---|
+| `GET /rhia/start` do link público | 200, 30 itens | 200, **byte a byte idêntico** |
+| Slug inexistente | 404 | 404 `nao_encontrado` |
+| `GET` e `POST /rhia/perfil` sem sessão | 404 (rota inexistente) | 404 `sessao_nao_encontrada` — **a rota existe** |
+| `POST /rhia/vincular` sem convite | 404 (rota inexistente) | 404 `convite_invalido` — **a rota existe** |
+| V1 `GET /start` no `preview-interno-ia-v1` | 404 | 404 (desenho, ver Passo 4) |
+| Rota inexistente | 404 | 404 `rota_desconhecida` |
+| Origem não autorizada | 403 | 403 |
+| Token de sessão na query | — | ignorado: 404 `sessao_nao_encontrada` |
+| Logs da função | — | só `booted` (~25 ms), nenhum erro |
+
+**O que isso NÃO pôs no ar:** o PDF. `screener/documento/` é módulo pronto e
+testado, mas nenhuma rota da edge o chama ainda — e o serviço de impressão pede
+um secret próprio nesta função quando for ligado.
+
+**Por que é seguro com o formulário único "finalizável":** não existe vínculo do
+formulário único no banco. O código novo só é alcançável depois da carga do
+instrumento (pós-25/09), que é migration própria, com revisão e autorização.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -1155,4 +1197,4 @@ autorizado** — não antes. O formulário continua inerte até a carga do instr
 - [x] Ponte com a liderança — migration aplicada e verificada (15/09/2026), depois de três rodadas de revisão.
 - [x] Perfil do formulário único — migration aplicada e verificada (16/09/2026); entra inerte até a carga do instrumento.
 - [x] Snapshot aceita outros instrumentos — migration aplicada e verificada (16/09/2026), na segunda tentativa; a primeira não deixou resíduo.
-- [ ] Redeploy da edge com o formulário único finalizável — liberado pela ordem, aguarda autorização.
+- [x] Redeploy da edge com o formulário único finalizável — versão 4 no ar (16/09/2026); link público byte a byte igual; rollback = commit bc90ad1.
