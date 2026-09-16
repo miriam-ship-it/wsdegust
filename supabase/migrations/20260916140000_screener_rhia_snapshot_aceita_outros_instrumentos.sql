@@ -104,15 +104,29 @@ set role screener_owner;
 -- espera pelo ACCESS EXCLUSIVE e, enquanto espera, bloqueia todo mundo atrás
 -- dele — inclusive leitura, num produto que está no ar. Sem `lock_timeout`, essa
 -- espera não tem fim.
-set local lock_timeout = '3s';
-set local statement_timeout = '30s';
+--
+-- POR QUE `set_config(..., true)` E NÃO `SET LOCAL` (lição do apply de 16/09):
+-- o `db push` manda os comandos num pipeline — atômico, mas SEM bloco de
+-- transação explícito. Nesse modo o `SET LOCAL` vira só um WARNING e não vale
+-- nada (o timeout nunca existiria), e o `LOCK TABLE` de nível superior é
+-- recusado: "LOCK TABLE can only be used in transaction blocks". O primeiro
+-- apply morreu nisso, sem deixar nada. `set_config` local vale até o fim da
+-- transação em qualquer modo, e o lock dentro de um `DO` também.
+select set_config('lock_timeout', '3s', true);
+select set_config('statement_timeout', '30s', true);
 
 -- O lock explícito, ANTES de contar: sem ele, a verificação lê o commitado
 -- naquele instante e uma transação concorrente ainda pode inserir linha
 -- violadora antes de o ALTER pegar o lock. Com ele, a contagem já roda sob o
 -- mesmo lock que o ALTER vai usar — e o `lock_timeout` passa a ter um comando
 -- claro para culpar, em vez de um `alter table` que trava sem explicação.
-lock table public.screener_rhia_result_snapshots in access exclusive mode;
+do $$
+begin
+  if current_setting('lock_timeout') <> '3s' then
+    raise exception 'lock_timeout nao ficou em 3s (esta em %) — sem ele o ALTER pode enfileirar o produto', current_setting('lock_timeout');
+  end if;
+  lock table public.screener_rhia_result_snapshots in access exclusive mode;
+end $$;
 
 -- 2) A VERIFICAÇÃO VEM ANTES DA TROCA ------------------------------------------
 -- Se alguma linha já gravada divergir, é melhor abortar aqui, dizendo quantas e
