@@ -118,7 +118,12 @@ test("fluxo completo: perfil, as duas metades, e o documento com a relação ent
 
   // 5. e o documento imprimível monta a partir disso, sem mais nada
   const html = documentoImprimivel(doc, { instrumentVersion: DEF.instrument_version });
-  assert.ok(html.includes("Ana Souza") && html.includes("Parte 1 · Liderança") && html.includes("Parte 2 · RH"));
+  // Percurso contínuo (referência de 16/09): sem "Parte 1/2", as duas metades
+  // aparecem como seções do mesmo documento.
+  assert.ok(html.includes("Ana Souza"));
+  for (const t of ["As duas leituras, juntas", "Liderança em cinco dimensões", "RH, desenvolvimento e IA em números"]) {
+    assert.ok(html.includes(`${t}</h2>`), `faltou a seção "${t}" no documento vindo do fluxo real`);
+  }
 
   await db.close?.();
 });

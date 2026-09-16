@@ -12,8 +12,10 @@ import { calcularUnificado } from "../unificado/composicao.mjs";
 import itensLideranca from "../unificado/lideranca-itens.json" with { type: "json" };
 import { montarModulo, DESTINO } from "../../scripts/gerar-estilo-documento.mjs";
 import { ESTILO_DOCUMENTO } from "./estilo.mjs";
-import { documentoImprimivel, nomeDoArquivo, ESTILO_SO_DO_PAPEL } from "./imprimivel.mjs";
+import { documentoImprimivel, nomeDoArquivo, ESTILO_SO_DO_PAPEL, FONTE_DO_DOCUMENTO } from "./imprimivel.mjs";
 import { gerarPdf, base64, OPCOES_A4 } from "./pdf.mjs";
+import { montarRecursos, DESTINO_RECURSOS } from "../../scripts/gerar-recursos-documento.mjs";
+import { FONTES_PDF, MARCA_PDF } from "./recursos.mjs";
 
 const PERFIL = { nome: "Ana Souza", empresa: "Boomit", cargo: "Head de RH", nivel: "G", porte: "S3", setor: "V1" };
 
@@ -43,10 +45,18 @@ test("o CSS do documento está EM DIA com os arquivos de frontend/", () => {
 });
 
 test("o CSS do documento é o do produto, com as regras de impressão junto", () => {
-  const rhia = fs.readFileSync("frontend/rhia.css", "utf8");
+  // Normalizado nos dois lados: o CSS vive dentro de um template literal, e o
+  // JavaScript normaliza terminador de linha ao interpretar um. Num arquivo em
+  // CRLF, comparar cru falharia sem que nada estivesse errado.
+  const lf = (t) => t.replace(/\r\n/g, "\n");
+  const rhia = lf(fs.readFileSync("frontend/rhia.css", "utf8"));
   assert.ok(ESTILO_DOCUMENTO.includes("@media print"), "sem as regras de impressão o PDF sai com cara de tela");
   // uma amostra real da folha, para provar que é ELA e não um resumo
-  assert.ok(ESTILO_DOCUMENTO.includes(rhia.trim().slice(0, 200)));
+  assert.ok(lf(ESTILO_DOCUMENTO).includes(rhia.trim().slice(0, 200)));
+  // e as regras novas do documento único vieram junto
+  for (const regra of ["is-serie-a", "is-serie-b", "rh-metrica--par", "rh-capa__quem", "rh-rodape-papel"]) {
+    assert.ok(ESTILO_DOCUMENTO.includes(regra), `faltou ${regra} no CSS que vai ao PDF`);
+  }
 });
 
 test("o CSS gerado fica FORA do diretório publicado", () => {
@@ -63,12 +73,53 @@ function require_sep() { return DESTINO.includes("\\") ? "\\" : "/"; }
 
 test("o documento imprimível é o MESMO da tela, com outra moldura", () => {
   const r = doc();
-  const naTela = renderUnificado(r, { instrumentVersion: "1.0.0", leadHtml: "" });
+  // A única diferença admitida é DE ONDE vêm as imagens da marca.
+  const naTela = renderUnificado(r, { instrumentVersion: "1.0.0", leadHtml: "", marca: MARCA_PDF });
   const noPapel = documentoImprimivel(r, { instrumentVersion: "1.0.0" });
 
   assert.ok(noPapel.includes(naTela), "o corpo tem de ser byte a byte o da tela — dois renderizadores divergem");
   assert.ok(noPapel.startsWith("<!doctype html>"));
   assert.ok(noPapel.includes("<style>"), "autocontido: quem abre é o serviço de impressão, sem os <link> do site");
+});
+
+test("a fonte e a marca vão DENTRO do documento — nada é buscado fora", () => {
+  assert.equal(fs.readFileSync(DESTINO_RECURSOS, "utf8"), montarRecursos(),
+    "screener/documento/recursos.mjs está velho — rode node scripts/gerar-recursos-documento.mjs");
+  const html = documentoImprimivel(doc(), {});
+  // a PP Mori nos três pesos, e só como data URI
+  for (const peso of [400, 500, 600]) assert.ok(FONTES_PDF.includes(`font-weight:${peso}`), `faltou o peso ${peso}`);
+  assert.ok(html.includes('font-family:"PP Mori";src:url(data:font/otf;base64,'));
+  // e o documento USA a fonte: o site rebaixa --font-sans para Inter, e sem
+  // desfazer isso as faces entravam no arquivo sem nenhum texto nelas
+  const iEstilo = html.indexOf(ESTILO_DOCUMENTO), iFonte = html.indexOf(FONTE_DO_DOCUMENTO);
+  assert.ok(FONTE_DO_DOCUMENTO.includes('--font-sans: "PP Mori"'));
+  assert.ok(iEstilo > 0 && iFonte > iEstilo, "a PP Mori tem de vir DEPOIS da folha do site, para vencer a cascata");
+  // logotipo e grafismo embutidos na capa e no cabeçalho de impressão
+  assert.ok(html.includes('class="rh-capa__marca" src="data:image/png;base64,'));
+  assert.ok(html.includes('class="rh-capa__textura" src="data:image/png;base64,'));
+  assert.ok(!html.includes('src="logo-boomit.png"') && !html.includes('src="grafismo-boomit.png"'));
+  // logo-boomit.png é a versão CREME: sem escurecer, some na capa clara (achado
+  // conferindo a prévia — a referência usava a versão preta)
+  assert.ok(ESTILO_DOCUMENTO.includes(".rh-capa__marca, .rh-print-head__marca { filter: brightness(0); }"),
+    "sem o filtro o logotipo creme some na capa clara");
+  // nenhum recurso externo: sem rede, o documento sai igual
+  assert.ok(!/<link[^>]+href=/.test(html), "nenhuma folha externa");
+  assert.ok(!/src="https?:/.test(html) && !/url\(["']?https?:/.test(html), "nenhuma imagem ou fonte remota");
+});
+
+test("a PP Mori fica fora do diretório publicado — é licenciada, não é webfont do site", () => {
+  assert.ok(fs.existsSync("screener/documento/fontes/PPMori-Regular.otf"));
+  const publicados = fs.readdirSync("frontend");
+  assert.ok(!publicados.some((f) => /mori/i.test(f)), "nenhum arquivo da PP Mori em frontend/");
+  assert.ok(!fs.readFileSync("frontend/rhia.html", "utf8").includes("font-face"), "o site não declara a fonte");
+});
+
+test("o que é só do papel fica dentro de @media print — a conferência na tela não mente", () => {
+  const t = ESTILO_SO_DO_PAPEL.trim();
+  assert.ok(t.startsWith("@media print {") && t.endsWith("}"), "nenhuma regra solta fora do bloco de impressão");
+  assert.equal((t.match(/@media/g) || []).length, 1);
+  const html = documentoImprimivel(doc(), {});
+  assert.ok(html.includes('<div class="sc-shell rh-doc">'), "a moldura de documento, com o respiro da referência");
 });
 
 test("o documento força o tema claro — o serviço pode herdar o escuro do sistema", () => {

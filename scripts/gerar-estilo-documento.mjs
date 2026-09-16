@@ -28,7 +28,12 @@ export const DESTINO = path.join(RAIZ, "screener", "documento", "estilo.mjs");
 export function montarCss(raiz = RAIZ) {
   return FONTES
     .map((f) => {
-      const css = fs.readFileSync(path.join(raiz, "frontend", f), "utf8");
+      // Quebra de linha normalizada para LF, sempre. Motivo concreto: este CSS
+      // vai para dentro de um TEMPLATE LITERAL, e o JavaScript normaliza
+      // terminador de linha ao interpretar um — entao o valor em memoria nunca
+      // seria identico a um arquivo em CRLF, e a comparacao com a folha de
+      // origem falharia sem que nada estivesse errado.
+      const css = fs.readFileSync(path.join(raiz, "frontend", f), "utf8").replace(/\r\n/g, "\n");
       return `/* ${f} */\n${css.trim()}`;
     })
     .join("\n\n");

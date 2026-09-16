@@ -627,9 +627,9 @@ function escadaHtml(pos) {
   const degraus = escadaComAtual(pos && pos.stage);
   const li = degraus.map((d) => `<li class="rh-escada__degrau ${d.atual ? "is-atual" : ""}" ${d.atual ? 'aria-current="step"' : ""}>
       <span class="rh-escada__rot">
+        ${d.atual ? `<span class="rh-escada__tag">Degrau atual</span>` : ""}
         <span class="rh-escada__num">Degrau ${d.posicao}</span>
         <span class="rh-escada__nome">${escapeHtml(d.nome)}</span>
-        ${d.atual ? `<span class="rh-escada__tag">Degrau atual</span>` : ""}
       </span>
       <span class="rh-escada__face" aria-hidden="true"></span>
     </li>`).join("");
@@ -662,7 +662,29 @@ function escadaHtml(pos) {
  * As dimensões saem em ordem decrescente: a leitura vira um ranking, que é a
  * pergunta real ("onde estou melhor e onde estou pior"), não um inventário.
  */
-function metricasHtml(m) {
+/**
+ * O anel do índice — o indicador-manchete de cada metade no documento único.
+ *
+ * O ARCO É O VERDE OFICIAL, e é decisão da dona do produto (16/09): só existem
+ * dois anéis no documento, então a escassez do verde se mantém. A parte medida
+ * é chapada e o resto é a mesma pista das barras, para o anel ler como o mesmo
+ * instrumento. Sem degradê e sem sombra.
+ *
+ * O anel é `aria-hidden`: ele é desenho. Quem lê por leitor de tela precisa do
+ * valor em TEXTO — por isso quem usa o anel escreve o número numa frase oculta
+ * visualmente (`rh-sr`). A referência de layout não trazia isso; sem, o
+ * índice some para quem não enxerga a tela.
+ */
+export function anelHtml(valor) {
+  const circ = 2 * Math.PI * 42;
+  const v = Math.max(0, Math.min(100, Math.round(Number(valor) || 0)));
+  return `<figure class="rh-anel" aria-hidden="true">
+           <svg class="rh-anel__svg" viewBox="0 0 100 100" focusable="false"><circle class="rh-anel__pista" cx="50" cy="50" r="42"></circle><circle class="rh-anel__arco" cx="50" cy="50" r="42" stroke-dasharray="${((v / 100) * circ).toFixed(2)} ${circ.toFixed(3)}"></circle></svg>
+           <p class="rh-anel__c"><span class="rh-indice__v">${v}</span><span class="rh-indice__d">de 100</span></p>
+         </figure>`;
+}
+
+function metricasHtml(m, { anel = false } = {}) {
   if (!m || m.indice == null) return "";
   const barra = (valor, forte) => `<span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill ${forte ? "is-forte" : ""}" style="width:${Math.max(0, Math.min(100, valor))}%"></span></span>`;
   const linha = (nome, valor, extra, forte) => `<li class="rh-metrica">
@@ -678,10 +700,14 @@ function metricasHtml(m) {
   const dentro = m.faixa && m.faixa.ate > m.faixa.de
     ? Math.round(((m.indice - m.faixa.de) / (m.faixa.ate - m.faixa.de)) * 100) : null;
 
+  const numero = anel
+    ? anelHtml(m.indice)
+    : `<p class="rh-indice__n"><span class="rh-indice__v">${m.indice}</span><span class="rh-indice__d">de 100</span></p>`;
+  const valorLido = anel ? `<span class="rh-sr">${m.indice} de 100. </span>` : "";
   return `<div class="rh-indice">
-      <p class="rh-indice__n"><span class="rh-indice__v">${m.indice}</span><span class="rh-indice__d">de 100</span></p>
+      ${numero}
       <div class="rh-indice__t">
-        <p class="rh-indice__degrau">${escapeHtml((m.degrau && m.degrau.nome) || "")}</p>
+        <p class="rh-indice__degrau">${valorLido}${escapeHtml((m.degrau && m.degrau.nome) || "")}</p>
         ${m.faixa ? `<p class="rh-indice__faixa">Este degrau vai de ${m.faixa.de} a ${m.faixa.ate}${dentro != null ? `, e você está a ${dentro}% de percorrê-lo` : ""}.</p>` : ""}
         ${m.distancia != null ? `<p class="rh-indice__faixa">${m.distancia === 0
             ? "A referência de atuação aponta para este mesmo degrau."
@@ -717,18 +743,32 @@ function gateHtml(gov, restriction) {
  * opções de apresentação. Puro: sem estado, sem DOM. Os CTAs saem com
  * data-acao para a delegação de eventos do app.
  */
-export function renderResultado(pub, { instrumentVersion = "", leadHtml = "", semCapa = false } = {}) {
+/**
+ * As PEÇAS da devolutiva de IA, com as seções ainda SEM número.
+ *
+ * Existe desde 16/09 porque o documento único precisa INTERCALAR estas seções
+ * com a metade de liderança (a escada, depois a liderança, depois os números de
+ * IA). Enquanto a devolutiva saía inteira de uma função só, isso era impossível
+ * sem embuti-la — e embutir duplicava mapa e síntese no meio do documento.
+ *
+ * Quem monta decide a ordem e a numeração. `renderResultado`, que serve o link
+ * público no ar, monta exatamente como antes — e `screener/rhia/golden/` prova
+ * que a saída dele não mudou.
+ */
+function pecasIA(pub, { instrumentVersion = "" } = {}) {
   const p = pub || {};
   const pos = p.positioning || {}, ref = p.reference || {}, gap = p.gap || {}, sig = p.signature || {};
   const sup = p.supporters || [], lim = p.limiters || [], ten = p.tensions || [];
   const data = formatarData(p.emitido_em);
 
-  // Índice das seções REALMENTE renderizadas, na ordem em que são montadas.
-  // Alimenta o mapa de leitura da capa e o numeral de cada seção.
-  const mapa = [];
+  // As seções REALMENTE existentes, na ordem da devolutiva de IA. Sem número:
+  // quem monta o documento decide onde cada uma entra.
+  const secoes = {};
+  const ordem = [];
   const sec = (id, titulo, sub, corpo, extra = "") => {
-    mapa.push({ id, titulo });
-    return secao(id, titulo, sub, corpo, extra, mapa.length);
+    secoes[id] = { id, titulo, sub, corpo, extra };
+    ordem.push(id);
+    return id;
   };
 
   // 0. Capa — abre acolhendo e só então delimita o que o documento é. A ordem
@@ -845,135 +885,189 @@ export function renderResultado(pub, { instrumentVersion = "", leadHtml = "", se
       <p class="rh-sintese__p">${escapeHtml(sintese)}</p>
     </aside>` : "";
 
-  // `semCapa`: quando esta devolutiva é a SEGUNDA PARTE de um documento maior,
-  // a capa e o cabeçalho de impressão são do documento, não desta metade. O
-  // resto — inclusive a síntese e o mapa desta parte — continua inteiro.
-  const abertura = semCapa ? "" : `${cabecalhoImpressao(p, instrumentVersion)}${s1}`;
-  const corpoHtml = `${blocoSintese}${mapaHtml(mapa)}${s2}${s2b}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}`;
-  if (semCapa) return corpoHtml;
-  return `<article class="rh-result">${abertura}${corpoHtml}</article>`;
+  return { capa: s1, sintese: blocoSintese, secoes, ordem, fecho: s13, oferta, colofao, data };
+}
+
+/** Numera as seções NA ORDEM DADA e devolve o HTML e o mapa de leitura. */
+function numerarSecoes(lista) {
+  const mapa = [];
+  const html = lista.filter(Boolean).map((s) => {
+    mapa.push({ id: s.id, titulo: s.titulo });
+    return secao(s.id, s.titulo, s.sub, s.corpo, s.extra, mapa.length);
+  }).join("");
+  return { html, mapa };
+}
+
+/** A devolutiva de IA do link público — montada exatamente como sempre foi. */
+export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } = {}) {
+  const p = pub || {};
+  const b = pecasIA(p, { instrumentVersion });
+  const { html, mapa } = numerarSecoes(b.ordem.map((id) => b.secoes[id]));
+  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${b.capa}${b.sintese}${mapaHtml(mapa)}${html}${leadHtml}${b.fecho}</article>`;
 }
 
 /** Faixa em reais, sem centavo: a precisão que a estimativa NÃO tem. */
 export function faixaEmReais(min, max) {
   if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-  const f = (v) => "R$ " + Math.round(v).toLocaleString("pt-BR");
-  return `${f(min)} – ${f(max)}`;
+  return `${reais(min)} – ${reais(max)}`;
+}
+/** Um valor em reais, sem centavo. */
+function reais(v) {
+  return "R$ " + Math.round(v).toLocaleString("pt-BR");
 }
 
+/** Onde estão a marca e o grafismo. No PDF, `imprimivel.mjs` troca por data URI. */
+export const MARCA_PADRAO = Object.freeze({ logo: "logo-boomit.png", grafismo: "grafismo-boomit.png" });
+
 /**
- * O DOCUMENTO ÚNICO — as duas leituras e a relação entre elas.
+ * O DOCUMENTO ÚNICO — as duas leituras, a relação entre elas, e um só percurso.
  *
- * O que justifica um documento só não é empilhar um relatório depois do outro:
- * se fosse, bastaria grampear os PDFs. É a RELAÇÃO entre as duas medidas, e por
- * isso ela vem primeiro, logo na capa, antes de qualquer metade.
+ * O LAYOUT É O DA REFERÊNCIA APROVADA EM 16/09 (diagnostico-de-cenario-standalone):
+ * um documento contínuo, numerado de ponta a ponta. A versão anterior empilhava
+ * "Parte 1 · Liderança" e "Parte 2 · RH e IA" com a devolutiva de IA embutida
+ * inteira — e por isso o mapa de leitura e a síntese apareciam DUAS vezes, uma
+ * no começo e outra no meio do documento.
+ *
+ * A ORDEM, e por que é esta: a relação entre as duas medidas abre (é ela que
+ * justifica um documento só); depois a escada, que situa; depois a liderança e
+ * os números de IA lado a lado, os dois indicadores-manchete com o mesmo anel;
+ * e então o resto da leitura de IA — referência, assinatura, forças, tensões,
+ * governança, rota, plano, indicadores, perguntas e o limite da leitura.
  *
  * Não existe índice combinado, aqui nem em lugar nenhum: seria número novo, sem
- * instrumento que o sustente, e ninguém decidiu o peso de cada metade. As duas
- * medidas ficam lado a lado, na mesma escala de 0 a 100, e a ressalva de que são
- * instrumentos distintos viaja junto da leitura — não escondida no fim.
+ * instrumento que o sustente, e ninguém decidiu o peso de cada metade.
  */
-export function renderUnificado(r, { instrumentVersion = "", leadHtml = "" } = {}) {
+export function renderUnificado(r, { instrumentVersion = "", leadHtml = "", marca = MARCA_PADRAO } = {}) {
   const res = r || {};
   const perfil = res.perfil || {};
   const L = res.liderancaPublica || {};
   const cruz = res.cruzamento;
-  const data = formatarData(res.ia && res.ia.emitido_em);
+  const pIA = res.ia || null;
+  const b = pIA ? pecasIA(pIA, { instrumentVersion }) : null;
+  const data = formatarData((pIA && pIA.emitido_em) || res.emitido_em);
 
   const quem = [perfil.nome, perfil.cargo, perfil.empresa].filter(Boolean).map(escapeHtml).join(" · ");
 
+  // --- cabeçalho de impressão: a marca em cada folha, e a versão auditável ----
+  const versao = res.version || (pIA && pIA.version) || "";
+  const partesTopo = ["Diagnóstico de cenário", data ? `Emitido em ${data}` : "",
+    instrumentVersion ? `Instrumento ${instrumentVersion}` : "", versao ? `Devolutiva ${versao}` : ""].filter(Boolean);
+  const topo = `<div class="rh-print-head" aria-hidden="true"><img class="rh-print-head__marca" src="${escapeHtml(marca.logo)}" alt=""><span>${partesTopo.map(escapeHtml).join(" · ")}</span></div>`;
+
+  // --- capa --------------------------------------------------------------------
+  // O logotipo abre: é um documento que sai da Boomit e vai para fora. O
+  // grafismo é textura — grande, cortado pela borda, em baixa opacidade — e some
+  // no papel. A ressalva metodológica não fica mais na capa: ela está inteira no
+  // limite da leitura, no fim, onde é lida como parte do método.
   const capa = `<header class="rh-capa">
+      <img class="rh-capa__textura" src="${escapeHtml(marca.grafismo)}" alt="" aria-hidden="true">
+      <img class="rh-capa__marca" src="${escapeHtml(marca.logo)}" alt="Boomit">
       <p class="sc-eyebrow">Devolutiva</p>
       <h1 class="sc-title sc-title--lg rh-capa__t">Diagnóstico de cenário</h1>
       ${quem ? `<p class="rh-capa__quem">${quem}</p>` : ""}
       <p class="sc-lead rh-capa__lead">Obrigada pelos minutos que você dedicou a responder. Medimos duas coisas distintas: como a estrutura de decisão se organiza, e como a sua área integra pessoas, dados e IA. O documento abre por nenhuma das duas — abre pela <span class="rh-k">distância entre elas</span>, que costuma dizer mais do que cada uma sozinha.</p>
-      <p class="rh-capa__nota">São hipóteses orientativas sobre práticas observáveis no período. Não são avaliação da sua pessoa nem diagnóstico da empresa, e não decidem no seu lugar.</p>
       ${data ? `<p class="rh-capa__data">Emitido em ${escapeHtml(data)}</p>` : ""}
     </header>`;
 
-  const mapa = mapaHtml([
-    { id: "cruzamento", titulo: "As duas leituras, juntas" },
-    { id: "parte-lideranca", titulo: "Parte 1 · Liderança" },
-    { id: "parte-ia", titulo: "Parte 2 · RH, desenvolvimento e IA" },
-  ]);
-
-  // --- a leitura cruzada, que é o que justifica o documento -----------------
-  const barraComparativa = (rotulo, valor, forte) => `<li class="rh-metrica">
+  // --- 01 · a leitura cruzada --------------------------------------------------
+  const barraComparativa = (rotulo, valor, serie) => `<li class="rh-metrica">
       <span class="rh-metrica__n">${escapeHtml(rotulo)}</span>
-      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill ${forte ? "is-forte" : ""}" style="width:${Math.max(0, Math.min(100, valor))}%"></span></span>
+      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill is-serie-${serie}" style="width:${Math.max(0, Math.min(100, valor))}%"></span></span>
       <span class="rh-metrica__v">${valor}</span>
     </li>`;
 
   const secCruz = cruz
-    ? secao("cruzamento", "As duas leituras, juntas",
-        "Medimos as duas na mesma escala de 0 a 100. O que muda decisão não é cada uma sozinha — é a distância entre elas.",
-        `${res.sintese ? `<p class="rh-prosa">${escapeHtml(res.sintese)}</p>` : ""}
+    ? {
+      id: "cruzamento", titulo: "As duas leituras, juntas",
+      sub: "Medimos as duas na mesma escala de 0 a 100. O que muda decisão não é cada uma sozinha — é a distância entre elas.",
+      corpo: `${res.sintese ? `<p class="rh-prosa">${escapeHtml(res.sintese)}</p>` : ""}
          <ul class="rh-metricas">
-           ${barraComparativa("Liderança", cruz.lideranca.valor, true)}
-           ${barraComparativa("RH, desenvolvimento e IA", cruz.ia.valor, true)}
+           ${barraComparativa("Liderança", cruz.lideranca.valor, "a")}
+           ${barraComparativa("RH, desenvolvimento e IA", cruz.ia.valor, "b")}
          </ul>
          <div class="rh-card">
            <h3 class="rh-card__t">${escapeHtml(cruz.padrao.titulo || "")}</h3>
            <p class="rh-card__p">${escapeHtml(cruz.padrao.texto || "")}</p>
            ${cruz.padrao.consequencia ? `<p class="rh-card__p">${escapeHtml(cruz.padrao.consequencia)}</p>` : ""}
          </div>
-         <p class="sc-help sc-muted">${escapeHtml(cruz.ressalva || "")}</p>`, "", 1)
-    : secao("cruzamento", "As duas leituras, juntas",
-        "A leitura cruzada existe quando as duas medidas existem.",
-        `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
+         <p class="sc-help sc-muted">${escapeHtml(cruz.ressalva || "")}</p>`,
+    }
+    : {
+      id: "cruzamento", titulo: "As duas leituras, juntas",
+      sub: "A leitura cruzada existe quando as duas medidas existem.",
+      corpo: `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
            <h3 class="rh-card__t">Este documento traz uma das duas leituras</h3>
            <p class="rh-card__p">A distância entre as duas só pode ser lida com as duas medidas. Com meia medida, a comparação seria afirmação sem evidência — e por isso ela não aparece aqui. A leitura que existe segue inteira abaixo.</p>
-         </div></div>`, "", 1);
+         </div></div>`,
+    };
 
-  // --- parte 1: liderança ---------------------------------------------------
+  // --- 03 · liderança ----------------------------------------------------------
   const dims = (L.dimensoes || []).map((d) => `<li class="rh-metrica rh-metrica--par">
       <span class="rh-metrica__n">${escapeHtml(d.nome)}${d.distancia ? `<span class="rh-metrica__x">distância ${d.distancia}</span>` : ""}</span>
-      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill is-forte" style="width:${Math.max(0, Math.min(100, d.pessoa))}%"></span></span>
+      <span class="rh-metrica__n rh-metrica__n--sub">como você atua</span>
+      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill is-serie-a" style="width:${Math.max(0, Math.min(100, d.pessoa))}%"></span></span>
       <span class="rh-metrica__v">${d.pessoa}</span>
-      <span class="rh-metrica__n rh-metrica__n--sub">na empresa</span>
-      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill" style="width:${Math.max(0, Math.min(100, d.empresa))}%"></span></span>
+      <span class="rh-metrica__n rh-metrica__n--sub">o que a empresa sustenta</span>
+      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill is-serie-b" style="width:${Math.max(0, Math.min(100, d.empresa))}%"></span></span>
       <span class="rh-metrica__v">${d.empresa}</span>
     </li>`).join("");
 
-  const cdlFaixa = L.cdl ? faixaEmReais(L.cdl.min, L.cdl.max) : null;
+  const cdlOk = L.cdl && Number.isFinite(L.cdl.min) && Number.isFinite(L.cdl.max);
   const corpoLideranca = L.status === "OK"
     ? `<div class="rh-indice">
-         <p class="rh-indice__n"><span class="rh-indice__v">${L.maturidade.valor}</span><span class="rh-indice__d">de 100</span></p>
+         ${anelHtml(L.maturidade.valor)}
          <div class="rh-indice__t">
-           <p class="rh-indice__degrau">Estágio ${escapeHtml(L.maturidade.letra)} · ${escapeHtml(L.maturidade.label || "")}</p>
+           <p class="rh-indice__degrau"><span class="rh-sr">${L.maturidade.valor} de 100. </span>Estágio ${escapeHtml(L.maturidade.letra)} · ${escapeHtml(L.maturidade.label || "")}</p>
            ${L.maturidade.diagnostico ? `<p class="rh-indice__faixa">${escapeHtml(L.maturidade.diagnostico)}</p>` : ""}
          </div>
        </div>
        <h3 class="rh-metricas__t">Cada dimensão, por duas lentes</h3>
-       <p class="rh-prosa">A primeira barra traduz como você atua; a segunda, como você lê o que a empresa sustenta. A <span class="rh-k">distância entre elas</span> é o achado desta metade: ela mostra onde a sua prática vai além do que a estrutura acompanha — e onde a estrutura oferece um espaço que ainda não está sendo ocupado.</p>
+       <p class="rh-prosa">Cada dimensão aparece por duas lentes: como você atua, e como você lê o que a empresa sustenta. A <span class="rh-k">distância entre elas</span> é o achado desta metade — ela mostra onde a sua prática vai além do que a estrutura acompanha, e onde a estrutura oferece um espaço que ainda não está sendo ocupado.</p>
        <ul class="rh-metricas">${dims}</ul>
        <div class="rh-card">
          <h3 class="rh-card__t">Risco estratégico: ${L.risco.valor}%</h3>
          <p class="rh-card__p">Traduz a chance de o plano não acontecer com a estrutura de decisão observada no período — nível <span class="rh-k">${escapeHtml(L.risco.nivel || "")}</span>. Não é previsão: é a leitura de quanto o resultado depende hoje de esforço individual em vez de estrutura.</p>
        </div>
-       ${cdlFaixa ? `<div class="rh-card">
-         <h3 class="rh-card__t">Custo da disfuncionalidade: ${escapeHtml(cdlFaixa)} ao ano</h3>
+       ${cdlOk ? `<div class="rh-card rh-card--destaque">
+         <p class="rh-card__k">Custo da disfuncionalidade</p>
+         <p class="rh-card__cifra">${escapeHtml(reais(L.cdl.min))} <span class="rh-card__ate">a</span> ${escapeHtml(reais(L.cdl.max))} <span class="rh-card__unid">ao ano</span></p>
          <p class="rh-card__p">É a estimativa do que a estrutura atual deixa na mesa: retrabalho por decisão que demora, saída de gente boa e execução que trava não aparecem no resultado com esse nome. A faixa considera o porte e o nível de decisão declarados.</p>
-         <p class="rh-card__p">Uma <span class="rh-k">faixa, e não um número</span> — nenhuma estimativa honesta sobre custo invisível dá valor exato. Ela serve para dimensionar a conversa, não para fechar um orçamento.</p>
        </div>` : ""}`
     : `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
          <h3 class="rh-card__t">A leitura de liderança ainda não fecha</h3>
          <p class="rh-card__p">Faltam ${(L.faltantes || []).length || "algumas"} respostas para compor esta metade. O que está aqui é o que foi respondido — nada foi estimado no lugar do que falta, e é por isso que o documento não apresenta um estágio.</p>
        </div></div>`;
 
-  const secLideranca = secao("parte-lideranca", "Parte 1 · Liderança",
-    "Medimos cinco dimensões por duas lentes. O estágio descreve em que patamar a estrutura de decisão joga no período — não é nota de pessoa.",
-    corpoLideranca, "", 2);
+  const secLideranca = {
+    id: "parte-lideranca", titulo: "Liderança em cinco dimensões",
+    sub: "Medimos cinco dimensões por duas lentes. O estágio descreve em que patamar a estrutura de decisão joga no período — não é nota de pessoa.",
+    corpo: corpoLideranca,
+  };
 
-  // --- parte 2: a devolutiva de IA, inteira, sem a capa dela ----------------
-  const secIA = res.ia
-    ? `<section class="rh-sec" id="parte-ia">
-         <h2 class="rh-sec__t"><span class="rh-sec__n">3</span>Parte 2 · RH, desenvolvimento e IA</h2>
-         ${renderResultado(res.ia, { instrumentVersion, leadHtml, semCapa: true })}
-       </section>`
-    : "";
+  // --- 04 · os números de IA, com o mesmo anel da liderança --------------------
+  const secNumeros = b && b.secoes.numeros
+    ? { ...b.secoes.numeros, titulo: "RH, desenvolvimento e IA em números", corpo: metricasHtml(pIA.metricas, { anel: true }) }
+    : null;
 
-  return `<article class="rh-result">${cabecalhoImpressao(res.ia || {}, instrumentVersion)}${capa}${mapa}${secCruz}${secLideranca}${secIA}</article>`;
+  // --- 05 a 14 · o resto da leitura de IA, na ordem dela -----------------------
+  // No documento único a rota é só "Rota de ação": o nome do referencial fica
+  // no corpo, onde explica — no título, ele competia com a leitura.
+  const resto = b
+    ? b.ordem.filter((id) => id !== "escada" && id !== "numeros")
+      .map((id) => (id === "nist" ? { ...b.secoes.nist, titulo: "Rota de ação" } : b.secoes[id]))
+    : [];
+
+  const { html, mapa } = numerarSecoes([
+    secCruz,
+    b && b.secoes.escada,
+    secLideranca,
+    secNumeros,
+    ...resto,
+  ]);
+
+  return `<article class="rh-result">${topo}${capa}${mapaHtml(mapa)}${b ? b.sintese : ""}${html}${leadHtml}${b ? b.fecho : ""}
+    <p class="rh-rodape-papel" aria-hidden="true">Boomit · Diagnóstico de cenário · documento confidencial</p>
+  </article>`;
 }
 
 /** Tela própria para status INSUFFICIENT: mensagem do motor + gate + CTAs. */

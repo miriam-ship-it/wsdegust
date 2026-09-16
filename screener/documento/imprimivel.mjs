@@ -16,9 +16,7 @@
 
 import { renderUnificado } from "../../frontend/rhia.mjs";
 import { ESTILO_DOCUMENTO } from "./estilo.mjs";
-
-/** Fonte da marca, a mesma do produto no ar. PP Mori não é webfont pública. */
-const FONTE = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap";
+import { FONTES_PDF, MARCA_PDF } from "./recursos.mjs";
 
 /**
  * Regras que só existem no papel.
@@ -29,16 +27,32 @@ const FONTE = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&d
  * serviço de impressão pode herdar o escuro do sistema e devolver um PDF preto,
  * e ligar o `printBackground` nas barras — sem elas, um gráfico de barras
  * imprime vazio.
+ *
+ * TUDO dentro de `@media print`. A versão anterior aplicava estas regras também
+ * na tela — abrir o HTML num navegador para conferir mostrava o documento sem
+ * margem nenhuma, e a conferência mentia sobre o que ia ao papel.
  */
 export const ESTILO_SO_DO_PAPEL = `
-:root { color-scheme: light; }
-html, body { background: #FFFFFF; }
-.rh-barra, .rh-barra__fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.sc-shell { max-width: none; padding: 0; }
-.rh-sec { break-inside: auto; }
-.rh-card, .rh-metrica, .rh-cite { break-inside: avoid; }
-h1, h2, h3 { break-after: avoid; }
+@media print {
+  :root { color-scheme: light; }
+  html, body { background: #FFFFFF; }
+  .rh-barra, .rh-barra__fill, .rh-anel { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sc-shell { max-width: none; padding: 0; }
+  .rh-sec { break-inside: auto; }
+  .rh-card, .rh-metrica, .rh-cite { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+}
 `;
+
+/**
+ * A PP Mori de volta ao topo da pilha — só no documento.
+ *
+ * `screener.css` rebaixa `--font-sans` para Inter no site, porque a PP Mori não
+ * pode ser servida como webfont. Sem desfazer isso aqui, as faces embutidas
+ * entravam no arquivo e nenhum texto as usava. Fora do `@media print` de
+ * propósito: quem abre o HTML para conferir vê a mesma letra que vai ao papel.
+ */
+export const FONTE_DO_DOCUMENTO = `:root { --font-sans: "PP Mori", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }`;
 
 /**
  * O documento inteiro, autocontido.
@@ -49,20 +63,23 @@ h1, h2, h3 { break-after: avoid; }
  * @param {string} [o.titulo]  vai na aba e nos metadados do PDF
  */
 export function documentoImprimivel(resultado, { instrumentVersion = "", titulo = "Diagnóstico de cenário" } = {}) {
-  const corpo = renderUnificado(resultado, { instrumentVersion, leadHtml: "" });
+  // A marca vai embutida: o serviço de impressão não tem os arquivos do site, e
+  // um logotipo quebrado na capa é o primeiro que a pessoa vê.
+  const corpo = renderUnificado(resultado, { instrumentVersion, leadHtml: "", marca: MARCA_PDF });
+  // A PP Mori vai dentro do arquivo, e nada é buscado fora: o documento sai
+  // igual mesmo se o serviço de impressão estiver sem rede.
   return `<!doctype html>
 <html lang="pt-BR" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escaparTexto(titulo)}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="${FONTE}" rel="stylesheet">
+<style>${FONTES_PDF}</style>
 <style>${ESTILO_DOCUMENTO}</style>
+<style>${FONTE_DO_DOCUMENTO}</style>
 <style>${ESTILO_SO_DO_PAPEL}</style>
 </head>
-<body><div class="sc-shell">${corpo}</div></body>
+<body><div class="sc-shell rh-doc">${corpo}</div></body>
 </html>`;
 }
 

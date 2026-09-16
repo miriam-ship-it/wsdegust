@@ -29,8 +29,9 @@ export async function gerarPdf(html, { token, fetch: buscar = globalThis.fetch, 
   const resposta = await buscar(`https://chrome.browserless.io/pdf?token=${encodeURIComponent(token)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    // `networkidle0`: o documento busca a fonte da marca. Sem esperar, o PDF sai
-    // com a fonte de sistema — e a diferença só aparece depois de enviado.
+    // `networkidle0`: a fonte e as imagens vão embutidas, mas decodificar data
+    // URI também é assíncrono. Sem esperar, o PDF pode sair com a fonte de
+    // sistema — e a diferença só aparece depois de enviado.
     body: JSON.stringify({ html, options: opcoes, gotoOptions: { waitUntil: "networkidle0" } }),
   });
 

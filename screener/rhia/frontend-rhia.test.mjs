@@ -683,18 +683,77 @@ function respostasDasDuasMetades() {
 }
 const docCompleto = () => calcularUnificado({ perfil: PERFIL_DOC, respostas: respostasDasDuasMetades() });
 
-test("documento único: uma capa só, as duas partes e a leitura cruzada ANTES delas", () => {
+// A ORDEM DA REFERÊNCIA APROVADA EM 16/09 (diagnostico-de-cenario-standalone).
+const ORDEM_DOCUMENTO = [
+  "As duas leituras, juntas",
+  "Onde as práticas se situam",
+  "Liderança em cinco dimensões",
+  "RH, desenvolvimento e IA em números",
+  "Referência de atuação e distância",
+  "Assinatura de posicionamento",
+  "Sustentadores e limitadores",
+  "Tensões relevantes",
+  "Governança",
+  "Rota de ação",
+  "Plano 30–60–90 dias",
+  "Indicadores para começar",
+  "Perguntas para a conversa executiva",
+  "Reavaliação e limite da leitura",
+];
+
+test("documento único: um percurso contínuo, numerado de 01 a 14, na ordem aprovada", () => {
   const html = renderUnificado(docCompleto(), { instrumentVersion: "1.0.0" });
+  const titulos = [...html.matchAll(/<h2 class="rh-sec__title"[^>]*>([^<]+)<\/h2>/g)].map((m) => m[1]);
+  assert.deepEqual(titulos, ORDEM_DOCUMENTO,
+    "a leitura cruzada abre, a escada situa, liderança e números de IA ficam lado a lado");
+  const numeros = [...html.matchAll(/<span class="rh-sec__n"[^>]*>(\d+)<\/span>/g)].map((m) => m[1]);
+  assert.deepEqual(numeros, ORDEM_DOCUMENTO.map((_, i) => String(i + 1).padStart(2, "0")),
+    "numeração corrida: não existe mais Parte 1 e Parte 2");
+});
 
-  assert.equal((html.match(/rh-capa__t/g) || []).length, 1, "duas capas é sinal de dois relatórios grampeados");
-  assert.ok(html.includes("Diagnóstico de cenário"));
-  assert.ok(html.includes("Ana Souza") && html.includes("Head de RH") && html.includes("Boomit"));
+test("documento único: UMA capa, UM mapa, UMA síntese — a versão anterior repetia os dois no meio", () => {
+  const html = renderUnificado(docCompleto(), { instrumentVersion: "1.0.0" });
+  // Conta o TÍTULO da capa, com a aspa: `rh-capa__t` sozinho também casa com
+  // `rh-capa__textura`, que é o grafismo — foi assim que esta asserção contou 2.
+  assert.equal((html.match(/rh-capa__t"/g) || []).length, 1, "duas capas é sinal de dois relatórios grampeados");
+  assert.equal((html.match(/class="rh-mapa"/g) || []).length, 1, "o mapa de leitura aparece uma vez");
+  assert.equal((html.match(/class="rh-sintese"/g) || []).length, 1, "a síntese aparece uma vez");
+  assert.ok(!/Parte [12] ·/.test(html));
+  // o mapa vem antes da síntese, e os dois antes da primeira seção
+  const iMapa = html.indexOf('class="rh-mapa"'), iSint = html.indexOf('class="rh-sintese"');
+  const iPrimeira = html.indexOf("As duas leituras, juntas</h2>");
+  assert.ok(iMapa < iSint && iSint < iPrimeira);
+  // o mapa lista exatamente as seções que existem
+  const doMapa = [...html.matchAll(/<span class="rh-mapa__t">([^<]+)<\/span>/g)].map((m) => m[1]);
+  assert.deepEqual(doMapa, ORDEM_DOCUMENTO);
+});
 
-  const iCruz = html.indexOf("As duas leituras, juntas");
-  const iLid = html.indexOf("Parte 1 · Liderança");
-  const iIA = html.indexOf("Parte 2 · RH");
-  assert.ok(iCruz > 0 && iLid > iCruz && iIA > iLid,
-    "a relação entre as medidas vem primeiro: é ela que justifica um documento só");
+test("documento único: a capa leva logotipo e grafismo, e quem respondeu", () => {
+  const html = renderUnificado(docCompleto(), { instrumentVersion: "1.0.0" });
+  const capa = html.slice(html.indexOf('<header class="rh-capa">'), html.indexOf("</header>"));
+  assert.match(capa, /class="rh-capa__marca" src="logo-boomit\.png" alt="Boomit"/, "o logotipo tem texto alternativo");
+  assert.match(capa, /class="rh-capa__textura" src="grafismo-boomit\.png" alt="" aria-hidden="true"/,
+    "o grafismo é textura: sem alt, fora da árvore de acessibilidade");
+  assert.ok(capa.includes("Ana Souza · Head de RH · Boomit"));
+  assert.ok(!capa.includes("rh-capa__nota"), "a ressalva saiu da capa e vive inteira no limite da leitura");
+  assert.ok(html.includes("Limite da leitura."), "e continua no documento");
+});
+
+test("documento único: a marca pode vir de outro lugar — é assim que o PDF a embute", () => {
+  const html = renderUnificado(docCompleto(), { marca: { logo: "data:image/png;base64,AAA", grafismo: "data:image/png;base64,BBB" } });
+  assert.ok(html.includes('src="data:image/png;base64,AAA"'));
+  assert.ok(html.includes('src="data:image/png;base64,BBB"'));
+  assert.ok(!html.includes("logo-boomit.png"));
+});
+
+test("documento único: os dois indicadores-manchete usam o mesmo anel — e o valor existe em texto", () => {
+  const r = docCompleto();
+  const html = renderUnificado(r, {});
+  assert.equal((html.match(/class="rh-anel"/g) || []).length, 2, "um anel por metade, e só dois no documento");
+  // o anel é desenho: sem o texto oculto, o índice some para leitor de tela
+  assert.ok(html.includes(`<span class="rh-sr">${r.liderancaPublica.maturidade.valor} de 100. </span>`));
+  assert.ok(html.includes(`<span class="rh-sr">${r.ia.metricas.indice} de 100. </span>`));
+  for (const m of html.matchAll(/<figure class="rh-anel"([^>]*)>/g)) assert.match(m[1], /aria-hidden="true"/);
 });
 
 test("documento único: a metade de liderança mostra as duas lentes e a faixa em reais", () => {
@@ -703,9 +762,19 @@ test("documento único: a metade de liderança mostra as duas lentes e a faixa e
   for (const d of r.liderancaPublica.dimensoes) {
     assert.ok(html.includes(escapeHtml(d.nome)), `faltou a dimensão ${d.nome}`);
   }
-  assert.ok(html.includes("na empresa"), "sem a segunda lente, some a distância que é o achado");
+  // A série é rotulada NA PRÓPRIA LINHA, não numa legenda à parte: legenda
+  // separada obriga a ir e voltar com os olhos entre a cor e o nome.
+  assert.ok(html.includes("como você atua") && html.includes("o que a empresa sustenta"),
+    "sem a segunda lente rotulada, some a distância que é o achado");
+  assert.ok(html.includes("is-serie-a") && html.includes("is-serie-b"),
+    "as duas séries precisam de cores distintas, na ordem de luminância da marca");
   assert.ok(html.includes(`${r.liderancaPublica.risco.valor}%`));
-  assert.ok(html.includes(faixaEmReais(r.liderancaPublica.cdl.min, r.liderancaPublica.cdl.max)));
+  // O custo é o número mais pesado do documento: ganha cartão em destaque e linha
+  // própria para a cifra, em vez de ir dentro de um título.
+  const { min, max } = r.liderancaPublica.cdl;
+  const reais = (v) => "R$ " + Math.round(v).toLocaleString("pt-BR");
+  assert.match(html, /<div class="rh-card rh-card--destaque">\s*<p class="rh-card__k">Custo da disfuncionalidade<\/p>/);
+  assert.ok(html.includes(`<p class="rh-card__cifra">${reais(min)} <span class="rh-card__ate">a</span> ${reais(max)} <span class="rh-card__unid">ao ano</span></p>`));
 });
 
 test("documento único: NÃO existe índice combinado nem soma das duas metades", () => {
@@ -734,7 +803,8 @@ test("documento único: com meia medida, a leitura cruzada ADMITE em vez de afir
   assert.match(html, /leitura de liderança ainda não fecha/, "diz que a metade não fecha, sem rotular ninguém");
   assert.match(html, /nada foi estimado no lugar do que falta/, "e diz o que NÃO fez");
   assert.ok(!html.includes("Liderança está à frente"), "sem as duas medidas não há distância a declarar");
-  assert.ok(html.includes("Parte 2 · RH"), "a metade que existe continua inteira");
+  assert.ok(html.includes("Onde as práticas se situam") && html.includes("RH, desenvolvimento e IA em números"),
+    "a metade que existe continua inteira");
 });
 
 test("documento único: o que a pessoa digitou no perfil é escapado", () => {
@@ -751,17 +821,16 @@ test("faixa em reais: sem centavo, e sem faixa quando não há número", () => {
   assert.equal(faixaEmReais(1.4, 2.6), "R$ 1 – R$ 3");
 });
 
-test("a devolutiva de IA sabe ser a segunda parte de um documento maior", () => {
+test("a devolutiva de IA do link público continua com a rota nomeada e o número solto", () => {
+  // O documento único compõe as MESMAS seções em outra ordem; o link público não
+  // muda. A prova byte a byte está em screener/rhia/golden/ — aqui ficam só as
+  // duas diferenças que existem de propósito entre os dois documentos.
   const r = docCompleto();
-  const sozinha = renderResultado(r.ia, { instrumentVersion: "1.0.0" });
-  const embutida = renderResultado(r.ia, { instrumentVersion: "1.0.0", semCapa: true });
-
-  assert.ok(sozinha.includes("rh-capa__t"), "sozinha, ela abre com a própria capa");
-  assert.ok(!embutida.includes("rh-capa__t"), "embutida, a capa é do documento");
-  assert.ok(!embutida.startsWith("<article"), "embutida, o <article> também é do documento");
-  // e o corpo continua inteiro
-  assert.ok(embutida.includes("Onde as práticas se situam"));
-  assert.ok(embutida.length > sozinha.length * 0.7);
+  const publico = renderResultado(r.ia, { instrumentVersion: "1.0.0" });
+  assert.ok(publico.includes("Rota de ação — NIST AI RMF"), "no link público o referencial fica no título");
+  assert.ok(!publico.includes('class="rh-anel"'), "no link público o índice é o número, sem anel");
+  const unico = renderUnificado(r, { instrumentVersion: "1.0.0" });
+  assert.ok(unico.includes(">Rota de ação</h2>"), "no documento único o título é só a rota");
 });
 
 test("rascunho do perfil: sobrevive a fechar o navegador na PRIMEIRA tela", () => {
