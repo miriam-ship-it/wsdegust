@@ -1088,6 +1088,55 @@ do formulário único apontar para instrumento que colete perfil.
 
 ---
 
+### Snapshot aceita outros instrumentos — migration aplicada · 16/09/2026 · **aplicada na segunda tentativa**
+
+**O que muda:** `screener_rhia_snap_contract` deixa de exigir a constante
+`2.0.0-pilot` e passa a exigir que a versão dentro do contrato seja a da coluna
+`report_version` (e não nula). Entram também `report_version <> ''` e
+`scoring_version <> ''`. Sem isto, finalizar o formulário único morreria no CHECK.
+
+**Preflight (leitura):** só `20260916140000` pendente no ledger; tabela de
+`screener_owner`, RLS ligada; 3 snapshots, todos `2.0.0-pilot`, nenhum sem versão,
+nenhuma coluna vazia, nenhuma divergência entre contrato e coluna; nenhum lock e
+nenhuma consulta ativa na tabela.
+
+**Primeira tentativa — falhou sem deixar nada.** `ERROR: LOCK TABLE can only be
+used in transaction blocks`. O `db push` manda os comandos em pipeline: atômico,
+mas sem bloco de transação explícito. Conferido logo depois: ledger sem a
+migration, restrição antiga intacta, nenhum lock, e a única filiação a
+`screener_owner` é a antiga (`postgres`, concedida por `supabase_admin`).
+
+**A lição que vale mais que o erro:** no mesmo modo, `SET LOCAL` de nível superior
+é só WARNING — o `lock_timeout` de 3s **nunca teria existido**, e isso passaria em
+silêncio. Correção (commit próprio): timeouts por `set_config(..., true)`, lock
+dentro de `DO` que antes confere o `lock_timeout`. Teste novo
+(`screener/loader/migrations-pipeline.test.mjs`) varre todas as migrations por
+`LOCK TABLE`/`SET LOCAL` fora de `DO`; pega as três linhas da versão anterior. As
+migrations já aplicadas só usam `set local` dentro de `DO` — não foram afetadas.
+
+**Segunda tentativa:** dry-run com só ela na fila, `npx supabase db push --linked`,
+aplicada.
+
+**Verificação pós-apply (toda de leitura):**
+
+| O quê | Resultado |
+|---|---|
+| Ledger | `20260916140000` registrada |
+| `screener_rhia_snap_contract` | `version IS NOT NULL AND version = report_version`; sem `2.0.0-pilot` |
+| Restrições novas | `snap_report_version` e `snap_scoring_version` presentes |
+| Demais CHECKs | os 4 anteriores intactos |
+| Tabela | dono `screener_owner`, RLS ligada, **zero policy**, ACL só da dona |
+| Imutabilidade | `trg_screener_rhia_snapshot_no_update` presente |
+| Filiação a `screener_owner` | inalterada (o `revoke` do fim rodou) |
+| Snapshots | os mesmos 3 |
+| Locks de outras sessões | 0 |
+
+**Ordem daqui em diante:** a migration já está no banco, então o redeploy da edge
+com `podeFinalizar: true` do formulário único está **liberado quando for
+autorizado** — não antes. O formulário continua inerte até a carga do instrumento.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
@@ -1105,3 +1154,5 @@ do formulário único apontar para instrumento que colete perfil.
 - [x] Passo 8 — purga agendada e verificada em produção (14/09/2026).
 - [x] Ponte com a liderança — migration aplicada e verificada (15/09/2026), depois de três rodadas de revisão.
 - [x] Perfil do formulário único — migration aplicada e verificada (16/09/2026); entra inerte até a carga do instrumento.
+- [x] Snapshot aceita outros instrumentos — migration aplicada e verificada (16/09/2026), na segunda tentativa; a primeira não deixou resíduo.
+- [ ] Redeploy da edge com o formulário único finalizável — liberado pela ordem, aguarda autorização.
