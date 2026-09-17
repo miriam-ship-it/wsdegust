@@ -33,20 +33,20 @@ const PADROES = {
   INTEGRADO: {
     id: "INTEGRADO",
     titulo: "Liderança e adoção de IA no mesmo patamar",
-    texto: "As duas leituras chegam a patamares próximos. Nenhuma das metades puxa a outra, o que costuma significar que o próximo avanço depende de mover as duas juntas — ganhar em IA sem ganhar em liderança, ou o contrário, esbarra rápido.",
-    consequencia: "A frente que aparece como limitadora nos dois lados é onde o mesmo esforço rende duas vezes — e é por onde a conversa de desenvolvimento tende a render mais.",
+    texto: "As duas leituras chegam a patamares próximos. Não há uma metade puxando a outra, o que significa que o próximo avanço tende a depender de mover as duas juntas — ganhar em IA sem ganhar em liderança, ou o contrário, costuma esbarrar rápido.",
+    consequencia: "Priorize uma frente que apareça como limitadora nos dois lados: é onde o mesmo esforço rende duas vezes.",
   },
   LIDERANCA_ADIANTE: {
     id: "LIDERANCA_ADIANTE",
     titulo: "A liderança está à frente da adoção de IA",
-    texto: "A maturidade de liderança observada está consideravelmente acima da integração entre pessoas, dados e IA. Existe estrutura de decisão sustentando um avanço que ainda não aconteceu.",
-    consequencia: "É o cenário mais favorável para acelerar: a capacidade de decidir já está instalada, e a oportunidade está em aplicá-la à agenda de dados e IA. O ponto de atenção é confundir maturidade de gestão com prontidão técnica — são coisas diferentes, e só a primeira aparece aqui.",
+    texto: "A maturidade de liderança observada é consideravelmente maior que a de integração entre pessoas, dados e IA. Há estrutura de decisão para sustentar um avanço que ainda não aconteceu.",
+    consequencia: "É o cenário mais favorável para acelerar: a capacidade de decidir já existe, e o que falta é aplicá-la à agenda de dados e IA. O risco aqui é confundir maturidade de gestão com prontidão técnica.",
   },
   IA_ADIANTE: {
     id: "IA_ADIANTE",
     titulo: "A adoção de IA está à frente da liderança que a sustenta",
-    texto: "A integração de dados, pessoas e IA está mais avançada que a maturidade de liderança medida. Na prática, a tecnologia anda mais rápido do que a estrutura que decide sobre ela.",
-    consequencia: "É o cenário que mais pede atenção: avanço técnico sem lastro de decisão costuma produzir iniciativa isolada, retrabalho e dependência de poucas pessoas. A alavanca que mais destrava, antes de escalar, é a camada que prioriza e responde pelo que a IA faz.",
+    texto: "A integração de dados, pessoas e IA aparece mais avançada que a maturidade de liderança medida. Na prática, a tecnologia está andando mais rápido do que a estrutura que decide sobre ela.",
+    consequencia: "É o cenário que mais exige atenção: avanço técnico sem lastro de decisão tende a produzir iniciativa isolada, retrabalho e dependência de poucas pessoas. Antes de escalar, vale fortalecer a camada que prioriza e responde pelo que a IA faz.",
   },
 };
 
@@ -99,17 +99,17 @@ export function cruzar(lideranca, ia) {
 export function sinteseCruzada({ lideranca, ia, cruzamento }) {
   const frases = [];
   if (lideranca) {
-    frases.push(`A leitura de liderança posiciona a organização no estágio ${lideranca.letra}, com ${lideranca.score100} de 100.`);
+    frases.push(`Na leitura de liderança, a organização aparece no estágio ${lideranca.letra}, com ${lideranca.score100} de 100.`);
     if (lideranca.label) frases.push(`É um patamar ${lideranca.label.toLowerCase()}.`);
   }
   if (ia && ia.degrau) {
-    frases.push(`Em RH, desenvolvimento e IA, as práticas se situam no degrau ${ia.degrau.nome}, com ${ia.indice} de 100.`);
+    frases.push(`Na leitura de RH, desenvolvimento e IA, as práticas se situam no degrau ${ia.degrau.nome}, com ${ia.indice} de 100.`);
   }
   if (cruzamento) {
     frases.push(`${cruzamento.padrao.titulo}: ${cruzamento.padrao.texto}`);
     frases.push(cruzamento.padrao.consequencia);
   } else {
-    frases.push("Este documento traz uma das duas leituras; a distância entre elas só pode ser lida quando as duas existem.");
+    frases.push("Este documento traz apenas uma das duas leituras; a leitura cruzada aparece quando as duas existem.");
   }
   return frases.join(" ");
 }

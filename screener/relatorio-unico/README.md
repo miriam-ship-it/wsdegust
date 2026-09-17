@@ -96,23 +96,10 @@ como certa.
 
 ## Próximo passo, depois da decisão
 
-1. ~~A ponte no banco~~ — **aplicada em 15/09** (registro em
-   [`DEPLOY.md`](../rhia/DEPLOY.md)), depois de três rodadas de revisão. Duas regras que a
-   revisão obrigou a mudar, e que valem para quem for ler o documento:
-   - **ambiguidade é divergência, não contagem.** Duas linhas com o mesmo
-     e-mail são a mesma pessoa em dois eventos, não duas pessoas; só nome ou
-     empresa divergentes indicam caixa compartilhada. Sem divergência, liga à
-     linha mais recente — e ainda assim como *provável*;
-   - **a ponte não lê `respondentes` por grant.** A tabela tem RLS e nenhuma
-     policy alcança `screener_owner`: a leitura passa por duas funções de
-     pergunta fechada, donas do lado de lá, que devolvem id e contagens —
-     nunca nome ou empresa em texto.
-2. ~~A emissão do convite e o consumo dele~~ — escritos, testados e **inertes no
-   ar até dois secrets serem definidos**. O caminho inteiro e os passos para
-   ligar estão em [`screener/ponte/`](../ponte/README.md).
-3. O renderizador do documento: capa com a pessoa, síntese cruzada, as duas
+1. A ponte no banco (migration própria, revisada).
+2. O renderizador do documento: capa com a pessoa, síntese cruzada, as duas
    partes e o fecho. As duas metades já produzem seus blocos; o que falta é a
    costura e um lugar só para o CSS de impressão.
-4. Um caminho de geração: hoje o PDF de liderança sai por `browserless` na edge
+3. Um caminho de geração: hoje o PDF de liderança sai por `browserless` na edge
    `gate-and-send` e o de IA sai pela impressão do navegador. O documento único
    precisa de **um** caminho, e o da edge é o que já entrega por e-mail.

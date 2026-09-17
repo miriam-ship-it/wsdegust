@@ -82,61 +82,6 @@ export function lerEvento(search, padrao = EVENTO_PADRAO) {
   return v || padrao;
 }
 
-// O CONVITE DA LIDERANÇA, na chegada.
-//
-// Estas duas funções existem também em `screener/ponte/convite.mjs`, que é quem
-// EMITE o convite do outro lado. A duplicação é deliberada: esta página é
-// servida como módulo único e sem dependências, e puxar um arquivo de fora
-// significaria publicar mais um. São dez linhas e dois testes de cada lado; o
-// formato — 64 caracteres hexa — é o mesmo que o CHECK da tabela exige.
-
-const FORMATO_CONVITE = /^[0-9a-f]{64}$/;
-
-/** Lê o convite da URL de chegada, e só se tiver a forma certa. */
-export function convitePresenteNaUrl(href) {
-  let v = null;
-  try { v = new URL(href).searchParams.get("convite"); } catch { return null; }
-  return v && FORMATO_CONVITE.test(v) ? v : null;
-}
-
-/**
- * A mesma URL sem o convite, para trocar a barra de endereço assim que ele for
- * lido. Enquanto está lá, o código viaja em histórico, em "compartilhar esta
- * página" e no `Referer` de qualquer link clicado depois.
- */
-export function urlSemConvite(href) {
-  const u = new URL(href);
-  u.searchParams.delete("convite");
-  return u.pathname + (u.searchParams.toString() ? "?" + u.searchParams.toString() : "") + u.hash;
-}
-
-/**
- * O PERFIL — só existe quando o instrumento traz o bloco.
- *
- * O link público do diagnóstico é anônimo e a definição dele não tem `perfil`,
- * então esta tela simplesmente não acontece lá. O código entra inerte e o DADO
- * decide — a mesma regra que governa a tabela no banco.
- *
- * Devolve o que FALTA, nunca um booleano solto: a tela precisa dizer qual campo
- * está pendente, e "está incompleto" não ajuda ninguém a terminar. A validação
- * aqui é conveniência; a autoridade é o servidor, que confere de novo contra a
- * definição guardada.
- */
-export function perfilFaltantes(campos, valores) {
-  const faltam = [];
-  for (const campo of campos || []) {
-    if (!campo || !campo.obrigatorio) continue;
-    const bruto = valores ? valores[campo.id] : null;
-    const texto = typeof bruto === "string" ? bruto.trim() : "";
-    if (!texto) { faltam.push(campo.id); continue; }
-    if (campo.tipo === "escolha" && !(campo.opcoes || []).some((o) => o.id === texto)) {
-      faltam.push(campo.id); continue;
-    }
-    if (campo.tipo === "texto" && campo.maximo && texto.length > campo.maximo) faltam.push(campo.id);
-  }
-  return faltam;
-}
-
 /**
  * Cabeçalhos de uma requisição à edge. A credencial só em `x-preview-key`; o
  * token só em `x-session-token`. `content-type` só quando há corpo.
@@ -434,46 +379,15 @@ export function descreverErro(status, body) {
 export function chaveArmazenamento(evento) {
   return PREFIXO_ARMAZENAMENTO + (evento || EVENTO_PADRAO);
 }
-/**
- * Guarda só { token, pos, tela, convite }. Devolve false se o armazenamento falhar.
- *
- * O CONVITE FICA GUARDADO ATÉ SER CONSUMIDO. Ele é tirado da barra de endereço
- * assim que chega (lá ele viajaria em histórico, em "compartilhar" e em
- * `Referer`), e sem guardá-lo em algum lugar um simples recarregar da página
- * perderia a ponte em silêncio — que é exatamente a falha que a ponte inteira
- * existe para evitar. Aqui ele não sai do aparelho da própria pessoa, e não dá
- * acesso a nada.
- */
+/** Guarda só { token, pos, tela }. Devolve false se o armazenamento falhar. */
 export function guardarSessao(evento, dados, store) {
   try {
     const s = store || globalThis.localStorage;
-    const min = { token: dados.token, pos: dados.pos | 0, tela: dados.tela || null,
-                  convite: FORMATO_CONVITE.test(dados.convite || "") ? dados.convite : null,
-                  perfil: rascunhoLimpo(dados.perfil) };
+    const min = { token: dados.token, pos: dados.pos | 0, tela: dados.tela || null };
     s.setItem(chaveArmazenamento(evento), JSON.stringify(min));
     return true;
   } catch { return false; }
 }
-/**
- * O rascunho do perfil, aparado para caber no armazenamento local.
- *
- * SÓ TEXTO, E SÓ ATÉ SER ACEITO PELO SERVIDOR. É a primeira tela de um
- * questionário de 43 respostas sem pausa: quem digita nome, empresa e cargo e
- * fecha o navegador antes de continuar perderia justamente o trabalho que já
- * tinha feito. O rascunho vive no aparelho da própria pessoa — o mesmo que vai
- * exibir a devolutiva — e é apagado no instante em que o servidor o aceita.
- */
-export function rascunhoLimpo(valores) {
-  if (!valores || typeof valores !== "object") return null;
-  const out = {};
-  for (const [k, v] of Object.entries(valores)) {
-    if (typeof k !== "string" || k.length > 40) continue;
-    if (typeof v !== "string" || !v.trim()) continue;
-    out[k] = v.slice(0, 200);
-  }
-  return Object.keys(out).length ? out : null;
-}
-
 export function lerSessao(evento, store) {
   try {
     const s = store || globalThis.localStorage;
@@ -481,9 +395,7 @@ export function lerSessao(evento, store) {
     if (!v) return null;
     const d = JSON.parse(v);
     if (!d || typeof d.token !== "string" || !d.token) return null;
-    return { token: d.token, pos: Number.isFinite(d.pos) ? d.pos : 0, tela: typeof d.tela === "string" ? d.tela : null,
-             convite: FORMATO_CONVITE.test(d.convite || "") ? d.convite : null,
-             perfil: rascunhoLimpo(d.perfil) };
+    return { token: d.token, pos: Number.isFinite(d.pos) ? d.pos : 0, tela: typeof d.tela === "string" ? d.tela : null };
   } catch { return null; }
 }
 export function limparSessao(evento, store) {
@@ -494,7 +406,7 @@ export function limparSessao(evento, store) {
 
 /** Hash de cada tela (telas transitórias não tocam a URL). */
 export const HASH_DA_TELA = Object.freeze({
-  abertura: "abertura", perfil: "perfil", contexto: "contexto", questoes: "questoes", revisao: "revisao",
+  abertura: "abertura", contexto: "contexto", questoes: "questoes", revisao: "revisao",
   lead_gate: "resultado", resultado: "resultado", insuficiente: "resultado", erro: "erro",
 });
 
@@ -503,15 +415,10 @@ export const HASH_DA_TELA = Object.freeze({
  * sessão → abertura; #revisao sem sessão → abertura; sessão aberta só anda
  * entre contexto/questões/revisão; sessão submetida só vê resultado/revisão.
  */
-export function telaDoHash(hash, { temSessao = false, submitido = false, contextoOk = false, perfilOk = true } = {}) {
+export function telaDoHash(hash, { temSessao = false, submitido = false, contextoOk = false } = {}) {
   const h = String(hash || "").replace(/^#/, "");
   if (!temSessao) return "abertura";
   if (submitido) return h === "revisao" ? "revisao" : "resultado";
-  // O perfil vem antes de tudo: sem porte e nível não existe faixa de CDL, e
-  // descobrir isso no fim obrigaria a pessoa a voltar. `perfilOk` nasce `true`
-  // para que o fluxo anônimo — que não tem perfil — não mude de comportamento.
-  if (!perfilOk) return "perfil";
-  if (h === "perfil") return "perfil";
   if (h === "contexto") return "contexto";
   if (h === "questoes" || h === "revisao") return contextoOk ? h : "contexto";
   return contextoOk ? "questoes" : "contexto";
@@ -558,11 +465,6 @@ export function criarCliente({ edgeUrl, anonKey, transporte } = {}) {
     enviar: (previewKey, token) => chamar("POST", "/rhia/submit", { corpo: {}, previewKey, token }),
     resultado: (previewKey, token) => chamar("GET", "/rhia/result", { previewKey, token }),
     lead: (previewKey, token, dados) => chamar("POST", "/rhia/lead", { corpo: dados, previewKey, token }),
-    // O convite vai no CORPO, nunca em query: é de uso único e não tem por que
-    // ficar em log de servidor.
-    vincular: (previewKey, token, convite) => chamar("POST", "/rhia/vincular", { corpo: { convite }, previewKey, token }),
-    salvarPerfil: (previewKey, token, valores) => chamar("POST", "/rhia/perfil", { corpo: valores, previewKey, token }),
-    lerPerfil: (previewKey, token) => chamar("GET", "/rhia/perfil", { previewKey, token }),
   };
 }
 
@@ -627,9 +529,9 @@ function escadaHtml(pos) {
   const degraus = escadaComAtual(pos && pos.stage);
   const li = degraus.map((d) => `<li class="rh-escada__degrau ${d.atual ? "is-atual" : ""}" ${d.atual ? 'aria-current="step"' : ""}>
       <span class="rh-escada__rot">
-        ${d.atual ? `<span class="rh-escada__tag">Degrau atual</span>` : ""}
         <span class="rh-escada__num">Degrau ${d.posicao}</span>
         <span class="rh-escada__nome">${escapeHtml(d.nome)}</span>
+        ${d.atual ? `<span class="rh-escada__tag">Degrau atual</span>` : ""}
       </span>
       <span class="rh-escada__face" aria-hidden="true"></span>
     </li>`).join("");
@@ -662,29 +564,7 @@ function escadaHtml(pos) {
  * As dimensões saem em ordem decrescente: a leitura vira um ranking, que é a
  * pergunta real ("onde estou melhor e onde estou pior"), não um inventário.
  */
-/**
- * O anel do índice — o indicador-manchete de cada metade no documento único.
- *
- * O ARCO É O VERDE OFICIAL, e é decisão da dona do produto (16/09): só existem
- * dois anéis no documento, então a escassez do verde se mantém. A parte medida
- * é chapada e o resto é a mesma pista das barras, para o anel ler como o mesmo
- * instrumento. Sem degradê e sem sombra.
- *
- * O anel é `aria-hidden`: ele é desenho. Quem lê por leitor de tela precisa do
- * valor em TEXTO — por isso quem usa o anel escreve o número numa frase oculta
- * visualmente (`rh-sr`). A referência de layout não trazia isso; sem, o
- * índice some para quem não enxerga a tela.
- */
-export function anelHtml(valor) {
-  const circ = 2 * Math.PI * 42;
-  const v = Math.max(0, Math.min(100, Math.round(Number(valor) || 0)));
-  return `<figure class="rh-anel" aria-hidden="true">
-           <svg class="rh-anel__svg" viewBox="0 0 100 100" focusable="false"><circle class="rh-anel__pista" cx="50" cy="50" r="42"></circle><circle class="rh-anel__arco" cx="50" cy="50" r="42" stroke-dasharray="${((v / 100) * circ).toFixed(2)} ${circ.toFixed(3)}"></circle></svg>
-           <p class="rh-anel__c"><span class="rh-indice__v">${v}</span><span class="rh-indice__d">de 100</span></p>
-         </figure>`;
-}
-
-function metricasHtml(m, { anel = false } = {}) {
+function metricasHtml(m) {
   if (!m || m.indice == null) return "";
   const barra = (valor, forte) => `<span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill ${forte ? "is-forte" : ""}" style="width:${Math.max(0, Math.min(100, valor))}%"></span></span>`;
   const linha = (nome, valor, extra, forte) => `<li class="rh-metrica">
@@ -700,14 +580,10 @@ function metricasHtml(m, { anel = false } = {}) {
   const dentro = m.faixa && m.faixa.ate > m.faixa.de
     ? Math.round(((m.indice - m.faixa.de) / (m.faixa.ate - m.faixa.de)) * 100) : null;
 
-  const numero = anel
-    ? anelHtml(m.indice)
-    : `<p class="rh-indice__n"><span class="rh-indice__v">${m.indice}</span><span class="rh-indice__d">de 100</span></p>`;
-  const valorLido = anel ? `<span class="rh-sr">${m.indice} de 100. </span>` : "";
   return `<div class="rh-indice">
-      ${numero}
+      <p class="rh-indice__n"><span class="rh-indice__v">${m.indice}</span><span class="rh-indice__d">de 100</span></p>
       <div class="rh-indice__t">
-        <p class="rh-indice__degrau">${valorLido}${escapeHtml((m.degrau && m.degrau.nome) || "")}</p>
+        <p class="rh-indice__degrau">${escapeHtml((m.degrau && m.degrau.nome) || "")}</p>
         ${m.faixa ? `<p class="rh-indice__faixa">Este degrau vai de ${m.faixa.de} a ${m.faixa.ate}${dentro != null ? `, e você está a ${dentro}% de percorrê-lo` : ""}.</p>` : ""}
         ${m.distancia != null ? `<p class="rh-indice__faixa">${m.distancia === 0
             ? "A referência de atuação aponta para este mesmo degrau."
@@ -743,32 +619,18 @@ function gateHtml(gov, restriction) {
  * opções de apresentação. Puro: sem estado, sem DOM. Os CTAs saem com
  * data-acao para a delegação de eventos do app.
  */
-/**
- * As PEÇAS da devolutiva de IA, com as seções ainda SEM número.
- *
- * Existe desde 16/09 porque o documento único precisa INTERCALAR estas seções
- * com a metade de liderança (a escada, depois a liderança, depois os números de
- * IA). Enquanto a devolutiva saía inteira de uma função só, isso era impossível
- * sem embuti-la — e embutir duplicava mapa e síntese no meio do documento.
- *
- * Quem monta decide a ordem e a numeração. `renderResultado`, que serve o link
- * público no ar, monta exatamente como antes — e `screener/rhia/golden/` prova
- * que a saída dele não mudou.
- */
-function pecasIA(pub, { instrumentVersion = "" } = {}) {
+export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } = {}) {
   const p = pub || {};
   const pos = p.positioning || {}, ref = p.reference || {}, gap = p.gap || {}, sig = p.signature || {};
   const sup = p.supporters || [], lim = p.limiters || [], ten = p.tensions || [];
   const data = formatarData(p.emitido_em);
 
-  // As seções REALMENTE existentes, na ordem da devolutiva de IA. Sem número:
-  // quem monta o documento decide onde cada uma entra.
-  const secoes = {};
-  const ordem = [];
+  // Índice das seções REALMENTE renderizadas, na ordem em que são montadas.
+  // Alimenta o mapa de leitura da capa e o numeral de cada seção.
+  const mapa = [];
   const sec = (id, titulo, sub, corpo, extra = "") => {
-    secoes[id] = { id, titulo, sub, corpo, extra };
-    ordem.push(id);
-    return id;
+    mapa.push({ id, titulo });
+    return secao(id, titulo, sub, corpo, extra, mapa.length);
   };
 
   // 0. Capa — abre acolhendo e só então delimita o que o documento é. A ordem
@@ -885,189 +747,7 @@ function pecasIA(pub, { instrumentVersion = "" } = {}) {
       <p class="rh-sintese__p">${escapeHtml(sintese)}</p>
     </aside>` : "";
 
-  return { capa: s1, sintese: blocoSintese, secoes, ordem, fecho: s13, oferta, colofao, data };
-}
-
-/** Numera as seções NA ORDEM DADA e devolve o HTML e o mapa de leitura. */
-function numerarSecoes(lista) {
-  const mapa = [];
-  const html = lista.filter(Boolean).map((s) => {
-    mapa.push({ id: s.id, titulo: s.titulo });
-    return secao(s.id, s.titulo, s.sub, s.corpo, s.extra, mapa.length);
-  }).join("");
-  return { html, mapa };
-}
-
-/** A devolutiva de IA do link público — montada exatamente como sempre foi. */
-export function renderResultado(pub, { instrumentVersion = "", leadHtml = "" } = {}) {
-  const p = pub || {};
-  const b = pecasIA(p, { instrumentVersion });
-  const { html, mapa } = numerarSecoes(b.ordem.map((id) => b.secoes[id]));
-  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${b.capa}${b.sintese}${mapaHtml(mapa)}${html}${leadHtml}${b.fecho}</article>`;
-}
-
-/** Faixa em reais, sem centavo: a precisão que a estimativa NÃO tem. */
-export function faixaEmReais(min, max) {
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-  return `${reais(min)} – ${reais(max)}`;
-}
-/** Um valor em reais, sem centavo. */
-function reais(v) {
-  return "R$ " + Math.round(v).toLocaleString("pt-BR");
-}
-
-/** Onde estão a marca e o grafismo. No PDF, `imprimivel.mjs` troca por data URI. */
-export const MARCA_PADRAO = Object.freeze({ logo: "logo-boomit.png", grafismo: "grafismo-boomit.png" });
-
-/**
- * O DOCUMENTO ÚNICO — as duas leituras, a relação entre elas, e um só percurso.
- *
- * O LAYOUT É O DA REFERÊNCIA APROVADA EM 16/09 (diagnostico-de-cenario-standalone):
- * um documento contínuo, numerado de ponta a ponta. A versão anterior empilhava
- * "Parte 1 · Liderança" e "Parte 2 · RH e IA" com a devolutiva de IA embutida
- * inteira — e por isso o mapa de leitura e a síntese apareciam DUAS vezes, uma
- * no começo e outra no meio do documento.
- *
- * A ORDEM, e por que é esta: a relação entre as duas medidas abre (é ela que
- * justifica um documento só); depois a escada, que situa; depois a liderança e
- * os números de IA lado a lado, os dois indicadores-manchete com o mesmo anel;
- * e então o resto da leitura de IA — referência, assinatura, forças, tensões,
- * governança, rota, plano, indicadores, perguntas e o limite da leitura.
- *
- * Não existe índice combinado, aqui nem em lugar nenhum: seria número novo, sem
- * instrumento que o sustente, e ninguém decidiu o peso de cada metade.
- */
-export function renderUnificado(r, { instrumentVersion = "", leadHtml = "", marca = MARCA_PADRAO } = {}) {
-  const res = r || {};
-  const perfil = res.perfil || {};
-  const L = res.liderancaPublica || {};
-  const cruz = res.cruzamento;
-  const pIA = res.ia || null;
-  const b = pIA ? pecasIA(pIA, { instrumentVersion }) : null;
-  const data = formatarData((pIA && pIA.emitido_em) || res.emitido_em);
-
-  const quem = [perfil.nome, perfil.cargo, perfil.empresa].filter(Boolean).map(escapeHtml).join(" · ");
-
-  // --- cabeçalho de impressão: a marca em cada folha, e a versão auditável ----
-  const versao = res.version || (pIA && pIA.version) || "";
-  const partesTopo = ["Diagnóstico de cenário", data ? `Emitido em ${data}` : "",
-    instrumentVersion ? `Instrumento ${instrumentVersion}` : "", versao ? `Devolutiva ${versao}` : ""].filter(Boolean);
-  const topo = `<div class="rh-print-head" aria-hidden="true"><img class="rh-print-head__marca" src="${escapeHtml(marca.logo)}" alt=""><span>${partesTopo.map(escapeHtml).join(" · ")}</span></div>`;
-
-  // --- capa --------------------------------------------------------------------
-  // O logotipo abre: é um documento que sai da Boomit e vai para fora. O
-  // grafismo é textura — grande, cortado pela borda, em baixa opacidade — e some
-  // no papel. A ressalva metodológica não fica mais na capa: ela está inteira no
-  // limite da leitura, no fim, onde é lida como parte do método.
-  const capa = `<header class="rh-capa">
-      <img class="rh-capa__textura" src="${escapeHtml(marca.grafismo)}" alt="" aria-hidden="true">
-      <img class="rh-capa__marca" src="${escapeHtml(marca.logo)}" alt="Boomit">
-      <p class="sc-eyebrow">Devolutiva</p>
-      <h1 class="sc-title sc-title--lg rh-capa__t">Diagnóstico de cenário</h1>
-      ${quem ? `<p class="rh-capa__quem">${quem}</p>` : ""}
-      <p class="sc-lead rh-capa__lead">Obrigada pelos minutos que você dedicou a responder. Medimos duas coisas distintas: como a estrutura de decisão se organiza, e como a sua área integra pessoas, dados e IA. O documento abre por nenhuma das duas — abre pela <span class="rh-k">distância entre elas</span>, que costuma dizer mais do que cada uma sozinha.</p>
-      ${data ? `<p class="rh-capa__data">Emitido em ${escapeHtml(data)}</p>` : ""}
-    </header>`;
-
-  // --- 01 · a leitura cruzada --------------------------------------------------
-  const barraComparativa = (rotulo, valor, serie) => `<li class="rh-metrica">
-      <span class="rh-metrica__n">${escapeHtml(rotulo)}</span>
-      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill is-serie-${serie}" style="width:${Math.max(0, Math.min(100, valor))}%"></span></span>
-      <span class="rh-metrica__v">${valor}</span>
-    </li>`;
-
-  const secCruz = cruz
-    ? {
-      id: "cruzamento", titulo: "As duas leituras, juntas",
-      sub: "Medimos as duas na mesma escala de 0 a 100. O que muda decisão não é cada uma sozinha — é a distância entre elas.",
-      corpo: `${res.sintese ? `<p class="rh-prosa">${escapeHtml(res.sintese)}</p>` : ""}
-         <ul class="rh-metricas">
-           ${barraComparativa("Liderança", cruz.lideranca.valor, "a")}
-           ${barraComparativa("RH, desenvolvimento e IA", cruz.ia.valor, "b")}
-         </ul>
-         <div class="rh-card">
-           <h3 class="rh-card__t">${escapeHtml(cruz.padrao.titulo || "")}</h3>
-           <p class="rh-card__p">${escapeHtml(cruz.padrao.texto || "")}</p>
-           ${cruz.padrao.consequencia ? `<p class="rh-card__p">${escapeHtml(cruz.padrao.consequencia)}</p>` : ""}
-         </div>
-         <p class="sc-help sc-muted">${escapeHtml(cruz.ressalva || "")}</p>`,
-    }
-    : {
-      id: "cruzamento", titulo: "As duas leituras, juntas",
-      sub: "A leitura cruzada existe quando as duas medidas existem.",
-      corpo: `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
-           <h3 class="rh-card__t">Este documento traz uma das duas leituras</h3>
-           <p class="rh-card__p">A distância entre as duas só pode ser lida com as duas medidas. Com meia medida, a comparação seria afirmação sem evidência — e por isso ela não aparece aqui. A leitura que existe segue inteira abaixo.</p>
-         </div></div>`,
-    };
-
-  // --- 03 · liderança ----------------------------------------------------------
-  const dims = (L.dimensoes || []).map((d) => `<li class="rh-metrica rh-metrica--par">
-      <span class="rh-metrica__n">${escapeHtml(d.nome)}${d.distancia ? `<span class="rh-metrica__x">distância ${d.distancia}</span>` : ""}</span>
-      <span class="rh-metrica__n rh-metrica__n--sub">como você atua</span>
-      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill is-serie-a" style="width:${Math.max(0, Math.min(100, d.pessoa))}%"></span></span>
-      <span class="rh-metrica__v">${d.pessoa}</span>
-      <span class="rh-metrica__n rh-metrica__n--sub">o que a empresa sustenta</span>
-      <span class="rh-barra" aria-hidden="true"><span class="rh-barra__fill is-serie-b" style="width:${Math.max(0, Math.min(100, d.empresa))}%"></span></span>
-      <span class="rh-metrica__v">${d.empresa}</span>
-    </li>`).join("");
-
-  const cdlOk = L.cdl && Number.isFinite(L.cdl.min) && Number.isFinite(L.cdl.max);
-  const corpoLideranca = L.status === "OK"
-    ? `<div class="rh-indice">
-         ${anelHtml(L.maturidade.valor)}
-         <div class="rh-indice__t">
-           <p class="rh-indice__degrau"><span class="rh-sr">${L.maturidade.valor} de 100. </span>Estágio ${escapeHtml(L.maturidade.letra)} · ${escapeHtml(L.maturidade.label || "")}</p>
-           ${L.maturidade.diagnostico ? `<p class="rh-indice__faixa">${escapeHtml(L.maturidade.diagnostico)}</p>` : ""}
-         </div>
-       </div>
-       <h3 class="rh-metricas__t">Cada dimensão, por duas lentes</h3>
-       <p class="rh-prosa">Cada dimensão aparece por duas lentes: como você atua, e como você lê o que a empresa sustenta. A <span class="rh-k">distância entre elas</span> é o achado desta metade — ela mostra onde a sua prática vai além do que a estrutura acompanha, e onde a estrutura oferece um espaço que ainda não está sendo ocupado.</p>
-       <ul class="rh-metricas">${dims}</ul>
-       <div class="rh-card">
-         <h3 class="rh-card__t">Risco estratégico: ${L.risco.valor}%</h3>
-         <p class="rh-card__p">Traduz a chance de o plano não acontecer com a estrutura de decisão observada no período — nível <span class="rh-k">${escapeHtml(L.risco.nivel || "")}</span>. Não é previsão: é a leitura de quanto o resultado depende hoje de esforço individual em vez de estrutura.</p>
-       </div>
-       ${cdlOk ? `<div class="rh-card rh-card--destaque">
-         <p class="rh-card__k">Custo da disfuncionalidade</p>
-         <p class="rh-card__cifra">${escapeHtml(reais(L.cdl.min))} <span class="rh-card__ate">a</span> ${escapeHtml(reais(L.cdl.max))} <span class="rh-card__unid">ao ano</span></p>
-         <p class="rh-card__p">É a estimativa do que a estrutura atual deixa na mesa: retrabalho por decisão que demora, saída de gente boa e execução que trava não aparecem no resultado com esse nome. A faixa considera o porte e o nível de decisão declarados.</p>
-       </div>` : ""}`
-    : `<div class="rh-card rh-card--info"><div class="rh-card__ic">${ICONE.info}</div><div>
-         <h3 class="rh-card__t">A leitura de liderança ainda não fecha</h3>
-         <p class="rh-card__p">Faltam ${(L.faltantes || []).length || "algumas"} respostas para compor esta metade. O que está aqui é o que foi respondido — nada foi estimado no lugar do que falta, e é por isso que o documento não apresenta um estágio.</p>
-       </div></div>`;
-
-  const secLideranca = {
-    id: "parte-lideranca", titulo: "Liderança em cinco dimensões",
-    sub: "Medimos cinco dimensões por duas lentes. O estágio descreve em que patamar a estrutura de decisão joga no período — não é nota de pessoa.",
-    corpo: corpoLideranca,
-  };
-
-  // --- 04 · os números de IA, com o mesmo anel da liderança --------------------
-  const secNumeros = b && b.secoes.numeros
-    ? { ...b.secoes.numeros, titulo: "RH, desenvolvimento e IA em números", corpo: metricasHtml(pIA.metricas, { anel: true }) }
-    : null;
-
-  // --- 05 a 14 · o resto da leitura de IA, na ordem dela -----------------------
-  // No documento único a rota é só "Rota de ação": o nome do referencial fica
-  // no corpo, onde explica — no título, ele competia com a leitura.
-  const resto = b
-    ? b.ordem.filter((id) => id !== "escada" && id !== "numeros")
-      .map((id) => (id === "nist" ? { ...b.secoes.nist, titulo: "Rota de ação" } : b.secoes[id]))
-    : [];
-
-  const { html, mapa } = numerarSecoes([
-    secCruz,
-    b && b.secoes.escada,
-    secLideranca,
-    secNumeros,
-    ...resto,
-  ]);
-
-  return `<article class="rh-result">${topo}${capa}${mapaHtml(mapa)}${b ? b.sintese : ""}${html}${leadHtml}${b ? b.fecho : ""}
-    <p class="rh-rodape-papel" aria-hidden="true">Boomit · Diagnóstico de cenário · documento confidencial</p>
-  </article>`;
+  return `<article class="rh-result">${cabecalhoImpressao(p, instrumentVersion)}${s1}${blocoSintese}${mapaHtml(mapa)}${s2}${s2b}${s3}${s4}${s5}${s6}${s7}${s8}${s9}${s10}${s11}${s12}${leadHtml}${s13}</article>`;
 }
 
 /** Tela própria para status INSUFFICIENT: mensagem do motor + gate + CTAs. */
@@ -1111,42 +791,7 @@ export function iniciarApp(cfg) {
     leadMode: "optional_after_submit", leadEnviado: false, leadEnviando: false, leadErro: null, leadErroCampo: false,
     salvando: 0, salvoRecente: false, erroTopo: null, tentandoEnviar: false,
     erro: null, storageOk: true, ignorarHash: false,
-    convite: null, avisoPonte: null,
-    perfilCampos: [], perfilValores: {}, perfilErro: null, perfilFaltam: [], perfilSalvando: false,
-    perfilSalvo: false,
   };
-
-  // --- o convite da liderança, se a pessoa chegou por ele ---
-  // Lê-se da barra de endereço e TIRA-SE DA BARRA no mesmo instante: enquanto
-  // está lá, o código viaja em histórico, em "compartilhar esta página" e no
-  // `Referer` de qualquer link clicado depois. Ele é de uso único e não dá
-  // acesso a nada — mas não há razão para deixá-lo circular.
-  st.convite = convitePresenteNaUrl(String(loc.href || "")) || (lerSessao(evento, store) || {}).convite || null;
-  if (st.convite) {
-    try {
-      const limpa = urlSemConvite(String(loc.href));
-      if (globalThis.history && globalThis.history.replaceState) globalThis.history.replaceState(null, "", limpa);
-    } catch { /* barra de endereço é conforto, não requisito */ }
-  }
-
-  /**
-   * Troca o convite pela ligação entre as duas metades. Silencioso quando não
-   * há o que fazer; nunca impede a pessoa de responder.
-   *
-   * O aviso na tela existe porque o contrário seria a falha que esta ponte
-   * inteira combate: perder a ligação sem ninguém saber. Quando o link não é
-   * aceito, dizemos o que ainda pode acontecer — a reconciliação pelo e-mail no
-   * fim — em vez de só lamentar.
-   */
-  async function trocarConvite() {
-    if (!st.convite || !st.token) return;
-    const r = await cliente.vincular(st.previewKey, st.token, st.convite);
-    // 0 é rede caída, 429/503 é temporário: guarda-se o convite para a próxima.
-    if (r.status === 0 || r.status === 429 || r.status === 503) return;
-    st.avisoPonte = r.status === 200 ? "ok" : "falhou";
-    st.convite = null;
-    persistir();
-  }
   let rastrear = criarRastreador(globalThis.SCREENER_RHIA_ANALYTICS, null);
 
   // --- tema ---
@@ -1172,50 +817,12 @@ export function iniciarApp(cfg) {
     st.erro = { ...descreverErro(status, body), retry: retry || null };
     st.erroTopo = null; irPara("erro");
   }
-  // O rascunho do perfil viaja na persistência SÓ enquanto o servidor não o
-  // tem. Depois de aceito, `st.perfilSalvo` fica true e ele para de ser gravado
-  // — nome, empresa e cargo não ficam no aparelho um minuto a mais que o preciso.
-  const persistir = () => {
-    const ok = guardarSessao(evento, {
-      token: st.token, pos: st.pos, tela: st.tela, convite: st.convite,
-      perfil: st.perfilSalvo ? null : st.perfilValores,
-    }, store);
-    if (!ok) st.storageOk = false;
-  };
+  const persistir = () => { const ok = guardarSessao(evento, { token: st.token, pos: st.pos, tela: st.tela }, store); if (!ok) st.storageOk = false; };
   const contextoOk = () => contextoCompleto(st.contexto, st.respostas, st.textoOutro, st.cf).ok;
-  /** Sem bloco de perfil, não há o que completar — e o fluxo anônimo segue igual. */
-  const perfilOk = () => !st.perfilCampos.length || perfilFaltantes(st.perfilCampos, st.perfilValores).length === 0;
-
-  async function concluirPerfil() {
-    const faltam = perfilFaltantes(st.perfilCampos, st.perfilValores);
-    st.perfilFaltam = faltam;
-    if (faltam.length) {
-      st.perfilErro = null; pintar();
-      return focar(`#rh-perfil-${faltam[0]}`);
-    }
-    st.perfilSalvando = true; st.perfilErro = null; pintar();
-    const r = await cliente.salvarPerfil(st.previewKey, st.token, st.perfilValores);
-    st.perfilSalvando = false;
-    if (r.status !== 200) {
-      // O servidor confere de novo, contra a definição guardada. Quando ele
-      // recusa um campo, é esse campo que precisa ficar em evidência.
-      const campo = r.body && r.body.campo;
-      st.perfilFaltam = campo && campo !== 'tamanho' ? [campo] : [];
-      st.perfilErro = mensagemErro(r.status, r.body);
-      pintar();
-      return focar(campo ? `#rh-perfil-${campo}` : null);
-    }
-    st.perfilErro = null; st.perfilFaltam = [];
-    st.perfilSalvo = true;   // o servidor é o dono agora; o rascunho local sai
-    persistir(); irPara('contexto');
-  }
 
   // --- rede ---
   function aplicarApresentacao(body) {
     st.instrument = body.instrument; st.groups = body.groups || []; st.itens = body.items || [];
-    // Ausente no instrumento anônimo — e é essa ausência que mantém a tela
-    // de perfil fora do caminho de quem responde o link público.
-    if (Array.isArray(body.perfil)) st.perfilCampos = body.perfil;
     st.contexto = st.itens.filter((it) => it.group === "contexto");
     st.flat = st.itens.filter((it) => it.group !== "contexto");
     st.cf = campoCondicional(st.itens);
@@ -1238,11 +845,9 @@ export function iniciarApp(cfg) {
     if (r.status !== 201) { st.erroTopo = mensagemErro(r.status, r.body); return pintar(); }
     st.token = r.body.token; aplicarApresentacao(r.body);
     st.respostas = {}; st.textoOutro = ""; st.textoErro = null; st.pos = 0; st.submitido = false; st.resultado = null; st.leadEnviado = false; st.modoLeitura = false;
-    const primeira = st.perfilCampos.length ? "perfil" : "contexto";
-    st.tela = primeira; persistir();
+    st.tela = "contexto"; persistir();
     rastrear("assessment_started");
-    irPara(primeira);
-    trocarConvite().then(pintar, () => {});
+    irPara("contexto");
   }
   async function retomar(salva) {
     st.token = salva.token; st.tela = "carregando"; pintar();
@@ -1257,24 +862,9 @@ export function iniciarApp(cfg) {
     if (st.submitido) return carregarResultado();
     const nova = primeiraNaoRespondida(st.flat, st.respostas);
     st.pos = Math.min(Number.isFinite(salva.pos) ? salva.pos : nova, Math.max(0, st.flat.length - 1));
-    // Quem retoma pode ter fechado a aba antes de preencher o perfil: quem sabe
-    // se ele existe é o servidor, não o armazenamento local.
-    if (st.perfilCampos.length) {
-      // O rascunho local devolve quem parou no meio da PRIMEIRA tela; o servidor
-      // vence sempre que já tem algo, porque foi ele que validou.
-      if (salva.perfil) st.perfilValores = { ...salva.perfil };
-      const pf = await cliente.lerPerfil(st.previewKey, st.token);
-      if (pf.status === 200 && pf.body && pf.body.perfil) {
-        st.perfilValores = { ...pf.body.perfil };
-        st.perfilSalvo = true;
-      }
-    }
     const hashAtual = String(loc.hash || "").replace(/^#/, "");
-    const alvo = telaDoHash(hashAtual || salva.tela || "", {
-      temSessao: true, submitido: false, contextoOk: contextoOk(), perfilOk: perfilOk(),
-    });
+    const alvo = telaDoHash(hashAtual || salva.tela || "", { temSessao: true, submitido: false, contextoOk: contextoOk() });
     persistir(); irPara(alvo);
-    trocarConvite().then(pintar, () => {});
   }
   // `repintar: false` = atualização leve (sem trocar o DOM). Necessário para o
   // texto livre: o blur do campo dispara `change` no MEIO de um clique numa
@@ -1466,13 +1056,6 @@ export function iniciarApp(cfg) {
     </header>`;
   }
   const noteTopo = () => st.erroTopo ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.erroTopo)}</span></div>` : "";
-  const notePonte = () => {
-    if (!st.avisoPonte) return "";
-    if (st.avisoPonte === "ok") {
-      return `<div class="sc-note" role="status">${ICONE.check}<span>Reconhecemos o seu diagnóstico de liderança. As duas leituras vão para o mesmo documento.</span></div>`;
-    }
-    return `<div class="sc-note" role="status">${ICONE.info}<span>Não foi possível usar o link do seu diagnóstico de liderança — ele vale uma vez só e por tempo limitado. Siga normalmente: no fim, o contato que você deixar pode reunir as duas leituras.</span></div>`;
-  };
   const avisoStorage = () => st.storageOk ? "" : `<div class="sc-note rh-note--warning" role="status">${ICONE.aviso}<span>Este navegador não permite guardar o progresso; se você atualizar a página, o preenchimento recomeça.</span></div>`;
   function autosaveHtml() {
     if (st.salvando > 0) return `<span class="sc-save sc-save--ativo" role="status">Salvando…</span>`;
@@ -1527,43 +1110,6 @@ export function iniciarApp(cfg) {
   // avanço ao escolher. A ÚNICA exceção é o campo de texto de "Outro": ali o
   // avanço espera o texto ficar válido, senão a pessoa seria empurrada para
   // frente antes de escrever.
-  function telaPerfil() {
-    const campo = (c) => {
-      const pendente = st.perfilFaltam.includes(c.id);
-      const idHtml = `rh-perfil-${escapeHtml(c.id)}`;
-      const valor = st.perfilValores[c.id] || "";
-      const aria = pendente ? `aria-invalid="true" aria-describedby="${idHtml}-erro"` : "";
-      const erro = pendente
-        ? `<p class="rh-field__erro" id="${idHtml}-erro" role="alert">${ICONE.info}<span>Preencha para continuar.</span></p>` : "";
-      const controle = c.tipo === "escolha"
-        ? `<select class="sc-input" id="${idHtml}" data-acao="perfil" data-campo="${escapeHtml(c.id)}" ${aria} required>
-             <option value="">Selecione…</option>
-             ${(c.opcoes || []).map((o) => `<option value="${escapeHtml(o.id)}" ${o.id === valor ? "selected" : ""}>${escapeHtml(o.rotulo)}</option>`).join("")}
-           </select>`
-        : `<input class="sc-input" id="${idHtml}" type="text" data-acao="perfil" data-campo="${escapeHtml(c.id)}"
-             value="${escapeHtml(valor)}" maxlength="${c.maximo || 120}" autocomplete="${c.id === "nome" ? "name" : c.id === "empresa" ? "organization" : "organization-title"}" ${aria} required>`;
-      return `<div class="sc-field">
-        <label class="sc-label" for="${idHtml}">${escapeHtml(c.rotulo)}</label>
-        ${controle}${erro}
-      </div>`;
-    };
-    const erroTopo = st.perfilErro
-      ? `<div class="sc-note sc-note--danger" role="alert">${ICONE.info}<span>${escapeHtml(st.perfilErro)}</span></div>` : "";
-    return `<div class="sc-card">
-      ${progressoHtml("", "Antes de começar")}
-      <p class="sc-eyebrow">Antes de começar</p>
-      <h1 class="sc-title">Sobre você e a sua empresa</h1>
-      <p class="sc-lead">Porte e nível de decisão mudam a leitura: a mesma resposta significa coisas diferentes numa equipe de dez e numa de mil.</p>
-      ${avisoStorage()}${erroTopo}
-      <form class="sc-leadform" data-acao="form-perfil" novalidate>
-        ${st.perfilCampos.map(campo).join("")}
-        <div class="sc-actions">
-          <button class="sc-btn sc-btn--primary" type="submit" ${st.perfilSalvando ? "disabled" : ""}>${st.perfilSalvando ? "Salvando…" : `Continuar ${ICONE.seta}`}</button>
-        </div>
-      </form>
-    </div>`;
-  }
-
   function telaContexto() {
     if (st.posCtx == null) st.posCtx = Math.max(0, primeiraNaoRespondida(st.contexto, st.respostas));
     if (st.posCtx > st.contexto.length - 1) st.posCtx = st.contexto.length - 1;
@@ -1592,7 +1138,7 @@ export function iniciarApp(cfg) {
       </p>`;
 
     return `${progressoHtml("", `Pergunta ${it.order} de ${st.itens.length}`)}
-      ${avisoStorage()}${noteTopo()}${notePonte()}
+      ${avisoStorage()}${noteTopo()}
       <div class="rh-pilha">
         ${antesHtml}
         <article class="sc-item rh-pilha__atual" id="sc-questao" tabindex="-1" aria-label="Pergunta ${it.order} de ${st.itens.length}">
@@ -1720,11 +1266,6 @@ export function iniciarApp(cfg) {
     const leadHtml = (st.leadMode === "optional_after_submit")
       ? `<section class="rh-sec rh-sec--lead"><div class="sc-card sc-card--lead">${formLeadHtml("Vamos conversar?", "Se quiser aprofundar esta leitura com a Boomit, deixe seu contato.")}</div></section>` : "";
     const version = st.instrument && st.instrument.version;
-    // O formato do resultado decide qual documento sai. Quando a metade de
-    // liderança vem junto, o que se entrega é o documento único — e a leitura
-    // cruzada, que é o que justifica juntar, abre o documento.
-    const ehUnificado = st.resultado && (st.resultado.liderancaPublica || st.resultado.cruzamento);
-    if (ehUnificado) return renderUnificado(st.resultado, { instrumentVersion: version, leadHtml });
     return renderResultado(st.resultado, { instrumentVersion: version, leadHtml });
   }
   function telaInsuficiente() {
@@ -1758,7 +1299,6 @@ export function iniciarApp(cfg) {
   function corpo() {
     switch (st.tela) {
       case "abertura": return telaAbertura();
-      case "perfil": return telaPerfil();
       case "contexto": return telaContexto();
       case "questoes": return telaQuestoes();
       case "revisao": return telaRevisao();
@@ -1822,9 +1362,7 @@ export function iniciarApp(cfg) {
     const acao = alvo.getAttribute("data-acao");
     if (alvo.getAttribute("aria-disabled") === "true") { if (acao === "concluir-contexto") concluirContexto(); return; }
     const fns = {
-      tema: alternarTema, comecar,
-      continuar: () => irPara(!perfilOk() ? "perfil" : contextoOk() ? "questoes" : "contexto"),
-      "concluir-perfil": concluirPerfil,
+      tema: alternarTema, comecar, continuar: () => irPara(contextoOk() ? "questoes" : "contexto"),
       "voltar-abertura": () => irPara("abertura"), "concluir-contexto": concluirContexto,
       "voltar-nav": voltar, "avancar-nav": avancar, "voltar-item": () => irPara("questoes"),
       enviar, recomecar: () => recomecar(true), "recomecar-sem-confirmar": () => recomecar(false),
@@ -1844,18 +1382,6 @@ export function iniciarApp(cfg) {
   raiz.addEventListener("change", (ev) => {
     const alvo = ev.target; if (!alvo.getAttribute) return;
     const acao = alvo.getAttribute("data-acao");
-    if (acao === "perfil") {
-      // Guarda e some com a marca de pendência DAQUELE campo, sem repintar a
-      // tela: repintar no meio da digitação tira o foco de quem está escrevendo.
-      const campo = alvo.getAttribute("data-campo");
-      st.perfilValores = { ...st.perfilValores, [campo]: alvo.value };
-      persistir(); // cada campo preenchido sobrevive a fechar o navegador
-      if (st.perfilFaltam.includes(campo) && !perfilFaltantes(st.perfilCampos, st.perfilValores).includes(campo)) {
-        st.perfilFaltam = st.perfilFaltam.filter((c) => c !== campo);
-        refrescarLeve();
-      }
-      return;
-    }
     if (acao === "resposta") {
       const item = alvo.getAttribute("data-item"), opcao = alvo.getAttribute("data-opcao");
       if (st.cf && item === st.cf.itemId) {
@@ -1882,11 +1408,6 @@ export function iniciarApp(cfg) {
   });
   raiz.addEventListener("input", (ev) => {
     const alvo = ev.target; if (!alvo.getAttribute) return;
-    if (alvo.getAttribute("data-acao") === "perfil") {
-      st.perfilValores = { ...st.perfilValores, [alvo.getAttribute("data-campo")]: alvo.value };
-      persistir(); // o que está sendo digitado também sobrevive
-      return;
-    }
     if (alvo.getAttribute("data-acao") === "texto-outro") { st.textoOutro = alvo.value; if (st.textoErro) st.textoErro = null; refrescarLeve(); }
   });
   raiz.addEventListener("submit", (ev) => {
@@ -1895,10 +1416,6 @@ export function iniciarApp(cfg) {
       ev.preventDefault();
       const nome = form.querySelector("#sc-lead-nome"); const email = form.querySelector("#sc-lead-email"); const opt = form.querySelector("#sc-lead-opt");
       enviarLead(nome && nome.value, email && email.value, opt && opt.checked);
-    }
-    if (form.getAttribute("data-acao") === "form-perfil") {
-      ev.preventDefault();
-      concluirPerfil();
     }
   });
 

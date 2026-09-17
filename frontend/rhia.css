@@ -99,9 +99,6 @@
 .sc-btn[aria-disabled="true"] { background: var(--action-disabled-bg); color: var(--action-disabled-fg); cursor: not-allowed; }
 .rh-note--warning { background: var(--status-warning-bg); color: var(--status-warning-fg); border: 1px solid var(--status-warning-border); }
 .rh-progress__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
-/* Texto só para leitor de tela. O anel do índice é desenho (aria-hidden); o valor
-   dele precisa existir em texto para quem não enxerga a tela. */
-.rh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; padding: 0; border: 0; }
 .sc-opt { position: relative; }
 
 /* --- Questões: pilha com vizinhos esmaecidos ------------------------------
@@ -205,36 +202,16 @@
 /* =========================================================================
    DEVOLUTIVA (documento, não dashboard)
    ========================================================================= */
-.rh-result { max-width: var(--medida); margin: 0 auto; }
+.rh-result { max-width: 65ch; margin: 0 auto; }
 
 /* --- Capa ------------------------------------------------------------------
    O documento abre como documento: respiro generoso, título grande, o que a
    leitura é dita em prosa acolhedora e só então a ressalva metodológica. A
    superfície quente separa a capa do miolo sem usar cor de marca. */
-.rh-capa { position: relative; overflow: hidden; background: var(--bg-surface-warm); border-radius: var(--radius-xl); padding: var(--space-12) var(--space-10) var(--space-10); margin-top: var(--space-6); }
-/* No documento avulso o respiro de topo é do .sc-shell.rh-doc; a capa encosta nele. */
-.rh-doc .rh-capa { margin-top: 0; }
-/* Grafismo como textura: grande, cortado pela borda, 8% de opacidade. Nunca
-   ilustração, nunca ícone. Fica atrás do conteúdo e some na impressão. */
-.rh-capa__textura { position: absolute; right: -150px; bottom: -190px; width: 480px; opacity: .08; pointer-events: none; }
-.rh-capa > *:not(.rh-capa__textura) { position: relative; }
-/* Logotipo no topo da capa — é um documento que sai da Boomit e vai para fora.
-   Monocromático, mínimo de 96px respeitado. logo-boomit.png é a versão CLARA
-   (creme): sobre a capa clara ela sumia. Mesmo tratamento do `.sc-logo` do
-   cabeçalho — preta no tema claro e no papel, creme no escuro. */
-.rh-capa__marca { display: block; width: 108px; margin-bottom: var(--space-8); }
-.rh-capa__marca, .rh-print-head__marca { filter: brightness(0); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rh-capa__marca { filter: none; } }
-:root[data-theme="dark"] .rh-capa__marca { filter: none; }
-@media print { .rh-capa__marca { filter: brightness(0) !important; } }
-@media (max-width: 40rem) { .rh-capa__textura { width: 340px; right: -120px; bottom: -150px; } }
+.rh-capa { background: var(--bg-surface-warm); border-radius: var(--radius-xl); padding: var(--space-12) var(--space-10) var(--space-10); margin-top: var(--space-6); }
 .rh-capa__t { margin-top: var(--space-2); text-wrap: balance; }
-/* Quem respondeu, logo abaixo do título: é um documento sobre uma pessoa, e ela
-   precisa se reconhecer na primeira linha. Medium e secundário — identifica sem
-   competir com o título. */
-.rh-capa__quem { margin: var(--space-3) 0 0; font-size: var(--text-base); color: var(--text-secondary); font-weight: var(--weight-medium); }
-.rh-capa__lead { max-width: var(--medida-curta); }
-.rh-capa__nota { margin: var(--space-4) 0 0; max-width: var(--medida-curta); font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-tertiary); }
+.rh-capa__lead { max-width: 34rem; }
+.rh-capa__nota { margin: var(--space-4) 0 0; max-width: 34rem; font-size: var(--text-sm); line-height: var(--leading-lg); color: var(--text-tertiary); }
 .rh-capa__data { margin: var(--space-6) 0 0; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
 .rh-evid { margin: var(--space-8) 0 0; padding-top: var(--space-5); border-top: 1px solid var(--border-subtle); }
 .rh-evid__k { font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
@@ -253,7 +230,7 @@
    vai ler, então tem de se anunciar sem virar caixa colorida. */
 .rh-sintese { margin-top: var(--space-10); border-left: 2px solid var(--border-strong); padding: var(--space-1) 0 var(--space-1) var(--space-6); }
 .rh-sintese__k { margin: 0; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
-.rh-sintese__p { margin: var(--space-3) 0 0; max-width: var(--medida); font-size: var(--text-lg); line-height: var(--leading-lg); color: var(--text-primary); }
+.rh-sintese__p { margin: var(--space-3) 0 0; max-width: 40rem; font-size: var(--text-lg); line-height: var(--leading-lg); color: var(--text-primary); }
 @media (max-width: 40rem) { .rh-sintese { padding-left: var(--space-4); } .rh-sintese__p { font-size: var(--text-base); } }
 
 /* --- Mapa de leitura -------------------------------------------------------
@@ -268,43 +245,15 @@
 @media (max-width: 40rem) { .rh-mapa__l { grid-template-columns: 1fr; } }
 
 /* --- Seções ---------------------------------------------------------------- */
-.rh-sec { margin-top: var(--space-20); }
-/* O cabeçalho de seção é o marco do ritmo: filete fino acima, numeração na mesma
-   linha do título. Sem o filete, quinze seções de mesmo peso viram uma parede de
-   texto. */
-.rh-sec__head { margin-bottom: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--border-subtle); }
-/* A PRIMEIRA seção fecha o bloco de abertura (capa · mapa · síntese) e usa o
-   intervalo desses blocos — com os 80px de quem começa um capítulo novo, ela
-   ficava órfã entre o mapa e o resto. */
-.rh-sec:first-of-type { margin-top: var(--space-10); }
-.rh-sec__n { display: block; margin-bottom: var(--space-3); font-size: var(--text-xs); letter-spacing: var(--tracking-display); color: var(--text-tertiary); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+.rh-sec { margin-top: var(--space-16); }
+.rh-sec__head { margin-bottom: var(--space-6); }
+.rh-sec__n { display: block; margin-bottom: var(--space-2); font-size: var(--text-xs); letter-spacing: var(--tracking-display); color: var(--text-tertiary); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
 .rh-sec__title { font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: var(--weight-semibold); margin: 0; text-wrap: balance; }
-.rh-sec__sub { margin: var(--space-2) 0 0; max-width: var(--medida-curta); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-tertiary); }
+.rh-sec__sub { margin: var(--space-2) 0 0; max-width: 42rem; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-tertiary); }
 .rh-prosa { margin: 0 0 var(--space-3); font-size: var(--text-base); line-height: var(--leading-lg); color: var(--text-secondary); }
 .rh-prosa:last-child { margin-bottom: 0; }
 
 .rh-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-6); }
-/* Ritmo entre os blocos de uma seção. Sem isto o card encostava na última barra da
-   lista de medidas e os dois liam como um bloco só — e dois cards seguidos ficavam
-   colados pela borda. Espaço generoso é o traço mais forte da marca: é ele que
-   separa, não mais uma borda. */
-.rh-prosa + .rh-metricas { margin-top: var(--space-6); }
-.rh-metricas + .rh-card, .rh-metricas + .rh-lista, .rh-metricas + .rh-cite { margin-top: var(--space-8); }
-.rh-card + .rh-card { margin-top: var(--space-4); }
-.rh-card + .sc-help, .rh-metricas + .sc-help { display: block; margin-top: var(--space-5); }
-/* --- Card em destaque ------------------------------------------------------
-   O número mais pesado do documento. O destaque vem de superfície quente, escala e
-   espaço — não de cor: verde marcaria "positivo" (e custo não é), e terracota é
-   estado de UI, nunca conteúdo. A cifra ganha linha própria, como todo
-   número-manchete da casa: rótulo acima em caixa alta, valor em tabular-nums,
-   unidade num tom abaixo. */
-.rh-card--destaque { background: var(--bg-surface-warm); border-color: var(--border-default); padding: var(--space-8); }
-.rh-card__k { margin: 0; font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
-.rh-card__cifra { margin: var(--space-3) 0 var(--space-5); font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; text-wrap: balance; }
-.rh-card__ate, .rh-card__unid { font-weight: var(--weight-regular); color: var(--text-secondary); letter-spacing: var(--tracking-normal); }
-.rh-card__unid { font-size: var(--text-lg); }
-.rh-card--destaque .rh-card__p + .rh-card__p { margin-top: var(--space-3); }
-@media (max-width: 30rem) { .rh-card--destaque { padding: var(--space-5); } .rh-card__cifra { font-size: var(--text-xl); line-height: var(--leading-xl); } }
 .rh-card--quiet { background: var(--bg-muted); }
 .rh-card--info { display: flex; gap: var(--space-4); background: var(--status-info-bg); border-color: var(--status-info-border); color: var(--status-info-fg); }
 .rh-card__ic { flex: none; width: 1.25rem; height: 1.25rem; margin-top: 2px; }
@@ -349,13 +298,7 @@
 /* Etiqueta contornada, não chapada: sobre o degrau atual o bloco já é preto, e
    uma pílula preta encostada nele vira uma mancha só. Também não quebra em
    duas linhas — "Degrau atual" numa linha é o que identifica a coluna. */
-/* Etiqueta chapada no apoio 04, ACIMA do rótulo e na LARGURA da coluna: embaixo
-   ela encostava na face preta e as duas liam como uma mancha só, e solta ela
-   transbordava para as colunas vizinhas. O apoio 04 é tinta de preenchimento (não
-   carrega texto claro), então o texto vem no preto oficial — 7,3:1. Ocupando a
-   coluna inteira ela pode quebrar em duas linhas: é uma faixa que marca a coluna,
-   não uma pílula. */
-.rh-escada__tag { display: block; box-sizing: border-box; width: 100%; text-align: center; margin: 0 0 var(--space-2); padding: 2px var(--space-2); border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--boomit-apoio-04); color: var(--boomit-preto); font-size: var(--text-xs); line-height: var(--leading-xs); letter-spacing: 0.03em; text-transform: uppercase; font-weight: var(--weight-medium); white-space: normal; text-wrap: balance; }
+.rh-escada__tag { display: inline-block; margin-top: var(--space-2); padding: 2px var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-full); color: var(--text-primary); font-size: var(--text-xs); line-height: var(--leading-xs); letter-spacing: 0.03em; text-transform: uppercase; font-weight: var(--weight-medium); white-space: nowrap; }
 .rh-escada__face { display: block; border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: var(--rh-passo-1); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 .rh-escada__degrau:nth-child(1) .rh-escada__face { height: 2.5rem;  background: var(--rh-passo-1); }
 .rh-escada__degrau:nth-child(2) .rh-escada__face { height: 3.75rem; background: var(--rh-passo-2); }
@@ -408,40 +351,16 @@
    barra mais escura por serem a composição, e as dimensões ficam um tom
    abaixo. Nada aqui é verde "porque é bom" nem vermelho "porque é ruim" — a
    escala não julga, descreve. */
-.rh-indice { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5) var(--space-8); padding-bottom: var(--space-6); border-bottom: 1px solid var(--border-subtle); }
+.rh-indice { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-5) var(--space-8); padding-bottom: var(--space-6); border-bottom: 1px solid var(--border-subtle); }
 .rh-indice__n { margin: 0; display: flex; align-items: baseline; gap: var(--space-2); }
 .rh-indice__v { font-size: var(--text-4xl); line-height: 1; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
 .rh-indice__d { font-size: var(--text-sm); color: var(--text-tertiary); }
-/* --- Anel do índice --------------------------------------------------------
-   O indicador-manchete de cada metade no documento único. A parte medida é
-   CHAPADA e o resto é a mesma pista das barras (--bg-muted), para o anel ler como
-   o mesmo instrumento. Sem degradê e sem sombra.
-   O arco usa o VERDE OFICIAL (decisão da dona do produto, 16/09): só existem dois
-   no documento, e a escassez do verde se mantém. No escuro ele vira moss-300: o
-   verde oficial sobre o preto fica com 2,4:1 e desaparece. */
-.rh-anel { position: relative; flex: none; width: 8.5rem; height: 8.5rem; margin: 0; }
-/* `scaleX(-1)` depois da rotação espelha o percurso: a origem fica às 12h e o arco
-   cresce no ANTI-HORÁRIO. */
-.rh-anel__svg { display: block; width: 100%; height: 100%; transform: scaleX(-1) rotate(-90deg); }
-.rh-anel__pista { fill: none; stroke: var(--bg-muted); stroke-width: 8; }
-.rh-anel__arco { fill: none; stroke: var(--bg-brand); stroke-width: 8; stroke-linecap: butt; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-[data-theme="dark"] .rh-anel__arco { stroke: var(--moss-300); }
-.rh-anel__c { position: absolute; inset: 0; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
-/* Dentro do anel o número é menor que o número solto da devolutiva do link
-   público — ele divide o espaço com o arco. Escopo no anel, para não encolher o
-   outro. */
-.rh-anel .rh-indice__v { font-size: var(--text-3xl); letter-spacing: -0.02em; }
-.rh-anel .rh-indice__d { font-size: var(--text-xs); }
-@media (max-width: 40rem) { .rh-anel { width: 7rem; height: 7rem; } .rh-anel .rh-indice__v { font-size: var(--text-2xl); } }
 .rh-indice__t { flex: 1 1 18rem; min-width: 0; }
 .rh-indice__degrau { margin: 0; font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: var(--weight-medium); }
 .rh-indice__faixa { margin: var(--space-2) 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
 
 .rh-metricas__t { margin: var(--space-8) 0 var(--space-3); font-size: var(--text-sm); letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
-.rh-metricas { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
-/* Linha divisória entre medidas: sem ela, duas medidas no mesmo espaço em branco
-   leem como um bloco só. O filete fica ENTRE as linhas — é divisor, não moldura. */
-.rh-metrica + .rh-metrica { padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
+.rh-metricas { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
 .rh-metrica { display: grid; grid-template-columns: minmax(0, 15rem) 1fr auto; align-items: center; gap: var(--space-3) var(--space-4); }
 .rh-metrica__n { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--text-primary); min-width: 0; }
 .rh-metrica__x { display: block; font-size: var(--text-xs); color: var(--text-tertiary); }
@@ -452,44 +371,16 @@
 .rh-barra__fill.is-forte { background: var(--moss-600); }
 [data-theme="dark"] .rh-barra__fill { background: var(--moss-500); }
 [data-theme="dark"] .rh-barra__fill.is-forte { background: var(--moss-300); }
-/* --- Duas séries na mesma barra (documento único) --------------------------
-   ORDEM DE SÉRIE POR LUMINÂNCIA, como manda o sistema: a primeira é o preto da
-   marca, a segunda é o verde. Usar o mesmo tom nas duas apagaria justamente a
-   distinção que o gráfico existe para mostrar — a distância entre as duas
-   leituras, ou entre as duas lentes de uma dimensão.
-   Sem gradiente, sem sombra, sem 3D: o preenchimento é chapado. */
-.rh-barra__fill.is-serie-a { background: var(--ink-950); }
-.rh-barra__fill.is-serie-b { background: var(--moss-600); }
-[data-theme="dark"] .rh-barra__fill.is-serie-a { background: var(--ink-200); }
-[data-theme="dark"] .rh-barra__fill.is-serie-b { background: var(--moss-300); }
-
-/* Uma dimensão lida por duas lentes: o nome manda na linha, e cada lente tem a
-   própria barra, o próprio rótulo e o próprio número. A série é rotulada NA
-   PRÓPRIA LINHA — legenda separada obriga a ir e voltar com os olhos. */
-.rh-metrica--par { grid-template-columns: minmax(0, 15rem) 1fr auto; row-gap: var(--space-2); }
-.rh-metrica--par > .rh-metrica__n:first-child { grid-column: 1 / -1; font-weight: var(--weight-medium); }
-.rh-metrica__n--sub { font-size: var(--text-xs); color: var(--text-tertiary); }
-.rh-metrica--par + .rh-metrica--par { margin-top: var(--space-2); }
-
 @media (max-width: 40rem) {
   .rh-metrica { grid-template-columns: 1fr auto; }
   .rh-metrica__n { grid-column: 1 / -1; }
-  .rh-metrica--par { grid-template-columns: 1fr auto; }
-  .rh-metrica--par > .rh-metrica__n--sub { grid-column: 1 / -1; }
   .rh-indice__v { font-size: var(--text-3xl); }
 }
 
 /* --- Sustentadores / limitadores ------------------------------------------ */
 .rh-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 @media (max-width: 40rem) { .rh-cols { grid-template-columns: 1fr; } }
-/* Cada coluna ganha moldura própria: o par "sustenta / limita" é uma leitura em
-   duas metades, e sem a caixa os dois grupos se misturavam num campo só de texto.
-   Borda no apoio 04 a 80% — presente sem virar contorno duro, e é borda (não
-   sombra), como manda a casa para o que está em repouso. */
-.rh-col { display: grid; gap: var(--space-3); align-content: start;
-  border: 1px solid color-mix(in srgb, var(--boomit-apoio-04) 80%, transparent);
-  border-radius: var(--radius-lg); padding: var(--space-5); }
-@media (max-width: 30rem) { .rh-col { padding: var(--space-4); } }
+.rh-col { display: grid; gap: var(--space-3); align-content: start; }
 .rh-col__t { margin: 0 0 var(--space-1); font-size: var(--text-sm); letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-tertiary); font-weight: var(--weight-medium); }
 .rh-evc { border: 1px solid var(--border-subtle); border-left: 3px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface); padding: var(--space-4) var(--space-5); }
 .rh-evc--lim { border-left-color: var(--border-strong); }
@@ -566,7 +457,6 @@
 
 /* --- Cabeçalho de impressão (só no papel) --------------------------------- */
 .rh-print-head { display: none; }
-.rh-print-head__marca { width: 84px; }
 
 /* --- Movimento ------------------------------------------------------------- */
 @keyframes rh-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -579,19 +469,6 @@
    IMPRESSÃO — o app troca para o tema claro em beforeprint; aqui só limpamos.
    ========================================================================= */
 @media print {
-  /* Margem de papel declarada: sem isto cada navegador aplica a sua, e a medida de
-     leitura mudava de largura por sistema. */
-  @page { margin: 18mm 16mm 22mm; }
-  /* No papel a capa não leva textura: grafismo em tinta desperdiça toner e concorre
-     com o texto num suporte que já não tem superfície quente. */
-  .rh-capa__textura { display: none; }
-  .rh-sec__head { padding-top: var(--space-4); margin-bottom: var(--space-5); }
-  .rh-anel { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  /* O papel é sempre claro, seja qual for o tema de quem manda imprimir. */
-  :root { color-scheme: light; }
-  /* Título nunca fica sozinho no pé da folha, e uma medida não se parte em duas. */
-  h1, h2, h3 { break-after: avoid; }
-  .rh-metrica { break-inside: avoid; }
   html, body { background: var(--bg-surface); color: var(--boomit-preto); }
   .sc-shell, .rh-shell { max-width: none; padding: 0; }
   .sc-head, .sc-theme, .rh-ctas, .sc-btn, .sc-note, .rh-sec--lead, .sc-nav, .sc-footbar { display: none !important; }
@@ -599,13 +476,9 @@
      a linha em A4 passa de ~65 para ~110 caracteres. `ch` depende da fonte do
      papel, então aqui a medida é em `em`, que o navegador resolve na impressão. */
   .rh-result { max-width: 40em; margin: 0 auto; animation: none; }
-  .rh-print-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); font-size: var(--text-xs); color: var(--boomit-preto); border-bottom: 1px solid var(--boomit-apoio-02); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
+  .rh-print-head { display: block; font-size: var(--text-xs); color: var(--boomit-preto); border-bottom: 1px solid var(--boomit-apoio-02); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
   .rh-sec, .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-escada-fig, .rh-tabela tr, .rh-disclaimer, .rh-lente, .rh-cite, .rh-mapa, .rh-oferta, .rh-sintese, .rh-indice { break-inside: avoid; page-break-inside: avoid; }
   .rh-sec { margin-top: var(--space-10); }
-  /* A seção pode quebrar entre folhas: com `avoid`, uma seção longa pulava inteira
-     para a folha seguinte e deixava meia página em branco. O que não se parte é
-     o card, a medida e a citação — que continuam na lista acima. */
-  .rh-sec { break-inside: auto; }
   .rh-card, .rh-evc, .rh-gate, .rh-ciclo__f, .rh-disclaimer, .rh-lente { box-shadow: none; }
   /* A capa é a primeira página: o miolo começa numa folha nova. */
   .rh-capa { background: var(--bg-surface); border: 1px solid var(--boomit-apoio-02); border-radius: 0; padding: var(--space-8) 0; }
@@ -616,17 +489,10 @@
      identificado pela etiqueta e pelo contorno. */
   .rh-escada__face { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .rh-escada__degrau.is-atual { outline: 1px solid var(--boomit-preto); }
-  .rh-escada__tag { border: 1px solid var(--boomit-preto); background: var(--boomit-apoio-04); }
+  .rh-escada__tag { border: 1px solid var(--boomit-preto); }
   .rh-tabela-wrap { overflow: visible; }
   a[href]::after { content: ""; }
-  /* A marca no rodapé de TODA página. `position: fixed` na impressão é o que o
-     navegador repete folha a folha; sem isto, a assinatura sai só na última. */
-  .rh-rodape-papel { display: block; position: fixed; bottom: 0; left: 0; right: 0;
-    font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase;
-    color: var(--boomit-preto); border-top: 1px solid var(--boomit-apoio-02);
-    padding-top: var(--space-2); }
 }
-.rh-rodape-papel { display: none; }
 
 /* --- Foco programático do título ao trocar de tela -------------------------
    `pintar()` leva o foco ao <h1> quando a tela muda, para que o leitor de tela

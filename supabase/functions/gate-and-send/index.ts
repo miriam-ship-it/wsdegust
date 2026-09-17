@@ -8,10 +8,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 // O cálculo vive num módulo puro, fora da edge, para poder ser testado sozinho
 // e para existir UMA implementação só. Mesmo padrão do módulo de IA.
 import { calcularResultado, divergencias } from '../../../screener/lideranca/motor.mjs';
-// A ponte com o diagnóstico de RH+IA. Mesma disciplina: a lógica vive fora da
-// edge e é testada em node; aqui fica só a ligação.
-import postgres from 'npm:postgres@3';
-import { emitirConvite, linkDoConvite } from '../../../screener/ponte/convite.mjs';
 
 interface GatePayload {
   token: string;
@@ -102,52 +98,6 @@ const MARCAS: Record<string, Marca> = {
     pontoAtual: 'verde',
   },
 };
-
-// =============================================================
-// A PONTE COM O DIAGNÓSTICO DE RH+IA — desligada por ausência de secret.
-//
-// Quem termina a liderança recebe, no e-mail de fecho, um convite para a outra
-// metade — e as duas passam a apontar para a mesma pessoa, o que é o que torna
-// o documento único possível.
-//
-// TRÊS TRAVAS, e cada uma existe por um motivo:
-//
-// 1. SÓ COM OS DOIS SECRETS. Sem eles, esta função se comporta exatamente como
-//    antes. É assim que o código pode ir ao ar inerte e ser ligado depois, num
-//    passo separado e reversível — o mesmo desenho do rate limiting do screener.
-//
-// 2. SÓ PARA A BOOMIT. O diagnóstico de RH+IA é produto da Boomit. Mandar o
-//    convite a quem respondeu um evento do IBMEC seria oferecer, com a marca
-//    deles, uma coisa que não é deles. Para o IBMEC esta mudança tem de ser
-//    invisível — a mesma regra que governa o PDF.
-//
-// 3. NUNCA DERRUBA A ENTREGA. O relatório é o que a pessoa pediu; o convite é
-//    um acréscimo. Qualquer falha aqui vira log e o e-mail sai sem o link.
-//
-// A conexão é como `screener_runtime`, o papel sem privilégio de tabela que só
-// alcança as RPC — NUNCA `postgres`, e nunca a `service_role` deste arquivo:
-// ela não tem, e não pode ter, EXECUTE nas funções da ponte.
-const PONTE_DB_URL = Deno.env.get('SCREENER_DB_POOLER_URL') ?? null;
-const PONTE_RHIA_URL = Deno.env.get('SCREENER_RHIA_URL') ?? null;
-const PONTE_ATIVA = !!(PONTE_DB_URL && PONTE_RHIA_URL);
-const pontePool = PONTE_ATIVA ? postgres(PONTE_DB_URL!, { prepare: false, max: 1 }) : null;
-const PONTE_HORAS = 720; // 30 dias — dentro do teto de 2160h do CHECK da tabela
-
-/** Emite o convite e devolve o link, ou `null`. Nunca lança. */
-async function linkDaPonte(m: Marca, tokenSessao: string): Promise<string | null> {
-  if (!PONTE_ATIVA || m.nome !== 'Boomit') return null;
-  const r = await emitirConvite({
-    q: async (text: string, params: unknown[]) => ({ rows: await pontePool!.unsafe(text, params as never[]) }),
-    tokenSessao,
-    horas: PONTE_HORAS,
-  });
-  if (r.status !== 'ok') {
-    // o código cru nunca entra em log — só o motivo
-    console.error('ponte: convite nao emitido:', r.status, r.erro ?? '');
-    return null;
-  }
-  return linkDoConvite(PONTE_RHIA_URL!, r.codigo!);
-}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -478,7 +428,7 @@ async function sendEmailBrevo(opts: { to: string; toName: string; subject: strin
  *    display:flex vira uma coluna empilhada torta em metade das caixas
  *    corporativas — que é exatamente o público deste relatório.
  */
-function emailBodyHtml(r: any, rel: any, m: Marca, linkConvite: string | null = null): string {
+function emailBodyHtml(r: any, rel: any, m: Marca): string {
   const risco = rel.risco_estrategico ?? 0;
   const riscoNivel = risco >= 60 ? 'Alto' : risco >= 40 ? 'Moderado' : 'Baixo';
   const riscoCor = risco >= 60 ? m.erro : risco >= 40 ? m.acento : m.ok;
@@ -542,19 +492,6 @@ function emailBodyHtml(r: any, rel: any, m: Marca, linkConvite: string | null = 
       </td></tr>
     </table>
   </td></tr>
-
-  ${!linkConvite ? '' : `
-  <tr><td style="padding:22px 28px 0;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${m.linha};">
-      <tr><td style="padding:18px 20px;font-size:14px;line-height:1.6;color:${m.textoSuave};">
-        <strong style="display:block;color:${m.primaria};text-transform:uppercase;letter-spacing:1px;font-size:11px;margin-bottom:6px;">A outra metade</strong>
-        <p style="margin:0 0 12px;">Este diagnostico mede a <strong>lideranca</strong>. A adocao de IA na sua area e outra medida — e o que muda decisao e a <strong>relacao entre as duas</strong>: estrutura de decisao que ja existe para um avanco que ainda nao aconteceu, ou tecnologia andando mais rapido do que quem decide sobre ela.</p>
-        <p style="margin:0 0 14px;">Sao 30 perguntas, cerca de 10 minutos. No fim, as duas metades viram um documento so.</p>
-        <a href="${linkConvite}" style="display:inline-block;background:${m.primaria};color:#FFFFFF;text-decoration:none;padding:12px 22px;font-size:14px;font-weight:700;">Responder o diagnostico de RH e IA</a>
-        <p style="margin:12px 0 0;font-size:12px;color:${m.muted};line-height:1.5;">Este link e pessoal e vale uma vez so, por 30 dias. Ele nao da acesso a este relatorio nem a nenhum dado seu — serve apenas para reconhecer que as duas metades sao suas.</p>
-      </td></tr>
-    </table>
-  </td></tr>`}
 
   <tr><td style="padding:22px 28px 28px;">
     <hr style="border:none;border-top:1px solid ${m.linha};margin:0 0 14px;">
@@ -683,20 +620,10 @@ serve(async (req: Request) => {
       await supabase.from('relatorios').update({ erro_geracao: String(pdfErr) }).eq('id', relatorio.id);
     }
 
-    // O CONVITE DA PONTE. O token sai do REGISTRO do respondente, lido no
-    // servidor — nunca do corpo da requisição. A RPC no banco nem aceita um
-    // `respondente_id`: ela deriva a pessoa do token, lá dentro.
-    let linkConvite: string | null = null;
-    try {
-      linkConvite = await linkDaPonte(m, respondente.token_sessao);
-    } catch (pontErr) {
-      console.error('ponte: falhou sem derrubar a entrega:', pontErr);
-    }
-
     let emailEnviado = false;
     try {
       const subject = `Diagnostico ${m.nome} · ${respondente.nome || respondente.empresa || 'Seu relatorio'}`;
-      const bodyHtml = emailBodyHtml(respondente, relatorio, m, linkConvite);
+      const bodyHtml = emailBodyHtml(respondente, relatorio, m);
       const safeName = (respondente.nome || 'relatorio').toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

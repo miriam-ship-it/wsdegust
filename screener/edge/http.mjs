@@ -20,8 +20,6 @@ const METODOS = {
   "/rhia/submit": ["POST"],
   "/rhia/result": ["GET"],
   "/rhia/lead": ["POST"],
-  "/rhia/vincular": ["POST"],
-  "/rhia/perfil": ["GET", "POST"],
 };
 /** Métodos da rota (sem OPTIONS), ou null se a rota não existe. */
 export function metodosDaRota(rota) { return METODOS[rota] ? METODOS[rota].slice() : null; }

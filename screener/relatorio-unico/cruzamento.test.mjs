@@ -70,7 +70,5 @@ test("síntese cruzada: cita as duas medidas e a relação, sem juízo novo", ()
 
 test("síntese com uma metade só avisa, em vez de fingir", () => {
   const t = sinteseCruzada({ lideranca: lid(74), ia: null, cruzamento: null });
-  assert.match(t, /uma das duas leituras/, 'a síntese tem de avisar que falta uma metade');
-  assert.match(t, /só pode ser lida quando as duas existem|exigiria as duas/,
-    'e dizer por que a comparação não aparece');
+  assert.match(t, /apenas uma das duas leituras/);
 });

@@ -18,17 +18,7 @@ body { margin: 0; background: var(--bg-canvas); color: var(--text-primary); }
    --font-sans do design system na camada do projeto, sem tocar o tokens.css
    auditado. Os arquivos da Inter são carregados no <head> (Google Fonts). */
 :root { --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-/* MEDIDA DE LEITURA — duas, e só duas (referência de layout, 16/09). Antes havia
-   quatro (65ch no documento, 42rem no subtítulo de seção, 40rem na síntese, 34rem
-   na capa), o que fazia cada bloco terminar num lugar diferente e a margem direita
-   serrilhar página abaixo. --medida para prosa corrida, --medida-curta para o que
-   é deliberadamente mais estreito (capa, legenda, nota). */
-:root { --medida: 36rem; --medida-curta: 30rem; }
 .sc-shell { max-width: 46rem; margin: 0 auto; padding: 0 var(--space-4) var(--space-24); }
-/* O documento avulso (o que vira PDF) não tem o cabeçalho do app acima dele, então
-   o respiro de topo é dele. No app, quem dá esse respiro é o cabeçalho. */
-.sc-shell.rh-doc { padding-top: var(--space-12); }
-@media (max-width: 40rem) { .sc-shell.rh-doc { padding-top: var(--space-6); } }
 .sc-muted { color: var(--text-tertiary); }
 .sc-center { text-align: center; }
 
