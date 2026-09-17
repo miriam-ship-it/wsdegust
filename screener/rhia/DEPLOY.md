@@ -991,8 +991,8 @@ lock, e **aborta** se encontrar qualquer linha.
 |---|---|---|---|
 | 1 | Site: `main` com revert dos 23 commits (as 3 migrations aplicadas ficam no repositório, porque estão no ledger) | `d5dbf37` | **feito** — 6 arquivos no ar byte a byte iguais aos de antes da sessão |
 | 2 | Edge `screener` publicada de novo a partir de `bc90ad1` (a v3) | v3 | **feito** — `GET /rhia/start` público byte a byte igual ao de antes; `/rhia/perfil` e `/rhia/vincular` voltaram a `rota_desconhecida` |
-| 3 | Banco: `20260917120000_screener_rhia_volta_ao_estado_de_14_09` | 20260914170000 + 20260912120000 | pendente |
-| 4 | Google Doc das questões para a lixeira | — | pendente |
+| 3 | Banco: `20260917120000_screener_rhia_volta_ao_estado_de_14_09` | 20260914170000 + 20260912120000 | **feito** — ver abaixo |
+| 4 | Google Doc das questões para a lixeira (recuperável) | — | **feito** |
 
 **Prova da migration de volta** (`screener/loader/behavioral/volta-14-09.behavioral.test.mjs`):
 aplicar as três migrations e depois a volta deixa tabelas, donos, ACLs, funções
@@ -1003,6 +1003,20 @@ snapshot voltar errada (conferido por mutação).
 **Revisão:** revisor-de-migration sem bloqueio técnico. Acatado: locks em
 `respondentes` e `screener_rhia_sessions` antes do snapshot (evita deadlock com
 `finalize` em voo), prova versionada, decisão registrada aqui.
+
+
+**Passo 3 no banco — aplicado na primeira tentativa.** Preflight: tabelas da sessão vazias, 3 snapshots em 2.0.0-pilot, nenhum lock nem consulta ativa. Dry-run com só a volta na fila; `npx supabase db push --linked`.
+
+| Verificação pós-apply (leitura) | Resultado |
+|---|---|
+| Ledger | `20260917120000` registrada (as três da sessão continuam registradas) |
+| Tabelas e funções da sessão | **nenhuma** sobrou |
+| `screener_rhia_snap_contract` | de volta a `coalesce(... version, '') = '2.0.0-pilot'`; as 2 restrições novas saíram; os 4 CHECKs originais intactos |
+| Purga | `md5(prosrc)` **idêntico** ao da 20260914170000 aplicada sozinha (faca8c9a…); dona `screener_owner`, ACL e job do cron inalterados |
+| Dados | 3 snapshots e 108 respondentes da liderança, os mesmos de antes |
+| Fronteira | `screener_owner` sem CREATE no schema; só a filiação antiga (`postgres`, por `supabase_admin`); nenhum lock pendente |
+
+**Estado final:** site, edge e banco como estavam antes da sessão de 15/09.
 
 ---
 
