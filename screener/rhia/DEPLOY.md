@@ -975,6 +975,37 @@ devolve numa tabela de rastro.
 
 ---
 
+### Volta ao estado de antes da sessão de 15/09 · 17/09/2026
+
+**Decisão.** A Miriam decidiu desconsiderar tudo o que foi feito na sessão de
+15–16/09 (ponte com a liderança, formulário único, documento no layout Boomit) e
+voltar ao estado anterior — "pode voltar tudo", 17/09. O código continua no
+histórico do git e no branch `claude/ia-maturity-diagnostic-module-54e0fb`.
+
+**Apagar tabelas, registrado aqui como exige a regra da casa:** a volta remove
+`screener_rhia_convites`, `screener_rhia_vinculos` e `screener_rhia_perfis`. O
+preflight de 17/09 mostrou as três **vazias**; a migration confere de novo, sob
+lock, e **aborta** se encontrar qualquer linha.
+
+| Passo | O quê | Referência de antes | Estado |
+|---|---|---|---|
+| 1 | Site: `main` com revert dos 23 commits (as 3 migrations aplicadas ficam no repositório, porque estão no ledger) | `d5dbf37` | **feito** — 6 arquivos no ar byte a byte iguais aos de antes da sessão |
+| 2 | Edge `screener` publicada de novo a partir de `bc90ad1` (a v3) | v3 | **feito** — `GET /rhia/start` público byte a byte igual ao de antes; `/rhia/perfil` e `/rhia/vincular` voltaram a `rota_desconhecida` |
+| 3 | Banco: `20260917120000_screener_rhia_volta_ao_estado_de_14_09` | 20260914170000 + 20260912120000 | pendente |
+| 4 | Google Doc das questões para a lixeira | — | pendente |
+
+**Prova da migration de volta** (`screener/loader/behavioral/volta-14-09.behavioral.test.mjs`):
+aplicar as três migrations e depois a volta deixa tabelas, donos, ACLs, funções
+(md5 do corpo), restrições e comentários **idênticos** a um banco que nunca as
+teve; com um convite gravado, a volta aborta. O teste reprova se a restrição do
+snapshot voltar errada (conferido por mutação).
+
+**Revisão:** revisor-de-migration sem bloqueio técnico. Acatado: locks em
+`respondentes` e `screener_rhia_sessions` antes do snapshot (evita deadlock com
+`finalize` em voo), prova versionada, decisão registrada aqui.
+
+---
+
 ## Checklist
 
 - [x] D1 — site confirmado (`diagnosticoboomit`).
