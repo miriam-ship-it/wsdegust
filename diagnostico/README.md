@@ -75,7 +75,7 @@ supabase/functions/diagnostico/   a edge (o motor roda aqui, nunca no navegador)
 ## Comandos
 
 ```bash
-npm test                      # 314 testes, o repositório inteiro
+npm test                      # 317 testes, o repositório inteiro
 npm run build:diagnostico     # regenera o instrumento embutido e monta public/
 node diagnostico/servir.mjs   # http://localhost:4700
 npm run deploy:diagnostico    # prepara _motor/ e faz deploy da edge
@@ -119,7 +119,20 @@ where email = 'pessoa@email.com'
 O `and evento_id` não é enfeite: **o mesmo e-mail pode existir em outro evento**,
 e sem ele o delete levaria junto o respondente do IBMEC. Respostas e relatório
 saem por cascade; o PDF no Storage fica em `relatorios/diagnosticoboomit/` e é
-removido em separado.
+removido em separado — **o banco recusa `delete` direto em `storage.objects`**,
+de propósito, para não deixar arquivo órfão. Vai pela API do Storage:
+
+```bash
+curl -X DELETE "https://klnpnjumogojspubyabi.supabase.co/storage/v1/object/relatorios" \
+  -H "apikey: $SERVICE_ROLE" \
+  -H "Authorization: Bearer $SERVICE_ROLE" \
+  -H "Content-Type: application/json" \
+  -d '{"prefixes":["diagnosticoboomit/diagnostico-boomit-<respondente_id>.pdf"]}'
+```
+
+> A `supabase storage rm` da CLI responde `{"deleted":[]}` sem apagar nada neste
+> projeto — não confie no silêncio dela; confira com
+> `select count(*) from storage.objects where name like 'diagnosticoboomit/%'`.
 
 ---
 
@@ -197,17 +210,9 @@ motivo e origem — nenhuma é edição silenciosa:
    deste documento.
 2. **Ligar o projeto Netlify ao GitHub.** Passo único na interface; hoje o site
    sobe por deploy manual.
-3. **Respondentes de teste em produção.** O smoke test e a verificação no
-   navegador deixaram dois registros no evento (`Teste E2E` e
-   `Verificação Navegador`). Apagar quando não forem mais úteis:
-   ```sql
-   delete from public.respondentes
-   where evento_id = (select id from public.eventos where slug = 'diagnosticoboomit')
-     and empresa in ('Boomit (teste)', 'Boomit (verificação)');
-   ```
-4. **Domínio próprio.** Hoje é `diagnosticoboomit.netlify.app`. Apontar um
+3. **Domínio próprio.** Hoje é `diagnosticoboomit.netlify.app`. Apontar um
    subdomínio de `boomit.com.br` é configuração de DNS mais um passo no Netlify.
-5. **Revisão editorial da leitura autoral.** `conteudo-devolutiva.mjs` tem uma
+4. **Revisão editorial da leitura autoral.** `conteudo-devolutiva.mjs` tem uma
    hipótese, uma consequência e uma verificação para cada um dos 37 itens
    pontuáveis. Os textos seguem a voz da casa e a linguagem condicional exigida,
    mas **não passaram por revisão de quem assina o método**.
