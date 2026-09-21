@@ -245,7 +245,7 @@ export const LEITURA = {
     especialidade: "organizacao",
   },
   FUT06: {
-    hipotese: "O relato pode indicar estrutura organizacional ainda não discutida diante das mudanças de estratégia, trabalho, processos ou IA. A ausência de discussão é, ela mesma, resposta diagnóstica.",
+    hipotese: "O relato pode indicar que a estrutura organizacional ainda não acompanhou as mudanças de estratégia, trabalho, processos ou IA — seja porque o tema não foi discutido de forma concreta, seja porque a discussão ocorre sem modelo, critério ou caminho definido. A ausência de discussão é, ela mesma, resposta diagnóstica.",
     consequencia: "Estrutura mantida enquanto o trabalho muda tende a concentrar decisão onde a informação já não está.",
     verificacao: "Vale verificar em que fórum e com que insumo a estrutura foi discutida pela última vez.",
     especialidade: "organizacao",

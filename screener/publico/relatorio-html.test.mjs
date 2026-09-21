@@ -145,3 +145,36 @@ test("todo texto do documento é escapado — nada de HTML vindo do respondente"
   assert.match(html, /&lt;script&gt;/);
   assert.match(html, /A &amp; B/);
 });
+
+// --- defeitos encontrados verificando a tela no navegador ---
+
+test("a hipótese nunca contradiz a evidência que a sustenta", () => {
+  // FUT06/E2 é o caso que pegou isto: a evidência dizia "o tema está em
+  // discussão" e a hipótese afirmava "ainda não discutida".
+  const respostas = respondente("E4", { FUT06: "E2" });
+  const { html } = doc(respostas, CONTEXTO);
+  assert.match(html, /O tema está em discussão, mas não há modelo/);
+  assert.doesNotMatch(html, /pode indicar estrutura organizacional ainda não discutida/);
+  assert.match(html, /seja porque a discussão ocorre sem modelo, critério ou caminho definido/);
+  // e o mesmo texto tem que servir ao E1 do mesmo item
+  const e1 = doc(respondente("E4", { FUT06: "E1" }), CONTEXTO).html;
+  assert.match(e1, /O tema ainda não foi discutido de forma concreta/);
+  assert.match(e1, /não foi discutido de forma concreta, seja porque/);
+});
+
+test("a concordância acompanha a contagem — '1 descreve', '2 descrevem'", () => {
+  const um = doc(respondente("E3", { EST01: "E1", EST02: "NA", EST03: "NA", EST04: "NA" }), CONTEXTO).html;
+  assert.match(um, /1 descreve práticas ainda não estabelecidas/);
+  assert.doesNotMatch(um, /1 descrevem/);
+  const varios = doc(respondente("E1"), CONTEXTO).html;
+  assert.match(varios, /\d+ descrevem práticas ainda não estabelecidas/);
+});
+
+test("o rótulo do gate entra como aposto, não depois de 'é'", () => {
+  for (const g of ["G1", "G2", "G3"]) {
+    const { html } = doc(respondente("E3", { GOV01: g, GOV02: "G3", GOV03: "G3" }), CONTEXTO);
+    assert.doesNotMatch(html, /leitura de governança é [A-Z]/, `gate ${g}`);
+    assert.doesNotMatch(html, /é exige|é condicionada|é controles/i, `gate ${g}`);
+    assert.match(html, /A condição de governança deste ciclo — .+ — condiciona/, `gate ${g}`);
+  }
+});

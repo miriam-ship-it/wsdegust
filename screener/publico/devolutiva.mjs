@@ -125,11 +125,17 @@ function resumoExecutivo(pub, prioridades) {
       "Nenhum item foi respondido nos dois degraus iniciais da progressão. A leitura adiante descreve as práticas relatadas e as condições de governança."
     );
   }
+  // O rótulo do gate é um sintagma nominal ("Exige tratamento antes de
+  // ampliar"). Encaixá-lo depois de "é" produzia "a leitura é exige
+  // tratamento" — por isso ele entra como aposto, entre travessões.
   linhas.push(
-    `A leitura de governança é ${pub.governanca.rotulo.toLowerCase()} e condiciona a interpretação de prontidão, sem ser compensada pelos demais blocos.`
+    `A condição de governança deste ciclo — ${pub.governanca.rotulo} — condiciona a interpretação de prontidão e não é compensada pelos demais blocos.`
   );
   return linhas;
 }
+
+/** Concordância: "1 descreve", "2 descrevem". Zero é plural em pt-BR. */
+const verbo = (n) => (n === 1 ? "descreve" : "descrevem");
 
 /** A leitura de um bloco: distribuição relatada, sem atribuir degrau conclusivo sem cobertura. */
 function leituraDeBloco(b) {
@@ -158,7 +164,7 @@ function leituraDeBloco(b) {
     ...base,
     suficiente: true,
     leitura:
-      `Das ${b.considerados} respostas com posição neste bloco, ${consolidadas} descrevem práticas definidas ou gerenciadas e ${iniciais} descrevem práticas ainda não estabelecidas ou informais. ` +
+      `Das ${b.considerados} respostas com posição neste bloco, ${consolidadas} ${verbo(consolidadas)} práticas definidas ou gerenciadas e ${iniciais} ${verbo(iniciais)} práticas ainda não estabelecidas ou informais. ` +
       (iniciais > consolidadas
         ? "A concentração nos degraus iniciais indica onde a prática ainda depende de pessoas e de momento."
         : consolidadas > iniciais

@@ -4,8 +4,19 @@
     {
       "name": "rhia",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 4600
+    },
+    {
+      "name": "diagnostico",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "diagnostico/servir.mjs"
+      ],
+      "port": 4700
     }
   ]
 }
