@@ -1,0 +1,1847 @@
+// GERADO por scripts/gerar-definicao-embutida.mjs — NAO EDITAR A MAO.
+//
+// A fonte auditavel e instrumento/DIAGNOSTICO_BOOMIT_40.json. Este modulo existe
+// porque o motor tambem roda na edge (Deno), onde ler um JSON do disco relativo
+// ao modulo e fragil. `definicao.test.mjs` prova que os dois nao divergem.
+
+export const SHA256 = "551944469c35112cfd803dfd2fa81fae20c9e5994f1efba6d65731028ecc5595";
+
+export const INSTRUMENTO = {
+ "id": "DIAGNOSTICO_BOOMIT_40",
+ "nome": "Diagnóstico Boomit",
+ "versoes": {
+  "questionario": "screener-publico-v1",
+  "catalogo": "blueprint-40-final",
+  "motor": "engine-screener-publico-v1-provisorio"
+ },
+ "fonte_aprovada": {
+  "documento": "Boomit-Screener-Publico-40-itens-para-validacao-v2.docx",
+  "blueprint": "Blueprint-Screener-Publico-Boomit-40-itens-FINAL.xlsx",
+  "blueprint_sha256": "3926885c72d83d2eefd088116b06912d4c9a51f5776930587969814b937040a7"
+ },
+ "pontuacao": {
+  "e1_e4_confirmado": false,
+  "mapa_provisorio": {
+   "E1": 0,
+   "E2": 33.3,
+   "E3": 66.7,
+   "E4": 100
+  },
+  "aviso": "PROVISÓRIO. O documento aprovado informa que E1–E4 'Pontua' mas não define valores numéricos. Nenhuma nota de maturidade pode ser publicada ao respondente enquanto e1_e4_confirmado for false.",
+  "na": "Fora do numerador e do denominador. Não representa baixa maturidade.",
+  "cobertura_minima_do_bloco": 0.5
+ },
+ "blocos": [
+  {
+   "id": "CTX",
+   "nome": "Contexto e autoridade",
+   "funcao": "Perfil, alcance e autoridade",
+   "tipo": "contexto",
+   "peso": 0
+  },
+  {
+   "id": "EST",
+   "nome": "Estratégia do negócio e pessoas",
+   "funcao": "Gente e gestão conectada ao negócio, valor e retorno",
+   "tipo": "pontuado",
+   "peso": 0.2
+  },
+  {
+   "id": "LID",
+   "nome": "Liderança e funcionalidade",
+   "funcao": "Cinco dimensões em duas lentes",
+   "tipo": "pontuado",
+   "peso": 0.2
+  },
+  {
+   "id": "PRO",
+   "nome": "Processos e dados",
+   "funcao": "Processos, dados, papéis e futuro",
+   "tipo": "pontuado",
+   "peso": 0.2
+  },
+  {
+   "id": "IA",
+   "nome": "Decisão e implementação de IA",
+   "funcao": "Decisão, implantação, trabalho e resultados",
+   "tipo": "pontuado",
+   "peso": 0.2
+  },
+  {
+   "id": "FUT",
+   "nome": "Competências, capacidade e organização futura",
+   "funcao": "Competências, preparação, tempo e estrutura",
+   "tipo": "pontuado",
+   "peso": 0.2
+  },
+  {
+   "id": "GOV",
+   "nome": "Governança",
+   "funcao": "Privacidade, decisões de pessoas e participação",
+   "tipo": "gate",
+   "peso": 0
+  }
+ ],
+ "correcoes_rastreadas": [
+  {
+   "codigo": "EST06",
+   "campo": "pergunta",
+   "motivo": "A aba Questões do blueprint traz a célula vazia. O texto literal foi recuperado da aba 'Documento aprovado' (parágrafo 60), que é a fonte de auditoria declarada pelo próprio blueprint.",
+   "origem": "Blueprint FINAL · aba 'Documento aprovado', parágrafo 60"
+  },
+  {
+   "codigo": "FUT04",
+   "campo": "opcoes",
+   "motivo": "O blueprint repetiu em FUT04 o conjunto de alternativas do FUT05 (destino do tempo liberado), que não corresponde ao enunciado do FUT04. Pendência registrada na aba 'QA e pendências' do próprio blueprint.",
+   "origem": "Conjunto literal fornecido por Miriam (miriam@boomit.com.br) em 21/09/2026, nesta sessão."
+  }
+ ],
+ "itens": [
+  {
+   "codigo": "CTX01",
+   "ordem": 1,
+   "bloco": "CTX",
+   "lente": "Contexto",
+   "pergunta": "Qual opção descreve melhor seu papel atual na organização?",
+   "objetivo_interno": "Papel e linguagem da devolutiva",
+   "fonte": "Transcrição 00:02–00:11",
+   "notas_metodologicas": [],
+   "tipo_de_resposta": "Contexto; opções não pontuam",
+   "regra": "Não pontua",
+   "pontua": false,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "P1",
+     "texto": "C-level ou vice-presidente",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "P2",
+     "texto": "Fundador(a), sócio(a) ou proprietário(a)",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "P3",
+     "texto": "Diretor(a)",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "P4",
+     "texto": "Gerente com responsabilidade por equipe ou operação",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "P5",
+     "texto": "Especialista ou consultor(a), sem gestão direta de equipe",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "P6",
+     "texto": "Coordenador(a) ou supervisor(a)",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "OUTRO",
+     "texto": "Outro — abrir campo de texto",
+     "tratamento": "Não pontua"
+    }
+   ]
+  },
+  {
+   "codigo": "CTX02",
+   "ordem": 2,
+   "bloco": "CTX",
+   "lente": "Contexto",
+   "pergunta": "Considerando sua atuação atual, sobre qual alcance você tem responsabilidade direta por decisões, entregas ou resultados?",
+   "objetivo_interno": "Alcance real da responsabilidade",
+   "fonte": "Transcrição 00:09–00:22",
+   "notas_metodologicas": [],
+   "tipo_de_resposta": "Contexto; opções não pontuam",
+   "regra": "Não pontua",
+   "pontua": false,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "N1",
+     "texto": "Minhas próprias entregas e projetos",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "N2",
+     "texto": "Uma equipe ou processo",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "N3",
+     "texto": "Uma área, diretoria ou unidade de negócio",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "N4",
+     "texto": "Múltiplas áreas ou unidades de negócio",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "N5",
+     "texto": "A organização como um todo",
+     "tratamento": "Não pontua"
+    }
+   ]
+  },
+  {
+   "codigo": "CTX03",
+   "ordem": 3,
+   "bloco": "CTX",
+   "lente": "Contexto",
+   "pergunta": "Nas decisões relevantes sobre desenvolvimento, trabalho e IA, qual é o seu nível de participação?",
+   "objetivo_interno": "Autoridade efetiva de decisão",
+   "fonte": "Transcrição 00:11–00:22",
+   "notas_metodologicas": [],
+   "tipo_de_resposta": "Contexto; opções não pontuam",
+   "regra": "Não pontua",
+   "pontua": false,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "N1",
+     "texto": "Produzo informações ou executo partes da decisão",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "N2",
+     "texto": "Analiso cenários e faço recomendações",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "N3",
+     "texto": "Construo e tomo decisões em conjunto com outras lideranças",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "N4",
+     "texto": "Decido dentro da minha área, orçamento ou responsabilidade",
+     "tratamento": "Não pontua"
+    },
+    {
+     "codigo": "N5",
+     "texto": "Defino ou aprovo diretrizes para a organização",
+     "tratamento": "Não pontua"
+    }
+   ]
+  },
+  {
+   "codigo": "EST01",
+   "ordem": 4,
+   "bloco": "EST",
+   "lente": "Organização",
+   "pergunta": "Como a área responsável por gente e gestão conecta o desempenho e o desenvolvimento das pessoas às prioridades do negócio? Considere quem desempenha essa função, mesmo que não exista um departamento formal de RH.",
+   "objetivo_interno": "Conexão entre gente e gestão e negócio",
+   "fonte": "Critério C04; transcrição 00:28–00:32",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "As ações de pessoas respondem principalmente a demandas isoladas ou urgências.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "A conexão com o negócio aparece em algumas ações, mas não orienta prioridades comuns.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "As ações de pessoas têm objetivos ligados ao negócio, responsáveis definidos e resultados acompanhados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Os resultados das ações orientam ajustes no desenvolvimento das pessoas e nas escolhas do negócio.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "EST02",
+   "ordem": 5,
+   "bloco": "EST",
+   "lente": "Atuação",
+   "pergunta": "Ao discutir uma decisão sobre desempenho ou desenvolvimento de pessoas, quais evidências são consideradas?",
+   "objetivo_interno": "Evidências para decisões específicas sobre pessoas",
+   "fonte": "Critérios C04–C05; transcrição 00:31–00:34",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A decisão usa principalmente opinião ou uma prática conhecida, sem evidência do trabalho realizado.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Alguns indicadores são consultados, mas não são relacionados de forma consistente à decisão.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "A decisão considera evidências de desempenho ou desenvolvimento e seus efeitos na operação.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Diferentes evidências, cenários e incertezas são comparados antes de decidir e revisar a escolha.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "EST03",
+   "ordem": 6,
+   "bloco": "EST",
+   "lente": "Atuação",
+   "pergunta": "O orçamento não comporta todas as iniciativas de desenvolvimento de pessoas planejadas. Como a priorização costuma ser feita?",
+   "objetivo_interno": "Escolha, renúncia e valor das iniciativas",
+   "fonte": "Critério C06; transcrição 00:34–00:35",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A verba é distribuída para preservar o maior número de iniciativas, sem explicitar o que foi eliminado.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "As demandas mais urgentes recebem prioridade.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Objetivo, público, evidência, investimento, risco e resultado esperado são comparados antes de priorizar.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Hipóteses são testadas e os recursos são realocados conforme os resultados observados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "EST04",
+   "ordem": 7,
+   "bloco": "EST",
+   "lente": "Organização",
+   "pergunta": "Como a organização verifica se uma iniciativa de desenvolvimento ou desempenho de pessoas trouxe o resultado esperado em relação ao investimento realizado? Considere o resultado para o trabalho e, quando possível, o retorno financeiro.",
+   "objetivo_interno": "Valor e retorno do investimento",
+   "fonte": "Critério C06; parecer p. 53",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "O acompanhamento termina com a entrega da iniciativa e a conferência dos recursos utilizados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Participação ou satisfação são registradas, mas não são comparadas com mudanças no trabalho.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Resultados antes e depois são comparados e relacionados aos benefícios observados e ao investimento realizado.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A comparação considera outras causas e orienta manter, corrigir ou interromper o investimento.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "EST05",
+   "ordem": 8,
+   "bloco": "EST",
+   "lente": "Organização",
+   "pergunta": "Quando a organização toma uma decisão estratégica, em que momento os impactos sobre pessoas, liderança, estrutura e capacidade de trabalho são considerados?",
+   "objetivo_interno": "Influência da agenda de pessoas nos fóruns decisórios",
+   "fonte": "Transcrição 00:30–00:32 e 00:56–01:01",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A definição de pessoas entra depois da decisão, para comunicar, contratar, treinar ou executar.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Entra durante a implementação, quando surgem impactos ou resistências.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Entra na análise da decisão, com dados sobre capacidade, liderança, estrutura e riscos humanos.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Entra desde a formulação do problema e influencia cenários, critérios, escolhas e acompanhamento.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "EST06",
+   "ordem": 9,
+   "bloco": "EST",
+   "lente": "Organização",
+   "pergunta": "Como a área responsável por gente e gestão prepara as lideranças para entregar as prioridades do negócio?",
+   "objetivo_interno": "Preparação da liderança para prioridades do negócio",
+   "fonte": "Critérios C04 e C15; parecer p. 54",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A preparação ocorre após solicitações dos gestores, sem diagnóstico comum das dificuldades de liderança.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "A preparação segue temas gerais, com pouco acompanhamento da aplicação no trabalho de cada liderança.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "A preparação parte das dificuldades observadas, define mudanças de atuação e acompanha sua aplicação.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A aplicação é confrontada com resultados e com a experiência das equipes, orientando novas intervenções.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID01P",
+   "ordem": 10,
+   "bloco": "LID",
+   "lente": "Pessoa",
+   "pergunta": "Uma nova prioridade estratégica surge no meio do ciclo. Como você costuma agir?",
+   "objetivo_interno": "Visão e direcionamento — atuação individual",
+   "fonte": "Diagnóstico de liderança; ajuste de neutralidade",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "Mantenho o plano até receber detalhamento suficiente ou uma orientação formal.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Ajusto o que for viável sem reabrir os compromissos principais.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Reavalio prioridades e dependências com as pessoas envolvidas e proponho ajustes.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Negocio o que entra, o que sai, os efeitos esperados e como o novo acordo será acompanhado.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID01O",
+   "ordem": 11,
+   "bloco": "LID",
+   "lente": "Organização",
+   "pergunta": "Quando prioridades estratégicas mudam, como a liderança que orienta o trabalho normalmente conduz a mudança?",
+   "objetivo_interno": "Visão e direcionamento — sustentação organizacional",
+   "fonte": "Critério C02; adaptação para quem está no topo",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A mudança chega por sinais dispersos e cada área interpreta como consegue.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Há comunicação formal, mas prioridades anteriores e conflitos de capacidade permanecem pouco claros.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "A liderança explica a mudança, redefine prioridades e acompanha os ajustes necessários.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A mudança é traduzida em escolhas, responsabilidades, indicadores e revisões frequentes de rota.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID02P",
+   "ordem": 12,
+   "bloco": "LID",
+   "lente": "Pessoa",
+   "pergunta": "Nas conversas de desenvolvimento de que você participa, como líder ou liderado, como as mudanças são combinadas e acompanhadas? Considere conversas reais do último ano. Não se pressupõe gestão direta de equipe.",
+   "objetivo_interno": "Desenvolvimento de pessoas — atuação individual",
+   "fonte": "Critério C05; parecer p. 55",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A conversa termina com impressões gerais; mudanças esperadas e acompanhamento ficam em aberto.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "A conversa gera sugestões; a retomada acontece quando alguém percebe necessidade.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "A conversa define uma mudança a praticar, uma forma de observar progresso e uma data de retomada.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Na retomada, os resultados da prática são examinados e orientam ajustes nos próximos desafios.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID02O",
+   "ordem": 13,
+   "bloco": "LID",
+   "lente": "Organização",
+   "pergunta": "Quando alguém apresenta queda persistente de desempenho, como a organização e a liderança responsável costumam agir?",
+   "objetivo_interno": "Desenvolvimento e performance — sustentação organizacional",
+   "fonte": "Critério C15; separar pessoa de disfunção da liderança",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "O tema é evitado, adiado ou tratado apenas como falta de esforço da pessoa.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "A liderança atua conforme seu próprio critério, com pouco suporte ou padrão comum.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Causas são investigadas e há plano, prazo, apoio e evidência esperada de melhora.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Pessoa, liderança e sistema de trabalho são analisados; decisões e critérios são acompanhados e calibrados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID03P",
+   "ordem": 14,
+   "bloco": "LID",
+   "lente": "Pessoa",
+   "pergunta": "Você precisa decidir dentro da sua alçada, com prazo curto e dados incompletos. A decisão permite correção posterior. Como costuma agir?",
+   "objetivo_interno": "Decisão sob incerteza — atuação individual",
+   "fonte": "Critério C02; parecer p. 56",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "Mantenho a decisão pendente até obter os dados desejados, sem combinar o efeito do adiamento.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Escolho a alternativa que reúne mais concordância, usando a opinião dos envolvidos para reduzir a dúvida.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Decido com os dados disponíveis, explicito as suposições e combino quando revisar o resultado.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Comparo alternativas e riscos, definindo limites e sinais que exigirão correção ou interrupção.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID03O",
+   "ordem": 15,
+   "bloco": "LID",
+   "lente": "Organização",
+   "pergunta": "Qual situação descreve melhor como decisões relevantes são tomadas e revistas na organização?",
+   "objetivo_interno": "Decisão e responsabilidade — sustentação organizacional",
+   "fonte": "Critério C15; direitos de decisão",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A decisão muda conforme as pessoas envolvidas ou permanece indefinida.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "A decisão depende de vários níveis de aprovação e as responsabilidades se confundem.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Há clareza suficiente para decidir e revisar quando surgem novas evidências.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Direitos de decisão, critérios, registro, execução e revisão são explícitos e acompanhados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID04P",
+   "ordem": 16,
+   "bloco": "LID",
+   "lente": "Pessoa",
+   "pergunta": "Ao longo do último ano, como você lidou com conversas difíceis, conflitos ou negativas relevantes?",
+   "objetivo_interno": "Coragem e influência — atuação individual",
+   "fonte": "Critério C08; transcrição 00:25–00:28",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "Evitei ou adiei a maior parte dessas conversas enquanto foi possível.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Conduzi as conversas necessárias, mas sem preparar critérios ou acompanhamento consistente.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Tratei os temas diretamente, com fatos, escuta, acordos e acompanhamento.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Além da conversa, trabalhei causas, relações e padrões do sistema para reduzir recorrência.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID04O",
+   "ordem": 17,
+   "bloco": "LID",
+   "lente": "Organização",
+   "pergunta": "O que tende a acontecer quando alguém discorda de um par, gestor ou liderança em uma reunião?",
+   "objetivo_interno": "Segurança para dissenso — sustentação organizacional",
+   "fonte": "Critério C15; transcrição 00:59:39",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A discordância costuma gerar consequência política, retaliação ou exclusão das decisões.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "A reação depende da pessoa, do momento ou de a discordância ocorrer em particular.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "A discordância é aceita quando vem acompanhada de argumentos e alternativas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "O dissenso construtivo é esperado, registrado quando relevante e melhora decisões sem retaliação.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID05P",
+   "ordem": 18,
+   "bloco": "LID",
+   "lente": "Pessoa",
+   "pergunta": "Como você acompanha indicadores e compromissos do seu trabalho ou área?",
+   "objetivo_interno": "Disciplina de performance — atuação individual",
+   "fonte": "Diagnóstico de liderança; sinais antecedentes",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "Consulto indicadores principalmente quando preciso prestar contas ou explicar um desvio.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Acompanho uma rotina definida, mas os dados raramente alteram prioridades ou ações.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Reviso indicadores, causas e compromissos em cadência compatível com o trabalho.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Uso sinais que permitem agir antes do problema e resultados para testar hipóteses e ajustar o sistema.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "LID05O",
+   "ordem": 19,
+   "bloco": "LID",
+   "lente": "Organização",
+   "pergunta": "Como metas e compromissos são acompanhados pela liderança?",
+   "objetivo_interno": "Disciplina de performance — sustentação organizacional",
+   "fonte": "Critério C15; acompanhamento observável",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "As metas têm baixa clareza ou são lembradas perto do encerramento do ciclo.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Existem metas e reuniões, mas o acompanhamento varia entre áreas e gera poucas correções.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Há rituais, responsáveis, evidências e ajustes de rota documentados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Resultados, comportamentos e interdependências são calibrados; desvios geram aprendizagem e consequências coerentes.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "PRO01",
+   "ordem": 20,
+   "bloco": "PRO",
+   "lente": "Organização",
+   "pergunta": "Como os processos importantes e frequentes são conhecidos por quem executa e por quem decide?",
+   "objetivo_interno": "Visibilidade de macroprocessos e microprocessos",
+   "fonte": "Critério C10; transcrição 00:50–01:01",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "O conhecimento está principalmente na experiência das pessoas e em orientações informais.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Há documentos ou fluxos em algumas áreas, com atualização e uso irregulares.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Macroprocessos, etapas, entradas, saídas, exceções e responsáveis estão mapeados e acessíveis.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "O mapa conecta microprocessos, sistemas, decisões, controles e capacidade e é atualizado com evidências.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "PRO02",
+   "ordem": 21,
+   "bloco": "PRO",
+   "lente": "Organização",
+   "pergunta": "Como a responsabilidade por criar, operar e revisar processos é definida?",
+   "objetivo_interno": "Propriedade e governança de processos",
+   "fonte": "Critério C10; transcrição 00:59–01:01",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A responsabilidade é assumida por quem resolve o problema no momento.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "O gestor da área é considerado responsável, mas papéis e interfaces não são explícitos.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Há donos de processo, responsabilidades, interfaces e cadência de revisão definidas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Donos de ponta a ponta gerem desempenho, riscos, controles, mudanças e dependências entre áreas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "PRO03",
+   "ordem": 22,
+   "bloco": "PRO",
+   "lente": "Organização",
+   "pergunta": "Como gargalos, retrabalho, passagens do trabalho e tempos de espera são identificados e tratados?",
+   "objetivo_interno": "Desempenho e melhoria de processos",
+   "fonte": "Critério C10; simplificação de “handoffs”",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "Os problemas são tratados quando geram reclamação, atraso ou urgência.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Áreas acompanham alguns indicadores e executam melhorias locais.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Fluxo, demanda, capacidade, filas, retrabalho e passagens entre áreas são analisados antes da intervenção.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Mudanças são testadas de ponta a ponta e avaliadas por qualidade, tempo, custo, risco e impacto humano.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "PRO04",
+   "ordem": 23,
+   "bloco": "PRO",
+   "lente": "Organização",
+   "pergunta": "Antes de utilizar dados em uma decisão, o que normalmente é verificado?",
+   "objetivo_interno": "Qualidade, definição e rastreabilidade dos dados",
+   "fonte": "Critério C10; dados antes da ferramenta",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "Os dados são usados conforme estão disponíveis, sem verificação comum de definição ou origem.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Alguns dados são conferidos, mas qualidade, atualização e responsável variam entre áreas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Definição, origem, atualização, completude e responsável pelos dados são verificados antes do uso.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Qualidade e rastreabilidade são monitoradas; divergências interrompem ou qualificam a decisão.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "PRO05",
+   "ordem": 24,
+   "bloco": "PRO",
+   "lente": "Atuação",
+   "pergunta": "Como dão início à  análise destinada a apoiar uma decisão?",
+   "objetivo_interno": "Pergunta decisória e raciocínio analítico",
+   "fonte": "Critério C03 e C10",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A análise começa pela ferramenta ou pelo dado disponível, sem pergunta decisória clara.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "A pergunta é definida, mas critérios de decisão e limites da análise ficam pouco claros.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "A pergunta, decisão, evidências e critérios de sucesso são definidos antes da análise.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Hipóteses são comparadas, incertezas são explicitadas e a análise é revisada após o resultado.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "PRO06",
+   "ordem": 25,
+   "bloco": "PRO",
+   "lente": "Organização",
+   "pergunta": "Antes de mudar um processo, como o estado atual e o estado futuro são definidos?",
+   "objetivo_interno": "Desenho de processo atual e futuro",
+   "fonte": "Critério C10; transcrição 00:59–01:01",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A mudança começa pela solução desejada, sem descrever como o trabalho ocorre hoje.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "O estado atual é descrito em parte, mas o fluxo futuro e as consequências não são combinados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Estado atual, estado futuro, responsáveis, interfaces e efeitos esperados são definidos antes da mudança.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "O desenho é testado com quem executa e revisado por dados, riscos, capacidade e resultados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "IA01",
+   "ordem": 26,
+   "bloco": "IA",
+   "lente": "Organização",
+   "pergunta": "Qual é o estágio atual da decisão sobre aplicar IA no trabalho e na gestão?",
+   "objetivo_interno": "Maturidade de decisão, inação, não adoção justificada e gestão contínua de IA",
+   "fonte": "Critério C13; maturidade de decisão e implementação de IA",
+   "notas_metodologicas": [
+    "Pontuação mínima: inação, ausência de agenda ou falta de decisão.",
+    "Pontuação intermediária: discussão sem caminho ou não adoção justificada com revisão prevista.",
+    "Decisão e preparação observáveis; não exige adoção imediata se houver alternativa formalmente escolhida.",
+    "Gestão contínua baseada em evidências.",
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "O uso de IA ainda não foi discutido de forma concreta ou, embora tenha sido identificado, não há decisão, responsável ou ação definida.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "O tema está em discussão sem critérios, responsável ou caminho definido; ou a organização decidiu não aplicar IA após analisar processos, riscos e benefícios, com justificativa registrada e condição para revisar.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Há decisão sobre casos de uso priorizados, critérios, responsáveis e preparação para implantação ou para a alternativa escolhida.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A decisão e a aplicação são revistas continuamente por resultados, riscos, capacidade, qualidade e mudanças no trabalho.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "IA02",
+   "ordem": 27,
+   "bloco": "IA",
+   "lente": "Organização",
+   "pergunta": "Quando um processo é considerado para uso de IA ou automação, como a decisão é tomada?",
+   "objetivo_interno": "Decisão sobre onde e por que aplicar IA",
+   "fonte": "Critério C11; separar decisão e implantação",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A escolha parte da disponibilidade da ferramenta ou de uma pressão externa, sem analisar o trabalho.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Alguns ganhos são estimados, mas processo, dados, riscos e alternativas não são comparados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Processo, problema, dados, riscos, alternativas e resultado esperado são comparados antes da decisão.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A decisão usa testes e evidências e define critérios para continuar, corrigir ou interromper.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "IA03",
+   "ordem": 28,
+   "bloco": "IA",
+   "lente": "Organização",
+   "pergunta": "Depois que o uso de IA é aprovado, como a implementação é conduzida?",
+   "objetivo_interno": "Implementação e redesenho do trabalho",
+   "fonte": "Critério C11; transcrição 00:52–00:54",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A ferramenta é implantada sem redesenhar o processo, papéis, controles ou suporte às pessoas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Há implantação técnica e comunicação, mas o trabalho real e os ajustes necessários são pouco acompanhados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "A implantação define processo, papéis, treinamento, controles, suporte e acompanhamento do uso.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A implantação é testada, revisada com evidências e ajustada conforme qualidade, capacidade e resultados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "IA04",
+   "ordem": 29,
+   "bloco": "IA",
+   "lente": "Organização",
+   "pergunta": "Como são definidos os papéis das pessoas, dos sistemas e dos agentes de IA em um processo?",
+   "objetivo_interno": "Divisão de trabalho e responsabilidade humano-agente",
+   "fonte": "Critério C12; definir o que permanece humano",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "Não está claro o que a pessoa, o sistema ou o agente de IA decide e executa.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Há divisão informal de tarefas, mas limites, revisão e responsabilidade pelo resultado variam.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Cada parte do trabalho tem responsável, limites, revisão humana e registro da decisão.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A divisão é revista por risco, qualidade, aprendizagem e efeitos sobre as pessoas e o trabalho.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "IA05",
+   "ordem": 30,
+   "bloco": "IA",
+   "lente": "Organização",
+   "pergunta": "Como as pessoas são preparadas para trabalhar com IA em seus papéis reais?",
+   "objetivo_interno": "Adoção e capacitação aplicada",
+   "fonte": "Critério C12; preparação de pessoas",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A preparação se limita a comunicar a ferramenta ou fica a cargo de cada pessoa.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Há treinamento geral, mas pouca prática no trabalho real e pouco suporte após o início.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "As pessoas praticam no papel real, conhecem limites e recebem suporte para usar a IA com segurança.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A aprendizagem é acompanhada por adoção, qualidade, resultados e mudanças nas competências necessárias.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "IA06",
+   "ordem": 31,
+   "bloco": "IA",
+   "lente": "Organização",
+   "pergunta": "Como o resultado de uma aplicação de IA é acompanhado depois da implantação?",
+   "objetivo_interno": "Valor, qualidade e critérios de continuidade",
+   "fonte": "Critério C11; resultado após implantação",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "O resultado é avaliado pela entrega da ferramenta ou pelo volume de uso.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "São acompanhados satisfação ou produtividade, mas não qualidade, risco e resultado do trabalho em conjunto.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Resultado, qualidade, segurança, adoção e efeitos no trabalho são acompanhados com critérios definidos.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "As evidências orientam ampliar, corrigir, restringir ou interromper a aplicação.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "FUT01",
+   "ordem": 32,
+   "bloco": "FUT",
+   "lente": "Organização",
+   "pergunta": "Que informações a organização usa para identificar as competências de uma pessoa antes de indicar desenvolvimento, promoção ou participação em um projeto?",
+   "objetivo_interno": "Meios de identificar competências atuais",
+   "fonte": "Critério C07; parecer p. 57",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A indicação usa cargo, currículo ou opinião da liderança, sem confrontá-los com o trabalho demonstrado.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Há avaliações ou registros, mas critérios e evidências variam entre pessoas e áreas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Descrição do papel, resultados, comportamentos observáveis e outras evidências são comparados para identificar capacidades e lacunas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "O mapa de capacidades é atualizado por experiências e resultados e orienta desenvolvimento, projetos, mobilidade e sucessão.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "FUT02",
+   "ordem": 33,
+   "bloco": "FUT",
+   "lente": "Organização",
+   "pergunta": "Como são tomadas decisões sobre promoção, mobilidade, sucessão ou preenchimento de vagas internas?",
+   "objetivo_interno": "Prontidão e decisões de talento baseadas em evidências",
+   "fonte": "Critério C07; parecer p. 58",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A decisão depende principalmente de indicação, proximidade ou percepção de uma única liderança.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "Há reuniões ou avaliações, mas critérios variam e as decisões geram pouco desenvolvimento posterior.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Critérios explícitos, múltiplas evidências, calibração e ações registradas sustentam a decisão.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Prontidão, mobilidade, diversidade e qualidade das decisões são monitoradas e corrigem critérios e investimentos.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "FUT03",
+   "ordem": 34,
+   "bloco": "FUT",
+   "lente": "Organização",
+   "pergunta": "Como a organização identifica as habilidades técnicas e comportamentais que serão necessárias no futuro?",
+   "objetivo_interno": "Antecipação de capacidades futuras",
+   "fonte": "Critério C07 e C12",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "As necessidades aparecem quando uma vaga abre ou uma entrega já está comprometida.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "O planejamento estima quadro e custo, com análise limitada das capacidades futuras.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Cenários de negócio e trabalho são traduzidos em capacidades, demanda, oferta interna e lacunas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Sinais antecipatórios e experimentos revisam continuamente capacidades críticas e decisões de trabalho.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "FUT04",
+   "ordem": 35,
+   "bloco": "FUT",
+   "lente": "Organização",
+   "pergunta": "Como as pessoas são preparadas para capacitação e formas de trabalho que ainda não fazem parte da rotina atual?",
+   "objetivo_interno": "Requalificação e preparação aplicada",
+   "fonte": "Critério C12",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "A preparação começa quando a nova demanda já precisa ser executada.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "São oferecidos cursos ou conteúdos relacionados às tendências identificadas.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Lacunas prioritárias geram prática no trabalho, projetos, apoio, mobilidade e evidência de aplicação.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Cenários de capacidade orientam requalificação, contratação e mobilidade, medidos por resultados.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "FUT05",
+   "ordem": 36,
+   "bloco": "FUT",
+   "lente": "Organização",
+   "pergunta": "Quando IA ou automação libera tempo relevante, como as lacunas vazias são tratadas?",
+   "objetivo_interno": "Destino do tempo liberado e trabalho remanescente",
+   "fonte": "Critério C12; não presumir corte de pessoas",
+   "notas_metodologicas": [
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "O percentual automatizado é convertido diretamente em redução de pessoas, sem analisar o trabalho restante.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "O trabalho restante é redistribuído entre funções atuais, sem revisar demanda e capacidades de forma estruturada.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Tarefas, demanda futura e capacidade são comparadas antes de decidir por realocação, desenvolvimento ou redução.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "Cenários operacionais, humanos e financeiros orientam a transição e o uso produtivo da capacidade liberada.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "FUT06",
+   "ordem": 37,
+   "bloco": "FUT",
+   "lente": "Organização",
+   "pergunta": "Como a estrutura organizacional atual e futura é discutida quando: estratégia, trabalho, processos ou IA mudam?",
+   "objetivo_interno": "Estrutura atual e futura; ausência de discussão",
+   "fonte": "Critérios C12–C16; parecer p. 60",
+   "notas_metodologicas": [
+    "Ausência de discussão é resposta diagnóstica.",
+    "Distingue discussão sem caminho.",
+    "N/A não representa baixa maturidade."
+   ],
+   "tipo_de_resposta": "Maturidade; E1–E4 e N/A",
+   "regra": "E1–E4: Pontua; N/A: Fora do cálculo — não representa baixa maturidade",
+   "pontua": true,
+   "gate": false,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "E1",
+     "texto": "O tema ainda não foi discutido de forma concreta.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E2",
+     "texto": "O tema está em discussão, mas não há modelo, critérios ou caminho definido.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E3",
+     "texto": "Cenários de crescimento e automação orientam papéis, capacidades, interfaces e níveis de decisão.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "E4",
+     "texto": "A estrutura é revista por estratégia, fluxo de valor, capacidade, riscos, resultados e trabalho remanescente.",
+     "tratamento": "Pontua"
+    },
+    {
+     "codigo": "NA",
+     "texto": "Não tenho exposição suficiente para responder.",
+     "tratamento": "Fora do cálculo — não representa baixa maturidade"
+    }
+   ]
+  },
+  {
+   "codigo": "GOV01",
+   "ordem": 38,
+   "bloco": "GOV",
+   "lente": "Organização",
+   "pergunta": "Como são tratados dados pessoais ou sensíveis em análises e ferramentas de IA?",
+   "objetivo_interno": "Privacidade, acesso e ciclo de vida dos dados",
+   "fonte": "Governança; controle crítico",
+   "notas_metodologicas": [
+    "Governança: pior condição define o gate.",
+    "Governança: pior condição define o gate.",
+    "Governança: pior condição define o gate."
+   ],
+   "tipo_de_resposta": "Governança; G1–G3",
+   "regra": "Gate de governança — não compõe a nota",
+   "pontua": false,
+   "gate": true,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "G1",
+     "texto": "Dados identificáveis podem ser inseridos em ferramentas não aprovadas ou acessados sem necessidade definida.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    },
+    {
+     "codigo": "G2",
+     "texto": "Há recomendações de cuidado, mas aprovação, acesso, retenção e descarte não são controlados de forma consistente.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    },
+    {
+     "codigo": "G3",
+     "texto": "São usados ambientes aprovados, finalidade definida, minimização, acesso por função e regras de retenção.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    }
+   ]
+  },
+  {
+   "codigo": "GOV02",
+   "ordem": 39,
+   "bloco": "GOV",
+   "lente": "Organização",
+   "pergunta": "Como decisões de alto impacto sobre pessoas são protegidas contra vieses e automatização indevida?",
+   "objetivo_interno": "Supervisão humana e equidade",
+   "fonte": "Governança; exemplos de decisões de pessoas",
+   "notas_metodologicas": [
+    "Governança: pior condição define o gate.",
+    "Governança: pior condição define o gate.",
+    "Governança: pior condição define o gate."
+   ],
+   "tipo_de_resposta": "Governança; G1–G3",
+   "regra": "Gate de governança — não compõe a nota",
+   "pontua": false,
+   "gate": true,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "G1",
+     "texto": "Decisões sobre pessoas podem ser tomadas ou recomendadas automaticamente, sem revisão humana responsável.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    },
+    {
+     "codigo": "G2",
+     "texto": "Há revisão humana prevista, mas critérios, registro, explicação e possibilidade de contestação variam.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    },
+    {
+     "codigo": "G3",
+     "texto": "Decisões de alto impacto têm revisão humana responsável, critérios, registro, testes de viés e possibilidade de contestação.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    }
+   ]
+  },
+  {
+   "codigo": "GOV03",
+   "ordem": 40,
+   "bloco": "GOV",
+   "lente": "Organização",
+   "pergunta": "Como as pessoas afetadas pela adoção de IA são informadas e envolvidas?",
+   "objetivo_interno": "Transparência, participação e transição",
+   "fonte": "Governança; preparação e participação",
+   "notas_metodologicas": [
+    "Governança: pior condição define o gate.",
+    "Governança: pior condição define o gate.",
+    "Governança: pior condição define o gate."
+   ],
+   "tipo_de_resposta": "Governança; G1–G3",
+   "regra": "Gate de governança — não compõe a nota",
+   "pontua": false,
+   "gate": true,
+   "ativo": true,
+   "opcoes": [
+    {
+     "codigo": "G1",
+     "texto": "As pessoas afetadas são informadas apenas depois da mudança ou não recebem informação suficiente para participar.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    },
+    {
+     "codigo": "G2",
+     "texto": "Há comunicação e consulta pontuais, mas papéis, impactos e canais de retorno não são consistentes.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    },
+    {
+     "codigo": "G3",
+     "texto": "As pessoas são informadas antes da mudança, participam do desenho e têm canais de suporte, retorno e revisão.",
+     "tratamento": "Gate de governança — não compõe a nota"
+    }
+   ]
+  }
+ ]
+};

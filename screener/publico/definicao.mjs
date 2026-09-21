@@ -1,41 +1,35 @@
 // =============================================================
 // DIAGNÓSTICO BOOMIT · 40 itens — carga da definição e projeção pública
 //
-// A definição (`instrumento/DIAGNOSTICO_BOOMIT_40.json`) é PRIVADA: ela carrega
-// o objetivo analítico de cada item, a regra de pontuação, o mapa numérico
-// provisório e o gabarito de gate. Nada disso pode chegar ao navegador.
+// A definição é PRIVADA: ela carrega o objetivo analítico de cada item, a regra
+// de pontuação, o mapa numérico provisório e o gabarito de gate. Nada disso
+// pode chegar ao navegador.
 //
 // `projecaoPublica()` é a única coisa que o respondente vê: código, bloco,
 // lente, enunciado e alternativas — sem tratamento, sem peso, sem ponto.
 //
-// 🔒 A fronteira é PROVADA em `fronteira.test.mjs`. Se um campo novo entrar na
-//    definição e não for listado aqui, o teste quebra — de propósito.
+// 🔒 A fronteira é uma LISTA BRANCA de chaves, provada em `catalogo.test.mjs`.
+//    Campo novo na definição não vaza por esquecimento: ele simplesmente não
+//    é copiado, e o teste que conta as chaves quebra se alguém alargar a lista.
+//
+// Sem `node:fs`: este módulo roda igual no Node (testes) e no Deno (edge).
 // =============================================================
 
-import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
-const AQUI = dirname(fileURLToPath(import.meta.url));
-const CAMINHO = join(AQUI, "instrumento", "DIAGNOSTICO_BOOMIT_40.json");
-
-let _cache = null;
+import { INSTRUMENTO, SHA256 } from "./instrumento/definicao-embutida.mjs";
 
 /** A definição completa (PRIVADA). Só o servidor chama. */
 export function definicao() {
-  if (!_cache) _cache = JSON.parse(readFileSync(CAMINHO, "utf8"));
-  return _cache;
+  return INSTRUMENTO;
 }
 
 /** Checksum da definição — vai congelado no relatório, para auditoria. */
 export function checksum() {
-  return createHash("sha256").update(readFileSync(CAMINHO, "utf8")).digest("hex");
+  return SHA256;
 }
 
 /** As versões congeladas no evento e em cada linha de `relatorios`. */
 export function versoes() {
-  return { ...definicao().versoes, definicao_sha256: checksum() };
+  return { ...INSTRUMENTO.versoes, definicao_sha256: SHA256 };
 }
 
 /** Itens ativos, na ordem de exibição do documento aprovado. */
@@ -50,7 +44,7 @@ export function item(codigo, def = definicao()) {
 
 /**
  * O que o navegador recebe. Campos permitidos, um a um — lista branca, não
- * lista negra: campo novo na definição não vaza por esquecimento.
+ * lista negra.
  */
 export function projecaoPublica(def = definicao()) {
   return {
