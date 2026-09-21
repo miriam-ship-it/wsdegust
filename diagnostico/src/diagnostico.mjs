@@ -21,65 +21,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 const CFG = window.APP_CONFIG;
 const CHAVE = "diagnostico:" + CFG.EVENTO_SLUG;
 
-// ---------------------------------------------------------------
-// lógica pura (sem DOM, sem rede) — testada em frontend.test.mjs
-// ---------------------------------------------------------------
-
-export function escapeHtml(s) {
-  return String(s == null ? "" : s)
-    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-}
-
-/** Progresso do instrumento INTEIRO — nunca o da seção. */
-export function progresso(respondidas, total) {
-  const t = total | 0;
-  const d = Math.max(0, Math.min(respondidas | 0, t));
-  return { respondidas: d, total: t, restante: Math.max(0, t - d), pct: t ? Math.round((d / t) * 100) : 0 };
-}
-
-/** Índice do primeiro item sem resposta; `total` se tudo respondido. */
-export function primeiraNaoRespondida(itens, respostas) {
-  const i = (itens || []).findIndex((it) => !(respostas && respostas[it.codigo]));
-  return i === -1 ? (itens || []).length : i;
-}
-
-export function itensFaltantes(itens, respostas) {
-  return (itens || []).filter((it) => !(respostas && respostas[it.codigo])).map((it) => it.codigo);
-}
-
-/**
- * A alternativa que abre campo de texto, se o item tiver uma.
- *
- * 🔑 Quem DECLARA o campo aberto é o instrumento (`texto_livre` na projeção
- *    pública), não a tela. A tela nunca adivinha pelo código do item — se
- *    adivinhasse, passaria a carregar conteúdo do instrumento dentro do bundle
- *    publicado, e a fronteira deixaria de valer.
- */
-export function opcaoLivre(item) {
-  return (item?.opcoes || []).find((o) => o.texto_livre) || null;
-}
-
-/** True quando a questão anterior pertencia a outro bloco (mostra transição). */
-export function entrouEmNovoBloco(itens, i) {
-  if (i <= 0 || i >= itens.length) return false;
-  return itens[i].bloco !== itens[i - 1].bloco;
-}
-
-/** Um UUID v4 sem depender de crypto.randomUUID (ausente em contexto inseguro). */
-export function novoToken() {
-  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
-  const b = new Uint8Array(16);
-  (globalThis.crypto || { getRandomValues: (a) => a.forEach((_, i) => (a[i] = (Math.random() * 256) | 0)) }).getRandomValues(b);
-  b[6] = (b[6] & 0x0f) | 0x40;
-  b[8] = (b[8] & 0x3f) | 0x80;
-  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-}
-
-export function emailValido(e) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || "").trim());
-}
+// A lógica pura vive em `logica.mjs`, que não importa nada por URL e por isso
+// pode ser testada no Node. Ver `diagnostico/logica.test.mjs`.
+import {
+  escapeHtml, progresso, primeiraNaoRespondida, itensFaltantes,
+  opcaoLivre, entrouEmNovoBloco, novoToken, emailValido,
+} from "./logica.mjs";
 
 // ---------------------------------------------------------------
 // estado e persistência

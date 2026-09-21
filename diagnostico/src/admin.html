@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Painel · Diagnóstico Boomit</title>
+<link rel="icon" type="image/png" href="favicon-boomit-preto.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="screener.css">
+<link rel="stylesheet" href="diagnostico.css">
+<link rel="stylesheet" href="admin.css">
+<script>
+  try { var t = localStorage.getItem("diagnostico:tema"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+
+  // 🔒 Mesmo banco compartilhado, evento próprio. O painel NÃO escolhe evento:
+  //    ele está preso a este slug, e a view que ele lê já filtra por slug
+  //    dentro dela. Trocar de evento aqui exigiria trocar o arquivo — e a RLS
+  //    ainda barraria, porque `eventos_do_usuario()` manda no banco.
+  window.APP_CONFIG = {
+    SUPABASE_URL: 'https://klnpnjumogojspubyabi.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsbnBuanVtb2dvanNwdWJ5YWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODI1NjcsImV4cCI6MjA5NjE1ODU2N30.D3L-wybr8jf0Esi3HcJC2kMrmqrBgKfQ3KIo8dV0DUI',
+    EVENTO_SLUG: 'diagnosticoboomit',
+    EXPORT_VIEW: 'v_diagnosticoboomit_export'
+  };
+</script>
+</head>
+<body>
+  <main id="ad-app" aria-live="polite"></main>
+  <script type="module" src="admin.mjs"></script>
+</body>
+</html>

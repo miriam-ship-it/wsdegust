@@ -65,3 +65,6 @@ desktop.ini
 
 # build do site dedicado do Diagnostico Boomit (montado a partir de src/ + frontend/)
 diagnostico/public/
+
+# motor copiado para dentro da edge no deploy (fonte: screener/publico/)
+supabase/functions/diagnostico/_motor/

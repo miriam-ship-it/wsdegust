@@ -42,7 +42,10 @@ export const INSTRUMENTO = ${JSON.stringify(obj, null, 1)};
 // `file:///C:/...` (três barras) e a comparação com `file://C:/...` dava
 // falso em silêncio — o gerador não escrevia, o script saía com status 0, e o
 // instrumento embutido ficava para trás sem ninguém perceber.
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// `process.argv[1]` e undefined quando o modulo e importado por `node -e`
+// ou por um teste — sem a guarda, so importar este arquivo derrubava o
+// processo dentro de pathToFileURL.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   writeFileSync(MJS_PATH, gerar());
   console.log("definicao-embutida.mjs regenerada");
 }

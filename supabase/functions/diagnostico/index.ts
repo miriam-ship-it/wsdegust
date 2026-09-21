@@ -32,10 +32,14 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
-import { projecaoPublica, versoes, definicao } from "../../../screener/publico/definicao.mjs";
-import { calcular, publicar } from "../../../screener/publico/motor.mjs";
-import { montarDevolutiva } from "../../../screener/publico/devolutiva.mjs";
-import { renderRelatorio, renderEmail } from "../../../screener/publico/relatorio-html.mjs";
+// `_motor/` e GERADO por scripts/preparar-edge-diagnostico.mjs a partir de
+// screener/publico/ — a mesma fonte dos testes. Nao editar ali: a pasta e
+// ignorada pelo git e recriada a cada deploy, e um teste reprova se a copia
+// divergir da fonte.
+import { projecaoPublica, versoes, definicao } from "./_motor/definicao.mjs";
+import { calcular, publicar } from "./_motor/motor.mjs";
+import { montarDevolutiva } from "./_motor/devolutiva.mjs";
+import { renderRelatorio, renderEmail } from "./_motor/relatorio-html.mjs";
 
 const EVENTO_SLUG = "diagnosticoboomit";
 

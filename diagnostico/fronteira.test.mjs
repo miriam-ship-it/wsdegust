@@ -105,6 +105,36 @@ test("nenhum arquivo publicado embute o instrumento — ele chega pela edge", ()
   }
 });
 
+test("todo arquivo referenciado pelo site existe em public/", () => {
+  // Esta catraca nasceu de um 404 real: `logica.mjs` foi extraída dos dois
+  // módulos e ninguém a declarou no build. O site subia e parava na tela de
+  // carregando, sem erro visível no servidor.
+  construir();
+  const barra = (p) => p.split(path.sep).join("/");
+  const publicados = new Set(arquivosDe(PUBLIC).map((f) => barra(path.relative(PUBLIC, f))));
+
+  for (const f of arquivosDe(PUBLIC)) {
+    const ext = path.extname(f).toLowerCase();
+    if (![".html", ".mjs", ".css"].includes(ext)) continue;
+    const txt = fs.readFileSync(f, "utf8");
+    const rel = barra(path.relative(PUBLIC, f));
+
+    const refs = [
+      ...txt.matchAll(/(?:from|import)\s+["'](\.\/[^"']+)["']/g),
+      ...txt.matchAll(/(?:src|href)="(?!https?:|data:|#)([^"]+)"/g),
+      ...txt.matchAll(/url\(["']?(?!https?:|data:)([^"')]+)["']?\)/g),
+    ]
+      .map((m) => m[1].replace(/^\.\//, "").split(/[?#]/)[0])
+      // `href="${url}"` é montado em tempo de execução (o link do PDF
+      // assinado, por exemplo) — não é um arquivo do site.
+      .filter((r) => !r.includes("${"));
+
+    for (const r of refs) {
+      assert.ok(publicados.has(r), `${rel} referencia "${r}", que não foi publicado`);
+    }
+  }
+});
+
 test("o publicado não carrega segredo de servidor", () => {
   construir();
   for (const f of arquivosDe(PUBLIC).filter((x) => EXT_TEXTO.has(path.extname(x).toLowerCase()))) {

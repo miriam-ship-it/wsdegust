@@ -35,7 +35,17 @@ export const COMPARTILHADOS = [
 ];
 
 /** O que o site publica. Nada além disto pode sair em `public/`. */
-export const PROPRIOS = ["index.html", "diagnostico.mjs", "diagnostico.css"];
+export const PROPRIOS = [
+  "index.html", "diagnostico.mjs", "diagnostico.css",
+  // O painel vai no MESMO site: é a mesma marca, o mesmo token de tema e o
+  // mesmo CSS. Ele é público no sentido de estar no ar, e protegido pelo
+  // Supabase Auth mais a RLS — nunca por estar escondido.
+  "admin.html", "admin.mjs", "admin.css",
+  // A lógica pura, importada pelos dois. Esquecê-la aqui publicava um site
+  // que dava 404 no import e não saía da tela de carregando — por isso o
+  // teste de fronteira confere todo import relativo contra o que foi montado.
+  "logica.mjs",
+];
 
 export function construir() {
   rmSync(PUBLIC, { recursive: true, force: true });
@@ -49,7 +59,10 @@ export function construir() {
   return readdirSync(PUBLIC).sort();
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// `process.argv[1]` e undefined quando o modulo e importado por `node -e`
+// ou por um teste — sem a guarda, so importar este arquivo derrubava o
+// processo dentro de pathToFileURL.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const arquivos = construir();
   console.log(`diagnostico/public/ montado com ${arquivos.length} arquivos:`);
   for (const a of arquivos) console.log("  ", a);
