@@ -276,6 +276,18 @@ export const LEITURA_DE_BLOCO = {
   },
 };
 
+/**
+ * Rótulo de cada item de contexto na devolutiva.
+ *
+ * Fica AQUI, e não na tela, para que nem o front nem o PDF precisem conhecer
+ * o código do item — eles recebem a lista já rotulada e na ordem.
+ */
+export const ROTULO_CONTEXTO = {
+  CTX01: "Papel na organização",
+  CTX02: "Alcance da responsabilidade",
+  CTX03: "Participação nas decisões",
+};
+
 /** Rótulo do degrau, para a linha de evidência. Descritivo, sem juízo. */
 export const ROTULO_DEGRAU = {
   E1: "prática ainda não estabelecida",

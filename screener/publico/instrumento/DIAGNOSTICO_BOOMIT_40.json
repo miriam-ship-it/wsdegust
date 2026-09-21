@@ -86,6 +86,12 @@
    "campo": "opcoes",
    "motivo": "O blueprint repetiu em FUT04 o conjunto de alternativas do FUT05 (destino do tempo liberado), que não corresponde ao enunciado do FUT04. Pendência registrada na aba 'QA e pendências' do próprio blueprint.",
    "origem": "Conjunto literal fornecido por Miriam (miriam@boomit.com.br) em 21/09/2026, nesta sessão."
+  },
+  {
+   "codigo": "CTX01",
+   "campo": "opcoes.OUTRO",
+   "motivo": "O blueprint traz a alternativa como \"Outro — abrir campo de texto\". O trecho \"— abrir campo de texto\" é instrução de implementação, não texto para o respondente ler: exibi-lo seria mostrar a especificação na tela. A alternativa aparece como \"Outro\" e a instrução vira o atributo texto_livre, que o instrumento declara e a tela obedece.",
+   "origem": "Blueprint FINAL · aba Alternativas, item 1 / opção OUTRO"
   }
  ],
  "itens": [
@@ -136,8 +142,9 @@
     },
     {
      "codigo": "OUTRO",
-     "texto": "Outro — abrir campo de texto",
-     "tratamento": "Não pontua"
+     "texto": "Outro",
+     "tratamento": "Não pontua",
+     "texto_livre": true
     }
    ]
   },

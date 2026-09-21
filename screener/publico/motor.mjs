@@ -45,13 +45,25 @@ export const ROTULO_GOV = {
   },
 };
 
-/** Respostas de contexto, com o texto literal da alternativa escolhida. */
-export function perfil(respostas, def = definicao()) {
+/**
+ * Respostas de contexto, com o texto literal da alternativa escolhida.
+ *
+ * `textos` traz o que a pessoa digitou nas alternativas de campo aberto. Ele é
+ * DADO, nunca instrução: entra no perfil como texto e não toca em cálculo
+ * nenhum — os itens de contexto não pontuam.
+ */
+export function perfil(respostas, def = definicao(), textos = {}) {
   const out = {};
   for (const it of def.itens.filter((i) => i.bloco === "CTX")) {
     const escolhido = respostas?.[it.codigo];
     const op = it.opcoes.find((o) => o.codigo === escolhido);
-    out[it.codigo] = op ? { opcao: op.codigo, texto: op.texto } : null;
+    if (!op) { out[it.codigo] = null; continue; }
+    const livre = op.texto_livre ? String(textos?.[it.codigo] ?? "").trim() : "";
+    out[it.codigo] = {
+      opcao: op.codigo,
+      texto: livre ? `${op.texto}: ${livre}` : op.texto,
+      texto_livre: livre || null,
+    };
   }
   return out;
 }
@@ -212,14 +224,14 @@ export function prioridades(respostas, def = definicao(), limite = 3) {
  * O resultado completo. PRIVADO — é o que vai para `relatorios.scores_json`.
  * O que o respondente vê é `publicar()`.
  */
-export function calcular(respostas, def = definicao()) {
+export function calcular(respostas, def = definicao(), textos = {}) {
   const pontuados = def.blocos.filter((b) => b.tipo === "pontuado").map((b) => avaliarBloco(b.id, respostas, def));
   const todos = itensAtivos(def).filter((i) => i.pontua).map((i) => i.codigo);
   return {
     versoes: versoes(),
     nota_publicavel: notaPublicavel(def),
     provisorio: !notaPublicavel(def),
-    perfil: perfil(respostas, def),
+    perfil: perfil(respostas, def, textos),
     cobertura_geral: cobertura(todos, respostas, def),
     blocos: pontuados,
     lideranca: lentesDeLideranca(respostas, def),

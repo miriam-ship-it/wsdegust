@@ -4,7 +4,7 @@
 // porque o motor tambem roda na edge (Deno), onde ler um JSON do disco relativo
 // ao modulo e fragil. `definicao.test.mjs` prova que os dois nao divergem.
 
-export const SHA256 = "551944469c35112cfd803dfd2fa81fae20c9e5994f1efba6d65731028ecc5595";
+export const SHA256 = "66bf69deb7fca84efcacb4b86591e694c8911f092834ee46fdd6fa475781e96f";
 
 export const INSTRUMENTO = {
  "id": "DIAGNOSTICO_BOOMIT_40",
@@ -94,6 +94,12 @@ export const INSTRUMENTO = {
    "campo": "opcoes",
    "motivo": "O blueprint repetiu em FUT04 o conjunto de alternativas do FUT05 (destino do tempo liberado), que não corresponde ao enunciado do FUT04. Pendência registrada na aba 'QA e pendências' do próprio blueprint.",
    "origem": "Conjunto literal fornecido por Miriam (miriam@boomit.com.br) em 21/09/2026, nesta sessão."
+  },
+  {
+   "codigo": "CTX01",
+   "campo": "opcoes.OUTRO",
+   "motivo": "O blueprint traz a alternativa como \"Outro — abrir campo de texto\". O trecho \"— abrir campo de texto\" é instrução de implementação, não texto para o respondente ler: exibi-lo seria mostrar a especificação na tela. A alternativa aparece como \"Outro\" e a instrução vira o atributo texto_livre, que o instrumento declara e a tela obedece.",
+   "origem": "Blueprint FINAL · aba Alternativas, item 1 / opção OUTRO"
   }
  ],
  "itens": [
@@ -144,8 +150,9 @@ export const INSTRUMENTO = {
     },
     {
      "codigo": "OUTRO",
-     "texto": "Outro — abrir campo de texto",
-     "tratamento": "Não pontua"
+     "texto": "Outro",
+     "tratamento": "Não pontua",
+     "texto_livre": true
     }
    ]
   },

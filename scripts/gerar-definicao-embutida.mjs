@@ -9,7 +9,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -38,7 +38,11 @@ export const INSTRUMENTO = ${JSON.stringify(obj, null, 1)};
 `;
 }
 
-if (import.meta.url === `file://${process.argv[1].replace(/\\/g, "/")}`) {
+// pathToFileURL, e não montar a string na mão: no Windows o caminho vira
+// `file:///C:/...` (três barras) e a comparação com `file://C:/...` dava
+// falso em silêncio — o gerador não escrevia, o script saía com status 0, e o
+// instrumento embutido ficava para trás sem ninguém perceber.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   writeFileSync(MJS_PATH, gerar());
   console.log("definicao-embutida.mjs regenerada");
 }

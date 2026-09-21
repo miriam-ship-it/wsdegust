@@ -15,7 +15,7 @@
 // =============================================================
 
 import { definicao, item } from "./definicao.mjs";
-import { ESPECIALIDADES, LEITURA, LEITURA_DE_BLOCO, ROTULO_DEGRAU } from "./conteudo-devolutiva.mjs";
+import { ESPECIALIDADES, LEITURA, LEITURA_DE_BLOCO, ROTULO_CONTEXTO, ROTULO_DEGRAU } from "./conteudo-devolutiva.mjs";
 
 const NOME_BLOCO = {
   EST: "Estratégia do negócio e pessoas",
@@ -257,7 +257,11 @@ export function montarDevolutiva(pub, respostas, contexto = {}, def = definicao(
           empresa: contexto.empresa ?? null,
           data: contexto.data ?? null,
         },
-        perfil: pub.perfil,
+        // Já rotulado e na ordem: quem renderiza (tela e PDF) nunca precisa
+        // conhecer o código do item para saber o que aquela linha significa.
+        contexto: Object.entries(ROTULO_CONTEXTO)
+          .map(([codigo, rotulo]) => ({ rotulo, texto: pub.perfil?.[codigo]?.texto ?? null }))
+          .filter((x) => x.texto),
         resumo: resumoExecutivo(pub, prioridades),
         aviso_de_interpretacao:
           "Esta leitura parte das respostas de uma pessoa sobre o próprio trabalho e sobre o contexto em que atua. Ela descreve percepção situada neste momento, não um retrato verificado da organização. As hipóteses apresentadas existem para serem testadas com evidência, e o instrumento não substitui diagnóstico conduzido com múltiplas fontes.",

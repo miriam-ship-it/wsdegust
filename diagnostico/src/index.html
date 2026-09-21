@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico Boomit</title>
+<meta name="description" content="Uma leitura de como a gestão de pessoas, os processos e a decisão sobre IA acontecem hoje — em cerca de 10 minutos.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Boomit">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Diagnóstico Boomit">
+<meta property="og:description" content="Uma leitura de como a gestão de pessoas, os processos e a decisão sobre IA acontecem hoje — em cerca de 10 minutos.">
+<meta property="og:image" content="og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Diagnóstico Boomit">
+<meta name="twitter:description" content="Uma leitura de como a gestão de pessoas, os processos e a decisão sobre IA acontecem hoje — em cerca de 10 minutos.">
+<meta name="twitter:image" content="og-image.png">
+
+<link rel="icon" type="image/png" href="favicon-boomit-preto.png">
+<link rel="icon" type="image/png" href="favicon-boomit-claro.png" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="favicon-boomit-preto.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- A PP Mori é a fonte da marca, mas é licenciada e não é webfont pública. O
+     produto Boomit no ar resolve com Inter, e a decisão aqui é a mesma. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="screener.css">
+<link rel="stylesheet" href="diagnostico.css">
+<script>
+  // Aplica o tema salvo antes da pintura, para não piscar.
+  try { var t = localStorage.getItem("diagnostico:tema"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+
+  // Config PÚBLICA. A anon key é a chave publicável — identifica a aplicação,
+  // não o usuário, e pode ficar no HTML. A service role NUNCA aparece aqui.
+  //
+  // 🔒 EVENTO_SLUG é o que impede o front de escolher o universo errado dentro
+  //    de um banco compartilhado por vários eventos. Não remover.
+  window.APP_CONFIG = {
+    SUPABASE_URL: 'https://klnpnjumogojspubyabi.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsbnBuanVtb2dvanNwdWJ5YWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODI1NjcsImV4cCI6MjA5NjE1ODU2N30.D3L-wybr8jf0Esi3HcJC2kMrmqrBgKfQ3KIo8dV0DUI',
+    EVENTO_SLUG: 'diagnosticoboomit',
+    EDGE_GATE_FUNCTION: 'diagnostico'
+  };
+</script>
+</head>
+<body>
+  <main id="dg-app" aria-live="polite"></main>
+  <script type="module" src="diagnostico.mjs"></script>
+</body>
+</html>

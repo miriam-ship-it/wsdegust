@@ -58,7 +58,14 @@ export function projecaoPublica(def = definicao()) {
       bloco: i.bloco,
       lente: i.lente,
       pergunta: i.pergunta,
-      opcoes: i.opcoes.map((o) => ({ codigo: o.codigo, texto: o.texto })),
+      // `texto_livre` é formato, não gabarito: QUEM DECLARA o campo aberto é o
+      // instrumento, e a tela obedece. Sem isso o front precisaria adivinhar
+      // pelo código do item — e passaria a carregar conteúdo do instrumento.
+      opcoes: i.opcoes.map((o) =>
+        o.texto_livre
+          ? { codigo: o.codigo, texto: o.texto, texto_livre: true }
+          : { codigo: o.codigo, texto: o.texto }
+      ),
     })),
   };
 }

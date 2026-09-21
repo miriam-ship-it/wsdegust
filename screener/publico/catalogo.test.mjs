@@ -37,12 +37,14 @@ test("aceite 16 — alternativas literais, associadas ao código correto", () =>
   const porCodigo = {};
   for (const a of fonte.alternativas) (porCodigo[a.codigo] ||= []).push(a);
   for (const [codigo, alts] of Object.entries(porCodigo)) {
+    // FUT04 e CTX01/OUTRO são as exceções RASTREADAS — ver correcoes_rastreadas
+    // e os testes dedicados abaixo. Todo o resto tem que bater verbatim.
     if (codigo === "FUT04") continue;
     const it = item(codigo, def);
     assert.ok(it, `item ${codigo} ausente`);
     assert.deepEqual(
       it.opcoes.map((o) => [o.codigo, o.texto]),
-      alts.map((a) => [a.opcao, a.texto]),
+      alts.map((a) => [a.opcao, a.codigo === "CTX01" && a.opcao === "OUTRO" ? "Outro" : a.texto]),
       `alternativas de ${codigo} divergem do blueprint`
     );
   }
@@ -60,9 +62,9 @@ test("os enunciados são literais ao blueprint (EST06 pela aba Documento aprovad
   }
 });
 
-test("as duas correções do blueprint estão registradas com origem", () => {
+test("as três correções do blueprint estão registradas com origem", () => {
   const cods = def.correcoes_rastreadas.map((c) => c.codigo).sort();
-  assert.deepEqual(cods, ["EST06", "FUT04"]);
+  assert.deepEqual(cods, ["CTX01", "EST06", "FUT04"]);
   for (const c of def.correcoes_rastreadas) {
     assert.ok(c.motivo && c.origem, `correção de ${c.codigo} sem motivo/origem`);
   }
@@ -78,6 +80,20 @@ test("aceite 21 — FUT04 e FUT05 deixaram de compartilhar o mesmo conjunto", ()
   assert.match(a[0], /A preparação começa quando a nova demanda/);
   assert.equal(a.length, 5);
   assert.equal(a.at(-1), "Não tenho exposição suficiente para responder.");
+});
+
+test("CTX01/OUTRO vira campo aberto declarado pelo instrumento", () => {
+  // O blueprint escreve "Outro — abrir campo de texto". O trecho depois do
+  // travessão é instrução de implementação, não texto para o respondente ler.
+  const bruto = fonte.alternativas.find((a) => a.codigo === "CTX01" && a.opcao === "OUTRO");
+  assert.equal(bruto.texto, "Outro — abrir campo de texto",
+    "o blueprint mudou — revisar a correção rastreada de CTX01");
+  const op = item("CTX01", def).opcoes.find((o) => o.codigo === "OUTRO");
+  assert.equal(op.texto, "Outro");
+  assert.equal(op.texto_livre, true, "a instrução tem que virar atributo, não sumir");
+  // e é a ÚNICA alternativa de campo aberto em todo o instrumento
+  const livres = def.itens.flatMap((i) => i.opcoes.filter((o) => o.texto_livre).map((o) => `${i.codigo}/${o.codigo}`));
+  assert.deepEqual(livres, ["CTX01/OUTRO"]);
 });
 
 test("aceite 17 — CTX não pontua e não tem N/A", () => {
@@ -130,7 +146,11 @@ test("a projeção pública é uma lista branca de chaves — nada de gabarito",
   assert.deepEqual(Object.keys(p).sort(), ["blocos", "id", "itens", "nome", "versao_questionario"]);
   for (const i of p.itens) {
     assert.deepEqual(Object.keys(i).sort(), ["bloco", "codigo", "lente", "opcoes", "ordem", "pergunta"]);
-    for (const o of i.opcoes) assert.deepEqual(Object.keys(o).sort(), ["codigo", "texto"]);
+    for (const o of i.opcoes) {
+      // `texto_livre` é FORMATO (a tela precisa saber que abre campo aberto),
+      // não gabarito. É a única chave opcional permitida.
+      assert.deepEqual(Object.keys(o).sort(), o.texto_livre ? ["codigo", "texto", "texto_livre"] : ["codigo", "texto"]);
+    }
   }
   for (const b of p.blocos) assert.deepEqual(Object.keys(b).sort(), ["id", "nome"]);
   // e continua entregando os 40 itens com todas as alternativas

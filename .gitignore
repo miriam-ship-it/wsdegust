@@ -62,3 +62,6 @@ desktop.ini
 
 # Estado local do CLI do Netlify — traz caminho absoluto da maquina
 .netlify/
+
+# build do site dedicado do Diagnostico Boomit (montado a partir de src/ + frontend/)
+diagnostico/public/

@@ -1,0 +1,35 @@
+# =============================================================
+# Site DEDICADO do Diagnóstico Boomit — projeto Netlify separado.
+#
+# O site principal (IBMEC / degustação) publica `frontend/` pelo netlify.toml
+# da RAIZ e não é tocado por este arquivo. Este projeto tem "Base directory"
+# = `diagnostico`, então é ESTE toml que o Netlify lê, e os caminhos abaixo
+# são relativos a esta pasta.
+#
+# 🔒 Publica `public/`, montada pelo build — nunca `src/` e nunca a raiz do
+#    repositório. `screener/`, `supabase/`, `docs/` e o instrumento com o
+#    gabarito ficam fora do ar por construção, e isso é PROVADO em
+#    `diagnostico/fronteira.test.mjs`.
+#
+# Configuração do projeto no Netlify:
+#   Base directory:  diagnostico
+#   Build command:   node build.mjs      (vem daqui)
+#   Publish:         diagnostico/public  (vem daqui)
+# =============================================================
+
+[build]
+  base = "diagnostico"
+  command = "node build.mjs"
+  publish = "public"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# O questionário não deve ser indexado: o link é dedicado e distribuído por
+# quem conduz o diagnóstico.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

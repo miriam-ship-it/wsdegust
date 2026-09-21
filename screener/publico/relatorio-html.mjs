@@ -157,9 +157,7 @@ function cenarioHtml(c) {
 export function renderRelatorio(d) {
   const p = Object.fromEntries(d.paginas.map((x) => [x.n, x]));
   const capa = p[1].capa;
-  const perfil = p[1].perfil || {};
-  const linhaPerfil = (rot, v) =>
-    v ? `<div class="l"><div>${rot}</div><div>${esc(v.texto)}</div></div>` : "";
+  const linhaPerfil = (c) => `<div class="l"><div>${esc(c.rotulo)}</div><div>${esc(c.texto)}</div></div>`;
 
   const avisoNota = d.nota_publicavel
     ? ""
@@ -180,11 +178,7 @@ export function renderRelatorio(d) {
     <h2>Resumo Executivo</h2>
     ${p[1].resumo.map((l) => `<p>${esc(l)}</p>`).join("")}
     <h2 style="margin-top:14pt">Contexto Declarado</h2>
-    <div class="perfil">
-      ${linhaPerfil("Papel na organização", perfil.CTX01)}
-      ${linhaPerfil("Alcance da responsabilidade", perfil.CTX02)}
-      ${linhaPerfil("Participação nas decisões", perfil.CTX03)}
-    </div>
+    <div class="perfil">${(p[1].contexto || []).map(linhaPerfil).join("")}</div>
     <p class="legenda">Os itens de contexto descrevem de onde parte a leitura. Eles não pontuam.</p>
     <div class="aviso" style="margin-top:12pt">
       <b>Como ler este documento.</b> ${esc(p[1].aviso_de_interpretacao)}
