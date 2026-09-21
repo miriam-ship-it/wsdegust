@@ -45,6 +45,17 @@ ibmec-assessment/
     └── deploy-edge.ps1        (deploy da Edge Function via PowerShell)
 ```
 
+## Os três produtos deste repositório
+
+| Produto | Evento | Front | Documento |
+|---|---|---|---|
+| Diagnóstico Estratégico de Liderança | `ibmec-junho-2026` e `boomit-degustacao` | `frontend/index.html` | este README |
+| Diagnóstico RH + IA (v2) | — | `frontend/rhia.html` | `screener/rhia/README.md` |
+| **Diagnóstico Boomit** (40 itens) | `diagnosticoboomit` | `diagnostico/` · site Netlify próprio | **`diagnostico/README.md`** |
+
+Os três compartilham o mesmo Supabase. A separação é por **linha em
+`public.eventos`**, e ela é sustentada pela RLS — não por convenção.
+
 ## Setup rápido
 
 Leia `SETUP.md` para o passo-a-passo completo. Resumo:
