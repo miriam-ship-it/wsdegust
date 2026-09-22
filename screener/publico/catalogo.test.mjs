@@ -62,9 +62,9 @@ test("os enunciados são literais ao blueprint (EST06 pela aba Documento aprovad
   }
 });
 
-test("as três correções do blueprint estão registradas com origem", () => {
+test("toda correção e toda decisão de escala ficam registradas com origem", () => {
   const cods = def.correcoes_rastreadas.map((c) => c.codigo).sort();
-  assert.deepEqual(cods, ["CTX01", "EST06", "FUT04"]);
+  assert.deepEqual(cods, ["CTX01", "EST06", "FUT04", "PONTUACAO"]);
   for (const c of def.correcoes_rastreadas) {
     assert.ok(c.motivo && c.origem, `correção de ${c.codigo} sem motivo/origem`);
   }
@@ -132,10 +132,23 @@ test("liderança mantém as duas lentes, cinco itens cada", () => {
   assert.equal(lid.filter((i) => i.codigo.endsWith("O")).length, 5);
 });
 
-test("aceite 20 — E1–E4 segue sem confirmação e a nota não é publicável", () => {
-  assert.equal(def.pontuacao.e1_e4_confirmado, false);
-  assert.equal(notaPublicavel(def), false);
-  assert.match(def.pontuacao.aviso, /PROVISÓRIO/);
+test("aceite 20 — a escala usada fica declarada, com a pendência à vista", () => {
+  // A nota passou a ser publicada por decisão de Miriam. O que o aceite 20
+  // protege agora não é o silêncio: é a RASTREABILIDADE. A escala tem que
+  // estar escrita, a decisão tem que ter dono e data, e todo relatório tem
+  // que registrar sob qual motor foi calculado.
+  assert.equal(notaPublicavel(def), true);
+  assert.deepEqual(def.pontuacao.mapa_provisorio, { E1: 0, E2: 33.3, E3: 66.7, E4: 100 });
+  assert.match(def.pontuacao.aviso, /SEGUE PENDENTE de confirmação/);
+  assert.match(def.versoes.motor, /-provisorio$/,
+    "enquanto a escala não for confirmada, a versão do motor tem que dizer isso");
+  const dec = def.correcoes_rastreadas.find((c) => c.codigo === "PONTUACAO");
+  assert.match(dec.origem, /Miriam/);
+  assert.match(dec.origem, /21\/09\/2026/);
+});
+
+test("os cinco níveis de IA cobrem 0 a 100 sem buraco nem sobreposição", () => {
+  assert.deepEqual(def.pontuacao.faixas_de_nivel_ia, [20, 40, 60, 80, 100]);
 });
 
 test("a projeção pública é uma lista branca de chaves — nada de gabarito", () => {

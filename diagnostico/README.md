@@ -19,32 +19,59 @@ Roda como **evento próprio** dentro do banco compartilhado, com link dedicado.
 
 ---
 
-## ⚠️ O que ainda não pode ir para o mercado
+## A devolutiva: o que ela entrega
 
-**A nota numérica de maturidade não é publicada.** O documento aprovado informa
-que E1–E4 "Pontua", mas **não define os valores numéricos**. Enquanto isso não
-for confirmado por quem aprovou o instrumento:
+| Peça | O que é |
+|---|---|
+| **Índice de Maturidade da Empresa** | 0–100, combinando com peso igual as **quatro** dimensões não ligadas a IA |
+| **Maturidade de Gestão** | índice **derivado** dos 16 itens de estratégia de pessoas e de liderança |
+| **Maturidade de Processos** | a própria dimensão de processos e dados |
+| **Diagnóstico de IA** | seção separada: índice de IA e um dos **cinco níveis** do workshop |
+| **Leitura em duas lentes** | a distância entre a atuação individual e a sustentação organizacional |
+| **Pontos de atenção** | até três, cada um com a resposta literal, a hipótese, o que ela abre e como verificar |
+| **Cenários de trabalho** | até três, só quando há sinal que os sustente |
 
-- o motor calcula tudo internamente e grava o resultado bruto em `relatorios`;
-- `publicar()` remove toda pontuação antes de servir — tela, PDF e e-mail saem
-  **sem nota**;
-- `relatorios.maturidade_letra` e `maturidade_score` gravam `null` de propósito,
-  para que painel e export nunca tratem um número provisório como validado;
-- o export **não tem coluna de temperatura de lead**: ela dependeria da nota.
+Três regras de escrita valem para a entrega inteira, e cada uma tem teste:
 
-A devolutiva continua completa: evidência relatada, hipótese, consequência
-possível, verificação e prioridade — mais o gate de governança, que é regra
-aprovada e não depende de número.
+1. **O respondente nunca lê código.** Nem `EST01`, nem `E1`, nem `GOV02`. O que
+   chega é a pergunta, a alternativa literal marcada e o estágio em português:
+   *só quando pedem · varia conforme a pessoa · tem forma definida · ajustado
+   pelo resultado*.
+2. **Número não entra em prosa explicativa.** Ele aparece no indicador e na nota
+   da dimensão; a prosa diz o que ele significa. O texto da distância entre as
+   lentes, por exemplo, não cita nenhum dos três valores envolvidos.
+3. **A palavra “degrau” não aparece.** É vocabulário interno; na entrega é
+   “nível”.
 
-**Para publicar a nota**, depois de confirmado o mapeamento:
+O número exibido é **inteiro**. A precisão decimal fica no `scores_json`, que é
+o que se audita — exibir “42,8 de 100” sugeriria uma precisão que o instrumento
+ainda não tem.
 
-1. em `screener/publico/instrumento/DIAGNOSTICO_BOOMIT_40.json`, ajuste
-   `pontuacao.mapa_provisorio` e vire `pontuacao.e1_e4_confirmado` para `true`;
-2. troque `versoes.motor` para tirar o sufixo `-provisorio` (os relatórios já
-   gerados continuam rastreáveis pela versão antiga);
-3. `npm run build:diagnostico` e `npm run deploy:diagnostico`;
-4. os testes que hoje exigem `nota_publicavel === false` vão reprovar — **isso é
-   proposital**. Atualize-os junto, de forma consciente.
+---
+
+## ⚠️ A premissa que segue em aberto
+
+**A escala 0–100 é a progressão linear entre os quatro estágios**
+(`0 · 33,3 · 66,7 · 100`), e as faixas dos cinco níveis de IA são quintos
+iguais. O documento aprovado informa que os estágios pontuam, mas **não fixa os
+valores**.
+
+A publicação da nota foi decidida por Miriam em 21/09/2026 e está registrada em
+`correcoes_rastreadas`, dentro do próprio instrumento. Enquanto a confirmação
+metodológica não vier:
+
+- `versoes.motor` carrega o sufixo **`-provisorio`**, e ele é gravado em cada
+  linha de `relatorios` — todo relatório diz sob qual escala foi calculado;
+- um teste reprova se alguém tirar esse sufixo sem confirmar a escala.
+
+**Quando a escala for confirmada:** ajuste `pontuacao.mapa_provisorio` se os
+valores forem outros, tire o `-provisorio` de `versoes.motor`, rode
+`npm run build:diagnostico` e `npm run deploy:diagnostico`. Os relatórios já
+gerados continuam rastreáveis pela versão antiga.
+
+**O índice de Gestão é derivado** — um recorte que o documento aprovado não
+define. Ele se declara derivado no próprio resultado, e a média é por **item**
+(não por bloco), porque os blocos de origem têm tamanhos diferentes.
 
 ---
 
@@ -75,7 +102,7 @@ supabase/functions/diagnostico/   a edge (o motor roda aqui, nunca no navegador)
 ## Comandos
 
 ```bash
-npm test                      # 317 testes, o repositório inteiro
+npm test                      # 328 testes, o repositório inteiro
 npm run build:diagnostico     # regenera o instrumento embutido e monta public/
 node diagnostico/servir.mjs   # http://localhost:4700
 npm run deploy:diagnostico    # prepara _motor/ e faz deploy da edge
@@ -213,6 +240,9 @@ motivo e origem — nenhuma é edição silenciosa:
 3. **Domínio próprio.** Hoje é `diagnosticoboomit.netlify.app`. Apontar um
    subdomínio de `boomit.com.br` é configuração de DNS mais um passo no Netlify.
 4. **Revisão editorial da leitura autoral.** `conteudo-devolutiva.mjs` tem uma
-   hipótese, uma consequência e uma verificação para cada um dos 37 itens
-   pontuáveis. Os textos seguem a voz da casa e a linguagem condicional exigida,
+   hipótese, uma consequência e uma verificação para cada um dos 34 itens
+   pontuáveis (40 menos os 3 de contexto e os 3 de governança).
+5. **Os 12% e 0,3% do slide dos cinco níveis.** O deck do workshop traz esses
+   dois percentuais junto da escada, em posição ambígua. Eles não foram
+   reproduzidos na devolutiva porque não se sabe o que exatamente medem. Os textos seguem a voz da casa e a linguagem condicional exigida,
    mas **não passaram por revisão de quem assina o método**.

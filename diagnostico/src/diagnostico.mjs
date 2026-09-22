@@ -402,7 +402,7 @@ function telaGate() {
     <section class="sc-card">
       <p class="sc-eyebrow">Última etapa</p>
       <h2 class="sc-title">Para onde enviamos a devolutiva</h2>
-      <p class="sc-lead">As 40 questões estão respondidas. A devolutiva é gerada agora e chega em PDF, com sete páginas.</p>
+      <p class="sc-lead">As 40 questões estão respondidas. A devolutiva é gerada agora e chega por e-mail, em PDF.</p>
       <div class="dg-form">
         <label class="sc-field"><span class="sc-label">E-mail</span>
           <input class="sc-input" id="f-email" type="email" inputmode="email" autocomplete="email" required></label>
@@ -455,41 +455,77 @@ function telaGate() {
 // devolutiva na tela — a MESMA estrutura que o PDF consome
 // ---------------------------------------------------------------
 
-function barra(d, considerados) {
-  if (!considerados) return `<p class="dg-legenda">Sem itens com posição declarada neste bloco.</p>`;
-  const cls = { E1: "e1", E2: "e2", E3: "e3", E4: "e4" };
-  const celulas = ["E1", "E2", "E3", "E4"].filter((k) => d[k] > 0)
-    .map((k) => `<span class="dg-barra__seg dg-barra__seg--${cls[k]}" style="flex:${d[k]}"></span>`).join("");
-  const leg = ["E1", "E2", "E3", "E4"].filter((k) => d[k] > 0).map((k) => `${k}: ${d[k]}`).join(" · ");
-  return `<div class="dg-barra">${celulas}</div><p class="dg-legenda">${escapeHtml(leg)} — ${considerados} ${considerados === 1 ? "item respondido" : "itens respondidos"} com posição</p>`;
+const CIRCUNFERENCIA = 2 * Math.PI * 76;
+
+/** Indicador circular com furo. O número é dado; a prosa nunca o repete. */
+function anel(valor, classe = "") {
+  if (valor == null) return "";
+  const arco = (Math.max(0, Math.min(100, valor)) / 100) * CIRCUNFERENCIA;
+  return `<svg class="dg-anel ${classe}" viewBox="0 0 200 200" role="img"
+      aria-label="${escapeHtml(String(valor))} de 100">
+    <circle class="dg-anel__trilha" cx="100" cy="100" r="76"></circle>
+    <circle class="dg-anel__valor" cx="100" cy="100" r="76"
+      stroke-dasharray="${arco.toFixed(1)} ${CIRCUNFERENCIA.toFixed(1)}"></circle>
+    <text class="dg-anel__num" x="100" y="103">${escapeHtml(String(valor))}</text>
+    <text class="dg-anel__escala" x="100" y="129">de 100</text>
+  </svg>`;
 }
 
-function blocoHtml(b) {
+/** Barra dos quatro estágios. Sem percentual: o rótulo nomeia o estágio. */
+function barra(d, considerados, escala) {
+  if (!considerados) return `<p class="dg-legenda">Sem prática com posição declarada nesta dimensão.</p>`;
+  const chaves = ["E1", "E2", "E3", "E4"];
+  const celulas = chaves
+    .map((k, i) => (d[k] > 0 ? `<span class="dg-barra__seg dg-barra__seg--e${i + 1}" style="flex:${d[k]}"></span>` : ""))
+    .join("");
+  const nomes = chaves.filter((k) => d[k] > 0).map((k) => escala[chaves.indexOf(k)].nome);
+  return `<div class="dg-barra">${celulas}</div><p class="dg-legenda">${escapeHtml(nomes.join(" · "))}</p>`;
+}
+
+function blocoHtml(b, escala) {
   return `<div class="dg-bloco">
-    <h3>${escapeHtml(b.titulo)}</h3>
+    <div class="dg-bloco__cab"><h3>${escapeHtml(b.titulo)}</h3>
+      ${b.pontos != null ? `<span class="dg-nota"><b>${escapeHtml(String(b.pontos))}</b> /100</span>` : ""}</div>
     <p class="dg-legenda">${escapeHtml(b.foco)}</p>
-    ${barra(b.distribuicao, b.considerados)}
-    ${b.na ? `<p class="dg-legenda">${b.na} ${b.na === 1 ? "item ficou" : "itens ficaram"} sem exposição suficiente e ${b.na === 1 ? "está" : "estão"} fora do cálculo.</p>` : ""}
+    ${barra(b.distribuicao, b.considerados, escala)}
+    ${b.na ? `<p class="dg-legenda">Parte das práticas ficou sem exposição suficiente e está fora do cálculo.</p>` : ""}
     <p>${escapeHtml(b.leitura)}</p>
   </div>`;
 }
 
+function escadaHtml(niveis, atual) {
+  return `<div class="dg-escada">${niveis
+    .map(
+      (n, i) => `<div class="dg-nivel dg-nivel--${i + 1}${n.n === atual ? " dg-nivel--atual" : ""}">
+      ${n.n === atual ? `<p class="dg-nivel__aqui">A organização está aqui</p>` : ""}
+      <div class="dg-nivel__texto">
+        <p class="dg-nivel__n">Nível ${n.n}</p>
+        <p class="dg-nivel__nome">${escapeHtml(n.nome)}</p>
+        <p class="dg-nivel__saida">${escapeHtml(n.saida)}</p>
+        <p class="dg-nivel__marcas">${escapeHtml(n.marcas)}</p>
+      </div>
+      <div class="dg-nivel__bloco"></div>
+    </div>`
+    )
+    .join("")}</div>`;
+}
+
 function prioridadeHtml(p, i) {
   return `<article class="dg-janela">
-    <p class="dg-janela__cab">Prioridade ${i + 1} · ${escapeHtml(p.bloco_nome)}${p.lente ? ` · lente ${escapeHtml(p.lente)}` : ""}</p>
-    <div class="dg-passo dg-passo--evid"><span class="dg-rot">Evidência relatada</span>
+    <p class="dg-janela__cab">Ponto de atenção ${i + 1} · ${escapeHtml(p.bloco_nome)}${p.lente ? ` · lente ${escapeHtml(p.lente)}` : ""}</p>
+    <div class="dg-passo dg-passo--evid"><span class="dg-rot">O que foi relatado</span>
       <p>Em resposta a “${escapeHtml(p.evidencia.pergunta)}”, a alternativa marcada foi: <b>“${escapeHtml(p.evidencia.resposta_literal)}”</b></p></div>
-    <div class="dg-passo"><span class="dg-rot">Hipótese diagnóstica</span><p>${escapeHtml(p.hipotese)}</p></div>
-    <div class="dg-passo"><span class="dg-rot">Consequência possível</span><p>${escapeHtml(p.consequencia)}</p></div>
-    <div class="dg-passo"><span class="dg-rot">Verificação necessária</span><p>${escapeHtml(p.verificacao)}</p></div>
+    <div class="dg-passo"><span class="dg-rot">O que isso pode indicar</span><p>${escapeHtml(p.hipotese)}</p></div>
+    <div class="dg-passo"><span class="dg-rot">O que isso abre</span><p>${escapeHtml(p.consequencia)}</p></div>
+    <div class="dg-passo"><span class="dg-rot">Como verificar</span><p>${escapeHtml(p.verificacao)}</p></div>
   </article>`;
 }
 
 function cenarioHtml(c) {
   return `<article class="dg-janela dg-janela--cenario">
-    <p class="dg-janela__cab">Cenário de solução · ${escapeHtml(c.especialidade.nome)}</p>
+    <p class="dg-janela__cab">Cenário de trabalho · ${escapeHtml(c.especialidade.nome)}</p>
     <p>${escapeHtml(c.cenario_de_transformacao)}</p>
-    <h4>Sinais observados que sustentam este cenário</h4>
+    <h4>Sinais que sustentam este cenário</h4>
     <ul>${c.sinais.map((s) => `<li>${escapeHtml(s.bloco_nome)} — “${escapeHtml(s.resposta_literal)}”</li>`).join("")}</ul>
     <h4>Evidência que confirma ou refuta</h4>
     <ul>${c.evidencia_que_decide.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>
@@ -500,60 +536,94 @@ function cenarioHtml(c) {
 function telaResultado() {
   const d = estado.devolutiva;
   const p = Object.fromEntries(d.paginas.map((x) => [x.n, x]));
-  const linha = (c) => `<div class="dg-perfil__l"><span>${escapeHtml(c.rotulo)}</span><span>${escapeHtml(c.texto)}</span></div>`;
-  const gov = p[6].governanca;
-  const pl = p[7];
+  const escala = d.escala;
+  const pg2 = p[2], pg3 = p[3], lentes = p[5].lentes, gov = p[8].governanca, pl = p[9];
 
-  app().innerHTML = `<div class="sc-shell">${cabecalho()}
+  app().innerHTML = `<div class="sc-shell dg-shell">${cabecalho()}
     <section class="dg-res">
       <p class="sc-eyebrow">${escapeHtml(estado.evento.cliente)} · devolutiva</p>
-      <h1 class="sc-title sc-title--lg">Leitura de gestão de pessoas e IA</h1>
+      <h1 class="sc-title sc-title--lg">O que as respostas indicam sobre a travessia desta organização</h1>
 
       <div class="dg-entrega" role="status">
         ${estado.emailEnviado
-          ? `<b>A devolutiva foi enviada por e-mail</b>, com o PDF de sete páginas em anexo.`
+          ? `<b>A devolutiva foi enviada por e-mail</b>, com o PDF em anexo.`
           : `<b>O envio por e-mail não se completou agora.</b> A leitura abaixo está completa${estado.pdfUrl ? " e o PDF pode ser baixado aqui mesmo" : ""}.`}
         ${estado.pdfUrl ? ` <a class="dg-link" href="${escapeHtml(estado.pdfUrl)}" target="_blank" rel="noopener">Baixar o PDF</a>` : ""}
       </div>
-
-      ${!d.nota_publicavel ? `<div class="dg-aviso"><b>Sobre a escala.</b> ${escapeHtml(d.aviso_pontuacao)}</div>` : ""}
 
       <h2 class="dg-h2">Resumo executivo</h2>
       ${p[1].resumo.map((l) => `<p>${escapeHtml(l)}</p>`).join("")}
 
       <h2 class="dg-h2">Contexto declarado</h2>
-      <div class="dg-perfil">${(p[1].contexto || []).map(linha).join("")}</div>
+      <div class="dg-perfil">${(p[1].contexto || [])
+        .map((c) => `<div class="dg-perfil__l"><span>${escapeHtml(c.rotulo)}</span><span>${escapeHtml(c.texto)}</span></div>`)
+        .join("")}</div>
       <p class="dg-legenda">Os itens de contexto descrevem de onde parte a leitura. Eles não pontuam.</p>
 
-      <h2 class="dg-h2">Leitura por bloco</h2>
-      ${[3, 4, 5].flatMap((n) => (p[n].blocos || []).map(blocoHtml)).join("")}
+      <h2 class="dg-h2">Índice de maturidade da empresa</h2>
+      <p>${escapeHtml(pg2.nota)}</p>
+      <div class="dg-indicador">
+        ${anel(pg2.indice)}
+        <div><h3>${escapeHtml(pg2.leitura.titulo)}</h3>
+          ${pg2.leitura.paragrafos.map((x) => `<p>${escapeHtml(x)}</p>`).join("")}</div>
+      </div>
+      <div class="dg-derivados">${pg2.derivados
+        .map((x) => `<div class="dg-derivado">
+          <p class="dg-derivado__num">${x.pontos != null ? escapeHtml(String(x.pontos)) : "—"}<span> /100</span></p>
+          <h3>${escapeHtml(x.nome)}</h3><p class="dg-legenda">${escapeHtml(x.desc)}</p></div>`)
+        .join("")}</div>
+      ${pg2.nota_na ? `<p class="dg-legenda">${escapeHtml(pg2.nota_na)}</p>` : ""}
 
-      <div class="dg-bloco">
-        <h3>${escapeHtml(p[3].lideranca.titulo)}</h3>
-        <div class="dg-duas">
-          <div><p class="dg-legenda"><b>Lente Pessoa</b> — atuação individual</p>
-            ${barra(p[3].lideranca.pessoa.distribuicao, p[3].lideranca.pessoa.considerados)}</div>
-          <div><p class="dg-legenda"><b>Lente Organização</b> — sustentação organizacional</p>
-            ${barra(p[3].lideranca.organizacao.distribuicao, p[3].lideranca.organizacao.considerados)}</div>
-        </div>
-        <p>${escapeHtml(p[3].lideranca.leitura)}</p>
-        <p class="dg-legenda">${escapeHtml(p[3].lideranca.nota)}</p>
+      <h2 class="dg-h2">Diagnóstico de IA</h2>
+      ${escadaHtml(pg3.niveis, pg3.nivel_atual)}
+      <div class="dg-indicador dg-indicador--texto">
+        <div>${pg3.leitura.nivel ? `<p class="dg-olho">Nível ${pg3.leitura.nivel.n} de 5</p>` : ""}
+          <h3>${escapeHtml(pg3.leitura.titulo)}</h3>
+          ${pg3.leitura.paragrafos.map((x) => `<p>${escapeHtml(x)}</p>`).join("")}</div>
+      </div>
+      <p>${escapeHtml(pg3.fecho)}</p>
+
+      <h2 class="dg-h2">Retrato por dimensão</h2>
+      <div class="dg-escala">${escala
+        .map((e) => `<div class="dg-escala__item"><span class="dg-escala__cor"></span>
+          <span><b>${escapeHtml(e.nome)}</b> — ${escapeHtml(e.desc)}</span></div>`)
+        .join("")}</div>
+      ${p[4].blocos.map((b) => blocoHtml(b, escala)).join("")}
+
+      <h2 class="dg-h2">${escapeHtml(lentes.titulo)}</h2>
+      <div class="dg-indicador">
+        ${anel(lentes.distancia)}
+        <div><p class="dg-olho">Distância entre as duas leituras</p>
+          ${lentes.paragrafos.map((x) => `<p>${escapeHtml(x)}</p>`).join("")}</div>
+      </div>
+      <p class="dg-legenda">${escapeHtml(lentes.nota)}</p>
+
+      <h2 class="dg-h2">${escapeHtml(p[6].titulo)}</h2>
+      ${p[6].paragrafos.map((x) => `<p>${escapeHtml(x)}</p>`).join("")}
+      <p class="dg-legenda">${escapeHtml(p[6].nota)}</p>
+
+      <h2 class="dg-h2">${escapeHtml(p[7].titulo)}</h2>
+      ${p[7].paragrafos.map((x) => `<p>${escapeHtml(x)}</p>`).join("")}
+      <div class="dg-provocacao">
+        <h3>${escapeHtml(p[7].provocacao.titulo)}</h3>
+        <p class="dg-provocacao__q">${escapeHtml(p[7].provocacao.pergunta)}</p>
+        ${p[7].provocacao.notas.map((x) => `<p class="dg-legenda">${escapeHtml(x)}</p>`).join("")}
       </div>
 
       <h2 class="dg-h2">Governança</h2>
-      <div class="dg-bloco">
-        <p><span class="dg-chip">${escapeHtml(gov.rotulo)}</span>${gov.item_determinante ? `<span class="dg-chip">definida por ${escapeHtml(gov.item_determinante)}</span>` : ""}</p>
+      <div class="dg-gate">
+        <p><span class="dg-chip">${escapeHtml(gov.rotulo)}</span></p>
         <p>${escapeHtml(gov.leitura)}</p>
         <p class="dg-legenda">${escapeHtml(gov.nota)}</p>
       </div>
 
-      ${p[6].prioridades.length ? `<h2 class="dg-h2">Prioridades do ciclo</h2>${p[6].prioridades.map(prioridadeHtml).join("")}` : ""}
-      ${p[6].cenarios.length ? `<h2 class="dg-h2">Cenários de solução Boomit</h2>
-        <p class="dg-legenda">Cada cenário parte de um sinal efetivamente registrado nas respostas. Eles descrevem o que precisaria ser construído, e não uma recomendação de compra.</p>
-        ${p[6].cenarios.map(cenarioHtml).join("")}` : ""}
+      ${p[8].prioridades.length ? `<h2 class="dg-h2">Pontos de atenção do ciclo</h2>${p[8].prioridades.map(prioridadeHtml).join("")}` : ""}
+      ${p[8].cenarios.length ? `<h2 class="dg-h2">Cenários de trabalho possíveis</h2>
+        <p class="dg-legenda">Cada cenário parte de um sinal efetivamente registrado nas respostas. Descrevem o que precisaria ser construído, e não uma recomendação de compra.</p>
+        ${p[8].cenarios.map(cenarioHtml).join("")}` : ""}
 
       <h2 class="dg-h2">${escapeHtml(pl.titulo)}</h2>
-      ${pl.vazio ? `<p>${escapeHtml(pl.leitura)}</p>` : ""}
+      ${pl.vazio ? `<p>${escapeHtml(pl.leitura)}</p>` : `<p>${escapeHtml(pl.abertura)}</p>`}
       ${(pl.etapas || []).map((e) => `<article class="dg-janela">
         <p class="dg-janela__cab">${escapeHtml(e.janela)} · ${escapeHtml(e.foco)}</p>
         <ul>${e.acoes.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul></article>`).join("")}

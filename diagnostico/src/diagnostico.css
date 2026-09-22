@@ -147,3 +147,117 @@
   .dg-bloco, .dg-janela { break-inside: avoid; border-color: #CCC; }
   .dg-h2 { break-after: avoid; }
 }
+
+/* =============================================================
+   DEVOLUTIVA — indicador circular, níveis de IA e índices derivados.
+   Entrou com a reformulação aprovada em 21/09/2026.
+   ============================================================= */
+
+.dg-shell { max-width: 62rem; }
+
+/* --- indicador circular ---------------------------------------------- */
+.dg-indicador {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-6);
+  align-items: center; margin: var(--space-4) 0 var(--space-5);
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg); padding: var(--space-6);
+}
+.dg-indicador--texto { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 40rem) { .dg-indicador { grid-template-columns: 1fr; gap: var(--space-4); } }
+.dg-indicador h3 { font-size: var(--text-lg); font-weight: var(--weight-semibold); margin: 0 0 var(--space-2); }
+.dg-anel { width: 168px; height: 168px; display: block; }
+.dg-anel__trilha { fill: none; stroke: var(--bg-muted); stroke-width: 17; }
+.dg-anel__valor {
+  fill: none; stroke: var(--bg-brand); stroke-width: 17; stroke-linecap: round;
+  transform: rotate(-90deg); transform-origin: 100px 100px;
+}
+.dg-anel__num {
+  fill: var(--text-primary); font-size: 46px; font-weight: var(--weight-semibold);
+  text-anchor: middle; font-family: inherit; letter-spacing: -0.02em;
+}
+.dg-anel__escala { fill: var(--text-tertiary); font-size: 15px; text-anchor: middle; font-family: inherit; }
+.dg-olho {
+  font-size: var(--text-xs); letter-spacing: var(--tracking-display); text-transform: uppercase;
+  color: var(--text-tertiary); font-weight: var(--weight-medium); margin: 0 0 var(--space-2) !important;
+}
+
+/* --- índices derivados ------------------------------------------------ */
+.dg-derivados { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+.dg-derivado { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-5); }
+.dg-derivado__num { font-size: var(--text-3xl); line-height: 1; font-weight: var(--weight-semibold); color: var(--text-primary); margin: 0 !important; font-variant-numeric: tabular-nums; }
+.dg-derivado__num span { font-size: var(--text-sm); font-weight: var(--weight-regular); color: var(--text-tertiary); }
+.dg-derivado h3 { font-size: var(--text-base); font-weight: var(--weight-semibold); margin: var(--space-2) 0 var(--space-1); }
+
+/* --- os cinco níveis de IA -------------------------------------------- */
+.dg-escada { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); align-items: stretch; margin: var(--space-4) 0 var(--space-5); }
+.dg-nivel {
+  display: flex; flex-direction: column; justify-content: flex-end; min-width: 0;
+  padding: var(--space-3); border: 1px solid transparent; border-radius: var(--radius-sm);
+}
+.dg-nivel--atual { border-color: var(--bg-brand); background: var(--bg-surface); }
+.dg-nivel__aqui {
+  align-self: flex-start; font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase;
+  font-weight: var(--weight-semibold); line-height: 1.25; color: var(--text-on-brand);
+  background: var(--bg-brand); padding: 2px 6px; border-radius: 3px; margin: 0 0 var(--space-2) !important;
+}
+.dg-nivel__n { font-size: var(--text-xs); color: var(--text-tertiary); margin: 0 !important; }
+.dg-nivel__nome { font-size: var(--text-sm); font-weight: var(--weight-semibold); line-height: 1.25; color: var(--text-secondary); margin: 0 !important; }
+.dg-nivel--atual .dg-nivel__nome { color: var(--text-primary); }
+.dg-nivel__saida { font-size: var(--text-xs); color: var(--text-tertiary); margin: 2px 0 0 !important; }
+.dg-nivel__marcas { font-size: var(--text-xs); line-height: 1.45; color: var(--text-tertiary); margin: var(--space-2) 0 var(--space-3) !important; }
+.dg-nivel__bloco { border-radius: 3px 3px 0 0; }
+.dg-nivel--1 .dg-nivel__bloco { background: var(--ink-950); height: 52px; }
+.dg-nivel--2 .dg-nivel__bloco { background: var(--moss-800); height: 78px; }
+.dg-nivel--3 .dg-nivel__bloco { background: var(--moss-700); height: 104px; }
+.dg-nivel--4 .dg-nivel__bloco { background: var(--moss-600); height: 130px; }
+.dg-nivel--5 .dg-nivel__bloco { background: var(--moss-500); height: 156px; }
+
+/* No escuro a rampa é ESCOLHIDA, não invertida: o mais recessivo é o mais
+   escuro sobre fundo escuro, e o mais forte é o mais claro. */
+[data-theme="dark"] .dg-nivel--1 .dg-nivel__bloco { background: var(--ink-800); }
+[data-theme="dark"] .dg-nivel--2 .dg-nivel__bloco { background: var(--moss-800); }
+[data-theme="dark"] .dg-nivel--3 .dg-nivel__bloco { background: var(--moss-600); }
+[data-theme="dark"] .dg-nivel--4 .dg-nivel__bloco { background: var(--moss-400); }
+[data-theme="dark"] .dg-nivel--5 .dg-nivel__bloco { background: var(--moss-200); }
+
+/* Cinco colunas só cabem com folga acima de ~900px. Abaixo disso a escada
+   vira lista: melhor uma lista legível do que cinco tiras de duas palavras. */
+@media (max-width: 56rem) {
+  .dg-escada { display: block; }
+  .dg-nivel { flex-direction: row; align-items: center; gap: var(--space-3); padding: var(--space-3);
+    border-top: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+  .dg-nivel:first-child { border-top-color: transparent; }
+  .dg-nivel--atual { border-color: var(--bg-brand); }
+  .dg-nivel__aqui { order: 3; align-self: center; margin: 0 !important; }
+  .dg-nivel__bloco { order: 1; height: auto !important; width: 8px; align-self: stretch; min-height: 2.6rem; border-radius: 3px; }
+  .dg-nivel__texto { order: 2; flex: 1; min-width: 0; }
+  .dg-nivel__marcas { display: none; }
+}
+
+/* --- dimensões -------------------------------------------------------- */
+.dg-bloco__cab { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.dg-nota { font-size: var(--text-sm); color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dg-nota b { font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--text-primary); }
+.dg-escala { display: grid; gap: var(--space-2); margin: var(--space-3) 0 var(--space-5); }
+.dg-escala__item { display: grid; grid-template-columns: 14px 1fr; gap: var(--space-3); align-items: start; font-size: var(--text-sm); line-height: 1.5; color: var(--text-tertiary); }
+.dg-escala__cor { width: 14px; height: 14px; border-radius: 3px; margin-top: 0.28rem; border: 1px solid var(--border-default); }
+.dg-escala__item:nth-child(1) .dg-escala__cor { background: var(--moss-200); }
+.dg-escala__item:nth-child(2) .dg-escala__cor { background: var(--moss-400); }
+.dg-escala__item:nth-child(3) .dg-escala__cor { background: var(--moss-600); }
+.dg-escala__item:nth-child(4) .dg-escala__cor { background: var(--moss-800); }
+.dg-escala__item b { font-weight: var(--weight-medium); color: var(--text-secondary); }
+
+/* --- provocação e gate ------------------------------------------------ */
+.dg-provocacao {
+  margin: var(--space-4) 0 var(--space-5); padding: var(--space-6);
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--bg-brand); border-radius: var(--radius-sm);
+}
+.dg-provocacao__q { font-size: var(--text-lg) !important; font-weight: var(--weight-medium); color: var(--text-primary) !important; margin: var(--space-2) 0 var(--space-4) !important; }
+.dg-gate {
+  margin: var(--space-4) 0 var(--space-5); padding: var(--space-5) var(--space-6);
+  background: var(--status-warning-bg); border: 1px solid var(--status-warning-border);
+  border-radius: var(--radius-sm); color: var(--status-warning-fg);
+}
+.dg-gate p { color: inherit !important; }
+.dg-janela h4 { margin: var(--space-4) 0 var(--space-1); font-size: var(--text-sm); font-weight: var(--weight-medium); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-tertiary); }

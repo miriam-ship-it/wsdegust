@@ -4,7 +4,7 @@
 // porque o motor tambem roda na edge (Deno), onde ler um JSON do disco relativo
 // ao modulo e fragil. `definicao.test.mjs` prova que os dois nao divergem.
 
-export const SHA256 = "66bf69deb7fca84efcacb4b86591e694c8911f092834ee46fdd6fa475781e96f";
+export const SHA256 = "c05e50a1d613fccd411428e88fd28cf5cdb1ff48ca4231427904f43f2fceaab0";
 
 export const INSTRUMENTO = {
  "id": "DIAGNOSTICO_BOOMIT_40",
@@ -20,16 +20,23 @@ export const INSTRUMENTO = {
   "blueprint_sha256": "3926885c72d83d2eefd088116b06912d4c9a51f5776930587969814b937040a7"
  },
  "pontuacao": {
-  "e1_e4_confirmado": false,
+  "e1_e4_confirmado": true,
   "mapa_provisorio": {
    "E1": 0,
    "E2": 33.3,
    "E3": 66.7,
    "E4": 100
   },
-  "aviso": "PROVISÓRIO. O documento aprovado informa que E1–E4 'Pontua' mas não define valores numéricos. Nenhuma nota de maturidade pode ser publicada ao respondente enquanto e1_e4_confirmado for false.",
+  "aviso": "A escala 0–100 é a progressão linear entre os quatro estágios (0 · 33,3 · 66,7 · 100). O documento aprovado informa que E1–E4 pontuam, mas não fixa os valores: este mapeamento foi decidido por Miriam em 21/09/2026 para a publicação da nota e SEGUE PENDENTE de confirmação de quem aprovou o instrumento. É por isso que versoes.motor carrega o sufixo -provisorio: todo relatório gerado registra sob qual escala foi calculado.",
   "na": "Fora do numerador e do denominador. Não representa baixa maturidade.",
-  "cobertura_minima_do_bloco": 0.5
+  "cobertura_minima_do_bloco": 0.5,
+  "faixas_de_nivel_ia": [
+   20,
+   40,
+   60,
+   80,
+   100
+  ]
  },
  "blocos": [
   {
@@ -100,6 +107,12 @@ export const INSTRUMENTO = {
    "campo": "opcoes.OUTRO",
    "motivo": "O blueprint traz a alternativa como \"Outro — abrir campo de texto\". O trecho \"— abrir campo de texto\" é instrução de implementação, não texto para o respondente ler: exibi-lo seria mostrar a especificação na tela. A alternativa aparece como \"Outro\" e a instrução vira o atributo texto_livre, que o instrumento declara e a tela obedece.",
    "origem": "Blueprint FINAL · aba Alternativas, item 1 / opção OUTRO"
+  },
+  {
+   "codigo": "PONTUACAO",
+   "campo": "pontuacao.e1_e4_confirmado",
+   "motivo": "A nota 0–100 passou a ser publicada a pedido de Miriam, para que a devolutiva entregue maturidade da empresa, índices derivados de Gestão e Processos, e o nível de IA. A escala adotada é a progressão linear entre os quatro estágios.",
+   "origem": "Decisão de Miriam (miriam@boomit.com.br) em 21/09/2026, registrada nesta sessão. Confirmação metodológica segue pendente."
   }
  ],
  "itens": [

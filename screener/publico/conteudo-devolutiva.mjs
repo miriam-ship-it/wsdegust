@@ -289,9 +289,12 @@ export const ROTULO_CONTEXTO = {
 };
 
 /** Rótulo do degrau, para a linha de evidência. Descritivo, sem juízo. */
-export const ROTULO_DEGRAU = {
-  E1: "prática ainda não estabelecida",
-  E2: "prática existente, informal ou parcial",
-  E3: "prática definida e repetível",
-  E4: "prática gerenciada e revisada por evidência",
-};
+export const ESTAGIOS = [
+  { codigo: "E1", nome: "Só quando pedem",        desc: "a prática aparece quando alguém puxa, e não antes." },
+  { codigo: "E2", nome: "Varia conforme a pessoa", desc: "a prática existe, mas muda conforme quem conduz." },
+  { codigo: "E3", nome: "Tem forma definida",      desc: "há um jeito reconhecível, que se repete." },
+  { codigo: "E4", nome: "Ajustado pelo resultado", desc: "a prática é revisada pelo que produz." },
+];
+
+/** Rótulo do estágio, em português direto. O respondente nunca lê "E1". */
+export const ROTULO_DEGRAU = Object.fromEntries(ESTAGIOS.map((e) => [e.codigo, e.nome]));

@@ -4,7 +4,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { definicao, itensAtivos } from "./definicao.mjs";
-import { calcular, publicar, cobertura, gateDeGovernanca, prioridades, geralProvisorio } from "./motor.mjs";
+import {
+  calcular, publicar, cobertura, gateDeGovernanca, prioridades, geralProvisorio,
+  nivelDeIA, NIVEIS_IA, indiceDaEmpresa,
+} from "./motor.mjs";
 import { montarDevolutiva } from "./devolutiva.mjs";
 
 const def = definicao();
@@ -106,16 +109,62 @@ test("IA01 — não adoção justificada é E2, e E2 não é inação", () => {
   assert.ok(def.itens.find((i) => i.codigo === "IA03"));
 });
 
-test("aceite 20 — a projeção pública não publica nota enquanto E1–E4 não for confirmado", () => {
-  const pub = publicar(calcular(todos("E4")));
-  assert.equal(pub.nota_publicavel, false);
-  assert.equal(pub.geral.pontos, null);
-  for (const b of pub.blocos) assert.equal(b.pontos, null);
-  assert.equal(pub.lideranca.pessoa.pontos, null);
-  assert.equal(pub.lideranca.organizacao.pontos, null);
-  assert.match(pub.aviso_pontuacao, /em validação/);
-  // nenhum número de maturidade sobra no JSON servido
-  assert.doesNotMatch(JSON.stringify(pub), /pontos_provisorios/);
+test("aceite 20 — a nota é publicada, e a escala vai congelada no resultado", () => {
+  const res = calcular(todos("E4"));
+  const pub = publicar(res);
+  assert.equal(pub.nota_publicavel, true);
+  assert.equal(pub.geral.pontos, 100);
+  // a versão do motor viaja no resultado e diz que a escala é premissa
+  assert.match(res.versoes.motor, /-provisorio$/);
+  assert.equal(res.versoes.definicao_sha256.length, 64);
+});
+
+test("o índice da EMPRESA exclui IA — e é isso que revela o contraste", () => {
+  // tudo no topo, menos IA no piso
+  const r = todos("E4");
+  for (const c of PONTUAVEIS) if (c.startsWith("IA")) r[c] = "E1";
+  const pub = publicar(calcular(r));
+  assert.equal(pub.empresa.pontos, 100, "o índice da empresa ignora o bloco de IA");
+  assert.equal(pub.ia.pontos, 0);
+  assert.equal(pub.geral.pontos < 100, true, "o índice com IA, esse sim, cai");
+  assert.equal(pub.ia.nivel.n, 1, "IA no piso é o primeiro nível");
+});
+
+test("o nível de IA sai do índice de IA, nunca do índice geral", () => {
+  const faixa = [[0, 1], [20, 1], [21, 2], [40, 2], [41, 3], [60, 3], [61, 4], [80, 4], [81, 5], [100, 5]];
+  for (const [pontos, n] of faixa) {
+    assert.equal(nivelDeIA(pontos).n, n, `${pontos} deveria cair no nível ${n}`);
+  }
+  assert.equal(nivelDeIA(null), null, "sem cobertura não há nível");
+  // os cinco níveis carregam nome e saída de negócio, na ordem
+  assert.deepEqual(NIVEIS_IA.map((x) => x.n), [1, 2, 3, 4, 5]);
+  for (const x of NIVEIS_IA) assert.ok(x.nome && x.saida && x.marcas);
+});
+
+test("os índices derivados são média por ITEM, não por bloco", () => {
+  // Gestão junta 6 itens de EST com 10 de LID. Ponderar por bloco daria a EST
+  // o mesmo peso que a LID, que tem quase o dobro de itens.
+  const r = todos("E4");
+  for (const c of PONTUAVEIS) if (c.startsWith("EST")) r[c] = "E1";
+  const pub = publicar(calcular(r));
+  // 6 itens a 0 e 10 itens a 100 → 62,5, e não a média dos blocos (50)
+  assert.equal(pub.derivados.gestao.pontos, 62.5);
+  assert.equal(pub.derivados.gestao.derivado, true, "derivado tem que se declarar derivado");
+  assert.equal(pub.derivados.processos.pontos, 100);
+});
+
+test("a distância entre as lentes é o afastamento, não a média", () => {
+  const r = todos("E4");
+  for (const c of PONTUAVEIS) if (/^LID\d+O$/.test(c)) r[c] = "E1";
+  const pub = publicar(calcular(r));
+  assert.equal(pub.lideranca.pessoa.pontos, 100);
+  assert.equal(pub.lideranca.organizacao.pontos, 0);
+  assert.equal(pub.distancia_de_lentes.pontos, 100);
+  assert.equal(pub.distancia_de_lentes.direcao, "pessoa_a_frente");
+  // e o sentido inverso é reconhecido
+  const r2 = todos("E4");
+  for (const c of PONTUAVEIS) if (/^LID\d+P$/.test(c)) r2[c] = "E1";
+  assert.equal(publicar(calcular(r2)).distancia_de_lentes.direcao, "organizacao_a_frente");
 });
 
 test("o gate e as prioridades continuam sendo publicados — são regra aprovada", () => {
@@ -143,20 +192,50 @@ test("cobertura conta N/A e sem-resposta em campos separados", () => {
   assert.equal(cov.total, 4);
 });
 
-test("a devolutiva monta sete páginas e não fabrica cenário sem sinal", () => {
+/** A seção de governança e cenários. */
+const SECAO_CENARIOS = 8;
+
+test("a devolutiva monta as nove seções e não fabrica cenário sem sinal", () => {
   const respostas = todos("E4");
   const d = montarDevolutiva(publicar(calcular(respostas)), respostas, {}, def);
-  assert.equal(d.paginas.length, 7);
-  assert.deepEqual(d.paginas.map((p) => p.n), [1, 2, 3, 4, 5, 6, 7]);
-  const p6 = d.paginas.find((p) => p.n === 6);
-  assert.equal(p6.cenarios.length, 0, "sem prioridade não se oferece cenário");
-  assert.equal(d.paginas.find((p) => p.n === 7).vazio, true);
+  assert.deepEqual(d.paginas.map((p) => p.n), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  const sec = d.paginas.find((p) => p.n === SECAO_CENARIOS);
+  assert.equal(sec.cenarios.length, 0, "sem ponto de atenção não se oferece cenário");
+  assert.equal(d.paginas.find((p) => p.n === 9).vazio, true);
+  // as seções novas existem e carregam o que a devolutiva aprovada pede
+  assert.equal(d.paginas.find((p) => p.n === 2).indice, 100);
+  assert.equal(d.paginas.find((p) => p.n === 2).derivados.length, 2);
+  assert.equal(d.paginas.find((p) => p.n === 3).niveis.length, 5);
+  assert.equal(d.paginas.find((p) => p.n === 3).nivel_atual, 5);
+  assert.ok(d.paginas.find((p) => p.n === 5).lentes.titulo);
+});
+
+test("a devolutiva não entrega código de item nem código de estágio", () => {
+  const respostas = todos("E1", { EST01: "E2", PRO01: "E1", IA02: "E1" });
+  const d = montarDevolutiva(publicar(calcular(respostas)), respostas, {}, def);
+  // `codigo` existe na estrutura para rastreio interno; o que não pode é
+  // aparecer em QUALQUER texto que o renderizador imprime.
+  const textos = [];
+  (function varre(o) {
+    if (typeof o === "string") return textos.push(o);
+    if (Array.isArray(o)) return o.forEach(varre);
+    if (o && typeof o === "object") {
+      for (const [k, v] of Object.entries(o)) if (k !== "codigo" && k !== "id") varre(v);
+    }
+  })(d.paginas);
+  const junto = textos.join(" | ");
+  for (const it of def.itens) {
+    assert.ok(!junto.includes(it.codigo), `texto da devolutiva cita o código ${it.codigo}`);
+  }
+  for (const cod of ["E1", "E2", "E3", "E4", "G1", "G2", "G3"]) {
+    assert.doesNotMatch(junto, new RegExp(`\b${cod}\b`), `texto da devolutiva cita o estágio ${cod}`);
+  }
 });
 
 test("cada cenário Boomit cita a resposta literal que o sustenta", () => {
   const respostas = todos("E4", { EST01: "E1", PRO01: "E1", IA01: "E1" });
   const d = montarDevolutiva(publicar(calcular(respostas)), respostas, {}, def);
-  const p6 = d.paginas.find((p) => p.n === 6);
+  const p6 = d.paginas.find((p) => p.n === SECAO_CENARIOS);
   assert.ok(p6.cenarios.length >= 1 && p6.cenarios.length <= 3);
   for (const c of p6.cenarios) {
     assert.ok(c.especialidade.nome, "cenário sem especialidade nomeada");
@@ -177,7 +256,7 @@ test("cada cenário Boomit cita a resposta literal que o sustenta", () => {
 test("a devolutiva usa linguagem condicional e não trata percepção como fato", () => {
   const respostas = todos("E1");
   const d = montarDevolutiva(publicar(calcular(respostas)), respostas, {}, def);
-  const p6 = d.paginas.find((p) => p.n === 6);
+  const p6 = d.paginas.find((p) => p.n === SECAO_CENARIOS);
   for (const p of p6.prioridades) {
     assert.match(p.hipotese, /pode indicar|cenário possível|pode ser lido/i, `${p.codigo}: hipótese sem linguagem condicional`);
     assert.match(p.verificacao, /vale verificar/i, `${p.codigo}: verificação sem convite a verificar`);
@@ -189,7 +268,7 @@ test("todo item pontuável tem leitura autoral — nenhum cai em prioridade sem 
   for (const c of PONTUAVEIS) {
     const respostas = todos("E4", { [c]: "E1" });
     const d = montarDevolutiva(publicar(calcular(respostas)), respostas, {}, def);
-    const p6 = d.paginas.find((p) => p.n === 6);
+    const p6 = d.paginas.find((p) => p.n === SECAO_CENARIOS);
     assert.equal(p6.prioridades.length, 1, `${c} não virou prioridade`);
     assert.equal(p6.prioridades[0].codigo, c);
   }

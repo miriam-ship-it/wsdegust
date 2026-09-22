@@ -221,6 +221,73 @@ export function prioridades(respostas, def = definicao(), limite = 3) {
 }
 
 /**
+ * Os cinco níveis do workshop. A faixa é do ÍNDICE DE IA, em quintos iguais.
+ *
+ * 🔑 O nível descreve a operação COM inteligência artificial, e por isso é lido
+ *    do bloco de IA — não do índice geral. Separá-los é o que deixa visível o
+ *    caso comum: organização madura no resto e no primeiro nível em IA.
+ */
+export const NIVEIS_IA = [
+  { n: 1, nome: "Operacional Ágil", saida: "Automação de tarefas", ate: 20,
+    marcas: "Curiosidade · raciocínio lógico mediano · foco em si" },
+  { n: 2, nome: "Gestor Tático", saida: "Aumento de margem", ate: 40,
+    marcas: "Cabeça processual · resolução de problemas · foco na área" },
+  { n: 3, nome: "Estrategista de Escala", saida: "Novas receitas", ate: 60,
+    marcas: "Identifica novos padrões · visão sistêmica · muda o ponteiro" },
+  { n: 4, nome: "Arquiteto de Soluções", saida: "Estratégia e disrupção", ate: 80,
+    marcas: "Conecta estratégia a tática · soluções de grande impacto" },
+  { n: 5, nome: "Criador de Tecnologia", saida: "Desenvolvimento efetivo", ate: 100,
+    marcas: "Desenvolve a própria tecnologia" },
+];
+
+/** O nível de IA correspondente a uma pontuação. `null` sem cobertura. */
+export function nivelDeIA(pontos) {
+  if (pontos == null) return null;
+  return NIVEIS_IA.find((x) => pontos <= x.ate) ?? NIVEIS_IA.at(-1);
+}
+
+/**
+ * Índice de maturidade da EMPRESA: os blocos pontuados MENOS o de IA.
+ *
+ * 🔑 A leitura de IA sai daqui de propósito. Misturá-las produziria um número
+ *    médio que esconde exatamente o contraste que a devolutiva existe para
+ *    mostrar — e que costuma ser o achado mais acionável.
+ */
+export function indiceDaEmpresa(blocos) {
+  return geralProvisorio(blocos.filter((b) => b.id !== "IA"));
+}
+
+/**
+ * Índice DERIVADO sobre um conjunto de itens de blocos diferentes.
+ *
+ * ⚠️ Derivado significa: recorte que o documento aprovado NÃO define. A média
+ *    é por ITEM (não por bloco), porque os blocos de origem têm tamanhos
+ *    diferentes e ponderar por bloco daria peso maior a quem tem menos itens.
+ */
+export function indiceDerivado(codigos, respostas, def = definicao()) {
+  const cov = cobertura(codigos, respostas, def);
+  return { pontos_provisorios: pontosProvisorios(cov, def), cobertura: cov, derivado: true };
+}
+
+/** Os itens de um bloco, pontuáveis e ativos. */
+export function codigosDoBloco(blocoId, def = definicao()) {
+  return itensAtivos(def).filter((i) => i.bloco === blocoId && i.pontua).map((i) => i.codigo);
+}
+
+/**
+ * A distância entre as duas lentes de liderança, em pontos de 0 a 100.
+ *
+ * É ela — e não cada lente isolada — que carrega o achado: mede o quanto a
+ * atuação individual se afasta do que a organização sustenta.
+ */
+export function distanciaDeLentes(lid) {
+  const p = lid.pessoa.pontos_provisorios;
+  const o = lid.organizacao.pontos_provisorios;
+  if (p == null || o == null) return { pontos: null, direcao: lid.direcao };
+  return { pontos: Math.round(Math.abs(p - o) * 10) / 10, direcao: lid.direcao };
+}
+
+/**
  * O resultado completo. PRIVADO — é o que vai para `relatorios.scores_json`.
  * O que o respondente vê é `publicar()`.
  */
@@ -237,6 +304,18 @@ export function calcular(respostas, def = definicao(), textos = {}) {
     lideranca: lentesDeLideranca(respostas, def),
     governanca: gateDeGovernanca(respostas, def),
     geral: geralProvisorio(pontuados),
+    // O índice da empresa exclui IA; o de IA é reportado à parte, com o nível.
+    empresa: indiceDaEmpresa(pontuados),
+    ia: (() => {
+      const b = pontuados.find((x) => x.id === "IA");
+      const pts = b ? b.pontos_provisorios : null;
+      return { pontos_provisorios: pts, nivel: nivelDeIA(pts) };
+    })(),
+    derivados: {
+      gestao: indiceDerivado([...codigosDoBloco("EST", def), ...codigosDoBloco("LID", def)], respostas, def),
+      processos: indiceDerivado(codigosDoBloco("PRO", def), respostas, def),
+    },
+    distancia_de_lentes: distanciaDeLentes(lentesDeLideranca(respostas, def)),
     prioridades: prioridades(respostas, def),
     respostas_brutas: { ...respostas },
   };
@@ -267,6 +346,20 @@ export function publicar(resultado) {
       total: resultado.cobertura_geral.total,
     },
     geral: { pontos: semNota(resultado.geral.pontos_provisorios), blocos_sem_nota: resultado.geral.blocos_sem_nota },
+    empresa: { pontos: semNota(resultado.empresa.pontos_provisorios) },
+    ia: {
+      pontos: semNota(resultado.ia.pontos_provisorios),
+      nivel: publicavel ? resultado.ia.nivel : null,
+      niveis: NIVEIS_IA,
+    },
+    derivados: {
+      gestao: { pontos: semNota(resultado.derivados.gestao.pontos_provisorios), derivado: true },
+      processos: { pontos: semNota(resultado.derivados.processos.pontos_provisorios), derivado: true },
+    },
+    distancia_de_lentes: {
+      pontos: semNota(resultado.distancia_de_lentes.pontos),
+      direcao: resultado.distancia_de_lentes.direcao,
+    },
     blocos: resultado.blocos.map((b) => ({
       id: b.id,
       nome: b.nome,
